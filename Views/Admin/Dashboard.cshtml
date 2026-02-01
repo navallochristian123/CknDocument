@@ -1,0 +1,139 @@
+@{
+    ViewData["Title"] = "Dashboard";
+    Layout = "_AdminLayout";
+}
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">Total Documents</h6>
+                        <h2 class="mb-0">1,248</h2>
+                    </div>
+                    <i class="bi bi-file-earmark fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">Active Users</h6>
+                        <h2 class="mb-0">35</h2>
+                    </div>
+                    <i class="bi bi-people fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">Pending Reviews</h6>
+                        <h2 class="mb-0">12</h2>
+                    </div>
+                    <i class="bi bi-hourglass-split fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">Expiring Soon</h6>
+                        <h2 class="mb-0">5</h2>
+                    </div>
+                    <i class="bi bi-clock fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Recent Documents</h5>
+                <a href="#" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Document</th>
+                            <th>Type</th>
+                            <th>Uploaded By</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><i class="bi bi-file-pdf text-danger"></i> Contract_Smith.pdf</td>
+                            <td>Contract</td>
+                            <td>John Doe</td>
+                            <td>Today</td>
+                            <td><span class="badge bg-success">Approved</span></td>
+                        </tr>
+                        <tr>
+                            <td><i class="bi bi-file-word text-primary"></i> Brief_Case123.docx</td>
+                            <td>Legal Brief</td>
+                            <td>Jane Smith</td>
+                            <td>Yesterday</td>
+                            <td><span class="badge bg-warning">Pending</span></td>
+                        </tr>
+                        <tr>
+                            <td><i class="bi bi-file-pdf text-danger"></i> Affidavit_Wilson.pdf</td>
+                            <td>Affidavit</td>
+                            <td>Mike Johnson</td>
+                            <td>2 days ago</td>
+                            <td><span class="badge bg-info">In Review</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">User Activity</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item px-0">
+                        <div class="d-flex align-items-center">
+                            <div class="bg-primary text-white rounded-circle p-2 me-3">
+                                <i class="bi bi-person"></i>
+                            </div>
+                            <div>
+                                <strong>John Doe</strong>
+                                <small class="d-block text-muted">Uploaded 3 documents</small>
+                            </div>
+                        </div>
+                    </li>
+                    <li class="list-group-item px-0">
+                        <div class="d-flex align-items-center">
+                            <div class="bg-success text-white rounded-circle p-2 me-3">
+                                <i class="bi bi-person"></i>
+                            </div>
+                            <div>
+                                <strong>Jane Smith</strong>
+                                <small class="d-block text-muted">Approved 5 reviews</small>
+                            </div>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>

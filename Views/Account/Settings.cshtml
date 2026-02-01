@@ -1,0 +1,64 @@
+@{
+    ViewData["Title"] = "Settings";
+}
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Notification Settings</h5>
+            </div>
+            <div class="card-body">
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="emailNotif" checked>
+                    <label class="form-check-label" for="emailNotif">Email Notifications</label>
+                    <small class="d-block text-muted">Receive notifications via email</small>
+                </div>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="docApproved" checked>
+                    <label class="form-check-label" for="docApproved">Document Approved</label>
+                    <small class="d-block text-muted">When your document is approved</small>
+                </div>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="docAssigned" checked>
+                    <label class="form-check-label" for="docAssigned">Document Assigned</label>
+                    <small class="d-block text-muted">When a document is assigned to you</small>
+                </div>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="reviewReminder" checked>
+                    <label class="form-check-label" for="reviewReminder">Review Reminders</label>
+                    <small class="d-block text-muted">Reminders for pending reviews</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Display Settings</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Items per Page</label>
+                    <select class="form-select" style="width: 200px;">
+                        <option>10</option>
+                        <option selected>25</option>
+                        <option>50</option>
+                        <option>100</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Date Format</label>
+                    <select class="form-select" style="width: 200px;">
+                        <option>MM/DD/YYYY</option>
+                        <option selected>DD/MM/YYYY</option>
+                        <option>YYYY-MM-DD</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <button class="btn btn-primary">
+            <i class="bi bi-check"></i> Save Settings
+        </button>
+    </div>
+</div>

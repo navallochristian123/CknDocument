@@ -1,0 +1,57 @@
+@{
+    ViewData["Title"] = "Upload Document";
+    Layout = "_ClientLayout";
+}
+
+<div class="mb-4">
+    <h4 class="mb-0">Upload Document</h4>
+    <p class="text-muted mb-0">Upload a new document</p>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form>
+            <div class="mb-3">
+                <label class="form-label">Document Title</label>
+                <input type="text" class="form-control" placeholder="Enter document title">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Document Type</label>
+                <select class="form-select">
+                    <option value="">Select type...</option>
+                    <option>Contract</option>
+                    <option>Agreement</option>
+                    <option>Legal Brief</option>
+                    <option>Other</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Folder</label>
+                <select class="form-select">
+                    <option value="">Select folder...</option>
+                    <option>General</option>
+                    <option>Contracts</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Description</label>
+                <textarea class="form-control" rows="3" placeholder="Enter description..."></textarea>
+            </div>
+            <div class="mb-4">
+                <label class="form-label">File</label>
+                <div class="border border-2 border-dashed rounded p-5 text-center">
+                    <i class="bi bi-cloud-upload fs-1 text-muted"></i>
+                    <p class="text-muted mt-2">Drag and drop file here or click to browse</p>
+                    <input type="file" class="form-control" style="display: none;">
+                    <button type="button" class="btn btn-outline-primary">Browse Files</button>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-upload"></i> Upload
+                </button>
+                <a href="#" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>

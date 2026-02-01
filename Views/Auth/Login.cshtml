@@ -1,0 +1,85 @@
+@using CKNDocument.Models.DTOs
+@model LoginRequestDto
+@{
+    ViewData["Title"] = "Login";
+    Layout = "_AuthLayout";
+    var firms = ViewData["Firms"] as List<FirmDropdownDto> ?? new List<FirmDropdownDto>();
+}
+
+@await Html.PartialAsync("_Toast")
+
+<form method="post" asp-controller="Auth" asp-action="Login" id="loginForm" novalidate>
+    @Html.AntiForgeryToken()
+    
+    <div class="mb-3">
+        <label for="emailOrUsername" class="form-label">Email or Username <span class="text-danger" aria-hidden="true">*</span></label>
+        <input type="text" 
+               class="form-control @(ViewData.ModelState["EmailOrUsername"]?.Errors.Any() == true ? "is-invalid" : "")" 
+               name="EmailOrUsername" 
+               id="emailOrUsername" 
+               value="@Model?.EmailOrUsername"
+               placeholder="Enter your email or username" 
+               required 
+               autocomplete="username"
+               aria-required="true"
+               aria-describedby="emailOrUsernameHelp emailOrUsernameError" />
+        <div id="emailOrUsernameHelp" class="form-text">Use your registered email address or username</div>
+        <span asp-validation-for="EmailOrUsername" class="invalid-feedback" id="emailOrUsernameError"></span>
+    </div>
+    
+    <div class="mb-3">
+        <label for="passwordInput" class="form-label">Password <span class="text-danger" aria-hidden="true">*</span></label>
+        <div class="input-group">
+            <input type="password" 
+                   class="form-control @(ViewData.ModelState["Password"]?.Errors.Any() == true ? "is-invalid" : "")" 
+                   name="Password" 
+                   id="passwordInput" 
+                   placeholder="Enter your password" 
+                   required 
+                   autocomplete="current-password"
+                   aria-required="true" />
+            <button class="btn btn-outline-secondary" type="button" id="togglePassword" aria-label="Toggle password visibility">
+                <i class="bi bi-eye" id="togglePasswordIcon" aria-hidden="true"></i>
+            </button>
+        </div>
+        <span asp-validation-for="Password" class="invalid-feedback"></span>
+    </div>
+    
+    <div class="mb-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="RememberMe" id="rememberMe" value="true">
+            <label class="form-check-label" for="rememberMe">Remember me</label>
+        </div>
+        <a asp-controller="Auth" asp-action="ForgotPassword">Forgot Password?</a>
+    </div>
+    
+    <button type="submit" class="btn btn-primary w-100 mb-3">
+        <i class="bi bi-box-arrow-in-right me-2" aria-hidden="true"></i>Sign In
+    </button>
+    
+    <div class="text-center mb-3">
+        <span class="text-muted">Don't have an account?</span>
+        <a asp-controller="Auth" asp-action="Register">Register as Client</a>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        // Toggle password visibility
+        document.getElementById('togglePassword').addEventListener('click', function() {
+            var passwordInput = document.getElementById('passwordInput');
+            var icon = document.getElementById('togglePasswordIcon');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                icon.classList.remove('bi-eye');
+                icon.classList.add('bi-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                icon.classList.remove('bi-eye-slash');
+                icon.classList.add('bi-eye');
+            }
+        });
+    </script>
+}

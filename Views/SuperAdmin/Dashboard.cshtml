@@ -1,0 +1,137 @@
+@{
+    ViewData["Title"] = "Dashboard";
+    Layout = "_SuperAdminLayout";
+}
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">Law Firms</h6>
+                        <h2 class="mb-0">24</h2>
+                    </div>
+                    <i class="bi bi-building fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">Total Revenue</h6>
+                        <h2 class="mb-0">$125K</h2>
+                    </div>
+                    <i class="bi bi-currency-dollar fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">Pending Invoices</h6>
+                        <h2 class="mb-0">8</h2>
+                    </div>
+                    <i class="bi bi-receipt fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">Active Subscriptions</h6>
+                        <h2 class="mb-0">22</h2>
+                    </div>
+                    <i class="bi bi-credit-card fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Recent Law Firms</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Firm Name</th>
+                            <th>Owner</th>
+                            <th>Subscription</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Smith & Associates</td>
+                            <td>John Smith</td>
+                            <td>Enterprise</td>
+                            <td><span class="badge bg-success">Active</span></td>
+                            <td><a href="#" class="btn btn-sm btn-outline-primary">View</a></td>
+                        </tr>
+                        <tr>
+                            <td>Legal Eagles LLP</td>
+                            <td>Sarah Johnson</td>
+                            <td>Professional</td>
+                            <td><span class="badge bg-success">Active</span></td>
+                            <td><a href="#" class="btn btn-sm btn-outline-primary">View</a></td>
+                        </tr>
+                        <tr>
+                            <td>Brown Law Office</td>
+                            <td>Michael Brown</td>
+                            <td>Basic</td>
+                            <td><span class="badge bg-warning">Pending</span></td>
+                            <td><a href="#" class="btn btn-sm btn-outline-primary">View</a></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Recent Payments</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <div>
+                            <strong>Smith & Associates</strong>
+                            <small class="d-block text-muted">Today</small>
+                        </div>
+                        <span class="text-success">+$2,500</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <div>
+                            <strong>Legal Eagles LLP</strong>
+                            <small class="d-block text-muted">Yesterday</small>
+                        </div>
+                        <span class="text-success">+$1,500</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <div>
+                            <strong>Brown Law Office</strong>
+                            <small class="d-block text-muted">2 days ago</small>
+                        </div>
+                        <span class="text-success">+$750</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>

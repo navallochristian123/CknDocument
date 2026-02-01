@@ -1,0 +1,122 @@
+@{
+    ViewData["Title"] = "Compliance";
+    Layout = "_AuditorLayout";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0">Compliance Overview</h4>
+        <p class="text-muted mb-0">Document retention and compliance status</p>
+    </div>
+    <a href="#" class="btn btn-primary">
+        <i class="bi bi-download"></i> Export Report
+    </a>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h2>95%</h2>
+                <p class="mb-0">Overall Compliance</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <h2>1,180</h2>
+                <p class="mb-0">Compliant Documents</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body text-center">
+                <h2>48</h2>
+                <p class="mb-0">Expiring Soon</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body text-center">
+                <h2>20</h2>
+                <p class="mb-0">Non-Compliant</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Retention Policy Compliance</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Policy</th>
+                            <th>Documents</th>
+                            <th>Compliance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Standard Contracts (7 years)</td>
+                            <td>156</td>
+                            <td><span class="badge bg-success">98%</span></td>
+                        </tr>
+                        <tr>
+                            <td>Legal Briefs (10 years)</td>
+                            <td>89</td>
+                            <td><span class="badge bg-success">100%</span></td>
+                        </tr>
+                        <tr>
+                            <td>Client Documents (5 years)</td>
+                            <td>234</td>
+                            <td><span class="badge bg-warning">92%</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Documents Expiring Soon</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Document</th>
+                            <th>Expiry Date</th>
+                            <th>Days Left</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Contract_2017.pdf</td>
+                            <td>Feb 15, 2024</td>
+                            <td><span class="badge bg-danger">5</span></td>
+                        </tr>
+                        <tr>
+                            <td>Agreement_Old.pdf</td>
+                            <td>Feb 20, 2024</td>
+                            <td><span class="badge bg-warning">10</span></td>
+                        </tr>
+                        <tr>
+                            <td>Brief_2017.docx</td>
+                            <td>Mar 01, 2024</td>
+                            <td><span class="badge bg-info">20</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

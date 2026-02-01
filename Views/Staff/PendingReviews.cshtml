@@ -1,0 +1,38 @@
+@{
+    ViewData["Title"] = "Pending Reviews";
+    Layout = "_StaffLayout";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0">Pending Reviews</h4>
+        <p class="text-muted mb-0">Documents awaiting your review</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Document</th>
+                    <th>Submitted By</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><i class="bi bi-file-pdf text-danger"></i> Draft_Contract.pdf</td>
+                    <td>John Doe</td>
+                    <td>Jan 20, 2024</td>
+                    <td>
+                        <a href="#" class="btn btn-sm btn-success"><i class="bi bi-check"></i> Approve</a>
+                        <a href="#" class="btn btn-sm btn-danger"><i class="bi bi-x"></i> Reject</a>
+                        <a href="#" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>

@@ -1,0 +1,54 @@
+@{
+    ViewData["Title"] = "SuperAdmin Login";
+    Layout = "_AuthLayout";
+}
+
+<div class="text-center mb-4">
+    <span class="badge bg-primary-light text-primary px-3 py-2">
+        <i class="bi bi-shield-lock me-2"></i>Platform Administrator
+    </span>
+</div>
+
+<form method="post" asp-controller="Auth" asp-action="Login" id="loginForm">
+    <input type="hidden" name="IsSuperAdmin" value="true" />
+    
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+    
+    <div class="mb-3">
+        <label class="form-label">Admin Email</label>
+        <div class="input-group">
+            <span class="input-group-text bg-white border-end-0"><i class="bi bi-envelope text-muted"></i></span>
+            <input type="email" class="form-control border-start-0" name="Email" id="emailInput" placeholder="admin@ckn.com" required />
+        </div>
+    </div>
+    
+    <div class="mb-3">
+        <label class="form-label">Password</label>
+        <div class="input-group">
+            <span class="input-group-text bg-white border-end-0"><i class="bi bi-lock text-muted"></i></span>
+            <input type="password" class="form-control border-start-0" name="Password" id="passwordInput" placeholder="Enter your password" required />
+        </div>
+    </div>
+    
+    <div class="mb-4">
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="RememberMe" id="rememberMe">
+            <label class="form-check-label" for="rememberMe">Remember me</label>
+        </div>
+    </div>
+    
+    <button type="submit" class="btn btn-primary w-100 mb-3">
+        <i class="bi bi-box-arrow-in-right me-2"></i>Sign In as SuperAdmin
+    </button>
+    
+    <div class="text-center">
+        <a asp-controller="Auth" asp-action="Login">Regular User Login</a>
+    </div>
+</form>
+
+<div class="mt-4 p-3 bg-light rounded">
+    <small class="text-muted">
+        <i class="bi bi-info-circle me-1"></i>
+        This login is for CKN platform administrators only. Law firm users should use the regular login page.
+    </small>
+</div>

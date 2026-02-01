@@ -1,0 +1,47 @@
+@{
+    ViewData["Title"] = "Completed Reviews";
+    Layout = "_StaffLayout";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0">Completed Reviews</h4>
+        <p class="text-muted mb-0">Your completed document reviews</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Document</th>
+                    <th>Submitted By</th>
+                    <th>Reviewed Date</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><i class="bi bi-file-pdf text-danger"></i> Contract_Final.pdf</td>
+                    <td>Jane Smith</td>
+                    <td>Jan 18, 2024</td>
+                    <td><span class="badge bg-success">Approved</span></td>
+                    <td>
+                        <a href="#" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>
+                    </td>
+                </tr>
+                <tr>
+                    <td><i class="bi bi-file-word text-primary"></i> Brief_Draft.docx</td>
+                    <td>Mike Johnson</td>
+                    <td>Jan 15, 2024</td>
+                    <td><span class="badge bg-danger">Rejected</span></td>
+                    <td>
+                        <a href="#" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>

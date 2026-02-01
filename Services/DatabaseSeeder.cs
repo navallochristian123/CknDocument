@@ -1,0 +1,334 @@
+using Microsoft.EntityFrameworkCore;
+using CKNDocument.Data;
+using CKNDocument.Models.OwnerERP;
+using CKNDocument.Models.LawFirmDMS;
+
+namespace CKNDocument.Services;
+
+/// <summary>
+/// Database seeder service
+/// Seeds: SuperAdmin (OwnerERP), Firm, Roles, Admin/Staff/Client/Auditor (LawFirmDMS)
+/// </summary>
+public class DatabaseSeeder
+{
+    private readonly OwnerERPDbContext _ownerContext;
+    private readonly LawFirmDMSDbContext _lawFirmContext;
+    private readonly ILogger<DatabaseSeeder> _logger;
+
+    public DatabaseSeeder(
+        OwnerERPDbContext ownerContext,
+        LawFirmDMSDbContext lawFirmContext,
+        ILogger<DatabaseSeeder> logger)
+    {
+        _ownerContext = ownerContext;
+        _lawFirmContext = lawFirmContext;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Seed all databases
+    /// </summary>
+    public async Task SeedAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Starting database seeding...");
+            
+            // Ensure databases are created
+            _logger.LogInformation("Creating OwnerERP database if not exists...");
+            var ownerCreated = await _ownerContext.Database.EnsureCreatedAsync();
+            _logger.LogInformation("OwnerERP database created: {Created}", ownerCreated);
+            
+            _logger.LogInformation("Creating LawFirmDMS database if not exists...");
+            var lawFirmCreated = await _lawFirmContext.Database.EnsureCreatedAsync();
+            _logger.LogInformation("LawFirmDMS database created: {Created}", lawFirmCreated);
+
+            // Seed in order
+            await SeedSuperAdminAsync();
+            await SeedRolesAsync();
+            await SeedFirmAsync();
+            await SeedUsersAsync();
+
+            _logger.LogInformation("Database seeding completed successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error seeding database: {Message}", ex.Message);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Seed SuperAdmin account in OwnerERP database
+    /// </summary>
+    private async Task SeedSuperAdminAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Checking SuperAdmin table...");
+            if (await _ownerContext.SuperAdmins.AnyAsync())
+            {
+                _logger.LogInformation("SuperAdmin already exists, skipping seed");
+                return;
+            }
+
+            _logger.LogInformation("Seeding SuperAdmin...");
+            var superAdmin = new SuperAdmin
+            {
+                Username = "superadmin",
+                Email = "superadmin@ckn.com",
+                PasswordHash = PasswordHelper.HashPassword("SuperAdmin@123"),
+                FirstName = "Super",
+                LastName = "Admin",
+                PhoneNumber = "09123456789",
+                Status = "Active",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _ownerContext.SuperAdmins.Add(superAdmin);
+            await _ownerContext.SaveChangesAsync();
+
+            _logger.LogInformation("SuperAdmin seeded: superadmin / SuperAdmin@123");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error seeding SuperAdmin: {Message}", ex.Message);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Seed roles in LawFirmDMS database
+    /// </summary>
+    private async Task SeedRolesAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Checking Roles table...");
+            if (await _lawFirmContext.Roles.AnyAsync())
+            {
+                _logger.LogInformation("Roles already exist, skipping seed");
+                return;
+            }
+
+            _logger.LogInformation("Seeding Roles...");
+            var roles = new List<Role>
+            {
+                new Role { RoleName = "Admin", Description = "Law Firm Administrator - Full access to firm management" },
+                new Role { RoleName = "Staff", Description = "Law Firm Staff - Document processing and management" },
+                new Role { RoleName = "Client", Description = "Client - Document upload and viewing" },
+                new Role { RoleName = "Auditor", Description = "Auditor - Read-only access for compliance review" }
+            };
+
+            _lawFirmContext.Roles.AddRange(roles);
+            await _lawFirmContext.SaveChangesAsync();
+
+            _logger.LogInformation("Roles seeded: Admin, Staff, Client, Auditor");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error seeding Roles: {Message}", ex.Message);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Seed sample law firm in LawFirmDMS database
+    /// </summary>
+    private async Task SeedFirmAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Checking Firms table...");
+            if (await _lawFirmContext.Firms.AnyAsync())
+            {
+                _logger.LogInformation("Firms already exist, skipping seed");
+                return;
+            }
+
+            _logger.LogInformation("Seeding Demo Law Firm...");
+            var firm = new Firm
+            {
+                FirmName = "Demo Law Firm",
+                ContactEmail = "contact@demolawfirm.com",
+                Address = "123 Legal Street, Metro Manila",
+                Status = "Active",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _lawFirmContext.Firms.Add(firm);
+            await _lawFirmContext.SaveChangesAsync();
+
+            _logger.LogInformation("Demo Law Firm seeded with ID: {FirmId}", firm.FirmID);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error seeding Firm: {Message}", ex.Message);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Seed sample users in LawFirmDMS database
+    /// </summary>
+    private async Task SeedUsersAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Checking Users table...");
+            if (await _lawFirmContext.Users.AnyAsync())
+            {
+                _logger.LogInformation("Users already exist, skipping seed");
+                return;
+            }
+
+            var firm = await _lawFirmContext.Firms.FirstOrDefaultAsync();
+            if (firm == null)
+            {
+                _logger.LogWarning("No firm found, cannot seed users");
+                return;
+            }
+
+            var roles = await _lawFirmContext.Roles.ToListAsync();
+            if (!roles.Any())
+            {
+                _logger.LogWarning("No roles found, cannot seed users");
+                return;
+            }
+
+            var adminRole = roles.FirstOrDefault(r => r.RoleName == "Admin");
+            var staffRole = roles.FirstOrDefault(r => r.RoleName == "Staff");
+            var clientRole = roles.FirstOrDefault(r => r.RoleName == "Client");
+            var auditorRole = roles.FirstOrDefault(r => r.RoleName == "Auditor");
+
+            if (adminRole == null || staffRole == null || clientRole == null || auditorRole == null)
+            {
+                _logger.LogWarning("Not all roles found, cannot seed users");
+                return;
+            }
+
+            _logger.LogInformation("Seeding Users...");
+
+            // Admin User
+            var adminUser = new User
+            {
+                FirmID = firm.FirmID,
+                FirstName = "Admin",
+                MiddleName = "Demo",
+                LastName = "User",
+                Email = "admin@lawfirm.com",
+                Username = "admin",
+                PasswordHash = PasswordHelper.HashPassword("Admin@123456"),
+                PhoneNumber = "09111111111",
+                DateOfBirth = new DateTime(1985, 1, 15),
+                Street = "123 Admin Street",
+                City = "Makati",
+                Province = "Metro Manila",
+                ZipCode = "1200",
+                Status = "Active",
+                Department = "Management",
+                Position = "Administrator",
+                EmailConfirmed = true,
+                CreatedAt = DateTime.UtcNow
+            };
+            _lawFirmContext.Users.Add(adminUser);
+            await _lawFirmContext.SaveChangesAsync();
+            _lawFirmContext.UserRoles.Add(new UserRole { UserID = adminUser.UserID, RoleID = adminRole.RoleID, AssignedAt = DateTime.UtcNow });
+            _logger.LogInformation("Admin user seeded: admin / Admin@123456");
+
+            // Staff User
+            var staffUser = new User
+            {
+                FirmID = firm.FirmID,
+                FirstName = "Staff",
+                MiddleName = "Demo",
+                LastName = "User",
+                Email = "staff@lawfirm.com",
+                Username = "staff",
+                PasswordHash = PasswordHelper.HashPassword("Staff@123456"),
+                PhoneNumber = "09222222222",
+                DateOfBirth = new DateTime(1990, 5, 20),
+                Street = "456 Staff Avenue",
+                City = "Quezon City",
+                Province = "Metro Manila",
+                ZipCode = "1100",
+                Status = "Active",
+                Department = "Legal",
+                Position = "Paralegal",
+                BarNumber = "12345",
+                EmailConfirmed = true,
+                CreatedAt = DateTime.UtcNow
+            };
+            _lawFirmContext.Users.Add(staffUser);
+            await _lawFirmContext.SaveChangesAsync();
+            _lawFirmContext.UserRoles.Add(new UserRole { UserID = staffUser.UserID, RoleID = staffRole.RoleID, AssignedAt = DateTime.UtcNow });
+            _logger.LogInformation("Staff user seeded: staff / Staff@123456");
+
+            // Client User
+            var clientUser = new User
+            {
+                FirmID = firm.FirmID,
+                FirstName = "Client",
+                MiddleName = "Demo",
+                LastName = "User",
+                Email = "client@email.com",
+                Username = "client",
+                PasswordHash = PasswordHelper.HashPassword("Client@123456"),
+                PhoneNumber = "09333333333",
+                DateOfBirth = new DateTime(1988, 8, 10),
+                Street = "789 Client Road",
+                City = "Pasig",
+                Province = "Metro Manila",
+                ZipCode = "1600",
+                Status = "Active",
+                EmailConfirmed = true,
+                CreatedAt = DateTime.UtcNow
+            };
+            _lawFirmContext.Users.Add(clientUser);
+            await _lawFirmContext.SaveChangesAsync();
+            _lawFirmContext.UserRoles.Add(new UserRole { UserID = clientUser.UserID, RoleID = clientRole.RoleID, AssignedAt = DateTime.UtcNow });
+            _logger.LogInformation("Client user seeded: client / Client@123456");
+
+            // Auditor User
+            var auditorUser = new User
+            {
+                FirmID = firm.FirmID,
+                FirstName = "Auditor",
+                MiddleName = "Demo",
+                LastName = "User",
+                Email = "auditor@lawfirm.com",
+                Username = "auditor",
+                PasswordHash = PasswordHelper.HashPassword("Auditor@12345"),
+                PhoneNumber = "09444444444",
+                DateOfBirth = new DateTime(1982, 3, 25),
+                Street = "321 Auditor Lane",
+                City = "Taguig",
+                Province = "Metro Manila",
+                ZipCode = "1630",
+                Status = "Active",
+                Department = "Audit",
+                Position = "External Auditor",
+                LicenseNumber = "AUD-2024-001",
+                EmailConfirmed = true,
+                CreatedAt = DateTime.UtcNow
+            };
+            _lawFirmContext.Users.Add(auditorUser);
+            await _lawFirmContext.SaveChangesAsync();
+            _lawFirmContext.UserRoles.Add(new UserRole { UserID = auditorUser.UserID, RoleID = auditorRole.RoleID, AssignedAt = DateTime.UtcNow });
+            _logger.LogInformation("Auditor user seeded: auditor / Auditor@12345");
+
+            await _lawFirmContext.SaveChangesAsync();
+
+            _logger.LogInformation("All users seeded successfully:");
+            _logger.LogInformation("  Admin:   admin / Admin@123456");
+            _logger.LogInformation("  Staff:   staff / Staff@123456");
+            _logger.LogInformation("  Client:  client / Client@123456");
+            _logger.LogInformation("  Auditor: auditor / Auditor@12345");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error seeding Users: {Message}", ex.Message);
+            throw;
+        }
+    }
+}

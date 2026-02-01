@@ -1,0 +1,83 @@
+@{
+    ViewData["Title"] = "Audit Logs";
+    Layout = "_AdminLayout";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0">Audit Logs</h4>
+        <p class="text-muted mb-0">System activity and audit trail</p>
+    </div>
+    <a href="#" class="btn btn-outline-primary">
+        <i class="bi bi-download"></i> Export Logs
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-header bg-white">
+        <div class="row align-items-center">
+            <div class="col-md-4">
+                <input type="text" class="form-control" placeholder="Search logs...">
+            </div>
+            <div class="col-md-2">
+                <select class="form-select">
+                    <option value="">All Actions</option>
+                    <option>Create</option>
+                    <option>Update</option>
+                    <option>Delete</option>
+                    <option>View</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select">
+                    <option value="">All Users</option>
+                    <option>John Doe</option>
+                    <option>Jane Smith</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <input type="date" class="form-control">
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Timestamp</th>
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>Resource</th>
+                    <th>Details</th>
+                    <th>IP Address</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>2024-01-20 14:32:15</td>
+                    <td>John Doe</td>
+                    <td><span class="badge bg-success">Create</span></td>
+                    <td>Document</td>
+                    <td>Uploaded Contract_Smith.pdf</td>
+                    <td>192.168.1.100</td>
+                </tr>
+                <tr>
+                    <td>2024-01-20 14:30:00</td>
+                    <td>Jane Smith</td>
+                    <td><span class="badge bg-info">View</span></td>
+                    <td>Document</td>
+                    <td>Viewed Brief_Case123.docx</td>
+                    <td>192.168.1.101</td>
+                </tr>
+                <tr>
+                    <td>2024-01-20 14:25:10</td>
+                    <td>Admin</td>
+                    <td><span class="badge bg-warning">Update</span></td>
+                    <td>User</td>
+                    <td>Updated user permissions</td>
+                    <td>192.168.1.1</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>

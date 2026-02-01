@@ -1,0 +1,40 @@
+@{
+    ViewData["Title"] = "Notifications";
+    Layout = "_StaffLayout";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0">Notifications</h4>
+    </div>
+    <a href="#" class="btn btn-outline-secondary">
+        <i class="bi bi-check-all"></i> Mark All as Read
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="list-group list-group-flush">
+            <a href="#" class="list-group-item list-group-item-action bg-light">
+                <div class="d-flex w-100 justify-content-between">
+                    <div>
+                        <i class="bi bi-file-earmark-plus text-primary me-2"></i>
+                        <strong>New Assignment</strong>
+                    </div>
+                    <small class="text-muted">1 hour ago</small>
+                </div>
+                <p class="mb-0 text-muted">Contract_Review.pdf has been assigned to you</p>
+            </a>
+            <a href="#" class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between">
+                    <div>
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        <strong>Review Approved</strong>
+                    </div>
+                    <small class="text-muted">3 hours ago</small>
+                </div>
+                <p class="mb-0 text-muted">Your document Brief_001.docx has been approved</p>
+            </a>
+        </div>
+    </div>
+</div>

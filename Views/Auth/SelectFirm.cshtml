@@ -1,0 +1,25 @@
+@{
+    ViewData["Title"] = "Select Law Firm";
+    Layout = "_AuthLayout";
+}
+
+<h5 class="mb-4 text-center">Select Your Law Firm</h5>
+
+<form method="post" asp-controller="Auth" asp-action="SelectFirm">
+    <div class="mb-3">
+        <label class="form-label">Law Firm</label>
+        <select class="form-select" name="FirmId" required>
+            <option value="">-- Select a Law Firm --</option>
+            <!-- Firms will be loaded from database -->
+        </select>
+        <small class="text-muted">Select the law firm you're registering with</small>
+    </div>
+    
+    <button type="submit" class="btn btn-primary w-100 mb-3">
+        <i class="bi bi-check-circle me-2"></i>Continue
+    </button>
+    
+    <div class="text-center">
+        <a asp-controller="Auth" asp-action="Login">Back to Login</a>
+    </div>
+</form>

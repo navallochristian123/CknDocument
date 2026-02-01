@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - CKN Admin</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar" role="navigation" aria-label="Main navigation">
+            <div class="sidebar-header">
+                <a asp-controller="SuperAdminDashboard" asp-action="Index" class="sidebar-brand">
+                    <i class="bi bi-building" aria-hidden="true"></i>
+                    <span>CKN Admin</span>
+                </a>
+            </div>
+            
+            <div class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title" id="nav-main">Main</div>
+                    <ul class="nav flex-column" role="menu" aria-labelledby="nav-main">
+                        <li class="nav-item" role="none">
+                            <a class="nav-link" asp-controller="SuperAdminDashboard" asp-action="Index" role="menuitem">
+                                <i class="bi bi-grid-1x2" aria-hidden="true"></i>
+                                <span>Dashboard</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" role="none">
+                            <a class="nav-link" asp-controller="LawFirm" asp-action="Index" role="menuitem">
+                                <i class="bi bi-buildings" aria-hidden="true"></i>
+                                <span>Law Firms</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" role="none">
+                            <a class="nav-link" asp-controller="Subscription" asp-action="Index" role="menuitem">
+                                <i class="bi bi-credit-card" aria-hidden="true"></i>
+                                <span>Subscriptions</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="nav-section">
+                    <div class="nav-section-title" id="nav-finance">Finance</div>
+                    <ul class="nav flex-column" role="menu" aria-labelledby="nav-finance">
+                        <li class="nav-item" role="none">
+                            <a class="nav-link" asp-controller="Invoice" asp-action="Index" role="menuitem">
+                                <i class="bi bi-receipt" aria-hidden="true"></i>
+                                <span>Invoices</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" role="none">
+                            <a class="nav-link" asp-controller="Payment" asp-action="Index" role="menuitem">
+                                <i class="bi bi-cash-stack" aria-hidden="true"></i>
+                                <span>Payments</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" role="none">
+                            <a class="nav-link" asp-controller="Revenue" asp-action="Index" role="menuitem">
+                                <i class="bi bi-graph-up-arrow" aria-hidden="true"></i>
+                                <span>Revenue</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" role="none">
+                            <a class="nav-link" asp-controller="Expense" asp-action="Index" role="menuitem">
+                                <i class="bi bi-graph-down-arrow" aria-hidden="true"></i>
+                                <span>Expenses</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="sidebar-user">
+                <div class="user-info">
+                    <div class="user-avatar" aria-hidden="true">
+                        <i class="bi bi-person"></i>
+                    </div>
+                    <div class="user-details">
+                        <div class="user-name">@User.Identity?.Name</div>
+                        <div class="user-role">Super Admin</div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+        
+        <!-- Main Content -->
+        <main class="main-content" id="main-content" role="main">
+            <header class="header">
+                <h1 class="header-title">@ViewData["Title"]</h1>
+                <div class="header-actions">
+                    <form asp-controller="Auth" asp-action="Logout" method="post">
+                        <button type="submit" class="btn btn-secondary">
+                            <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+                            <span>Logout</span>
+                        </button>
+                    </form>
+                </div>
+            </header>
+            
+            <div class="page-content">
+                @RenderBody()
+            </div>
+        </main>
+    </div>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

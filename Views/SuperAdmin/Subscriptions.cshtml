@@ -1,0 +1,88 @@
+@{
+    ViewData["Title"] = "Subscriptions";
+    Layout = "_SuperAdminLayout";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0">Subscriptions</h4>
+        <p class="text-muted mb-0">Manage subscription plans</p>
+    </div>
+    <a href="#" class="btn btn-outline-primary">
+        <i class="bi bi-gear"></i> Manage Plans
+    </a>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card border-primary">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Basic</h5>
+            </div>
+            <div class="card-body text-center">
+                <h2 class="mb-0">$49<small class="text-muted">/month</small></h2>
+                <p class="text-muted">Up to 5 users</p>
+                <p><strong>8</strong> active subscribers</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">Professional</h5>
+            </div>
+            <div class="card-body text-center">
+                <h2 class="mb-0">$99<small class="text-muted">/month</small></h2>
+                <p class="text-muted">Up to 20 users</p>
+                <p><strong>10</strong> active subscribers</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-success">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">Enterprise</h5>
+            </div>
+            <div class="card-body text-center">
+                <h2 class="mb-0">$249<small class="text-muted">/month</small></h2>
+                <p class="text-muted">Unlimited users</p>
+                <p><strong>4</strong> active subscribers</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-white">
+        <h5 class="mb-0">All Subscriptions</h5>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Client</th>
+                    <th>Plan</th>
+                    <th>Start Date</th>
+                    <th>Next Billing</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Smith & Associates</td>
+                    <td><span class="badge bg-success">Enterprise</span></td>
+                    <td>Jan 15, 2024</td>
+                    <td>Apr 15, 2024</td>
+                    <td><span class="badge bg-success">Active</span></td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <a href="#" class="btn btn-outline-primary"><i class="bi bi-eye"></i></a>
+                            <a href="#" class="btn btn-outline-secondary"><i class="bi bi-pencil"></i></a>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>

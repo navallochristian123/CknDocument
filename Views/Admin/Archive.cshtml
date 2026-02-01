@@ -1,0 +1,53 @@
+@{
+    ViewData["Title"] = "Archive";
+    Layout = "_AdminLayout";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0">Archive</h4>
+        <p class="text-muted mb-0">Manage archived documents</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-white">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <input type="text" class="form-control" placeholder="Search archived documents...">
+            </div>
+            <div class="col-md-3">
+                <select class="form-select">
+                    <option value="">All Types</option>
+                    <option>Contract</option>
+                    <option>Legal Brief</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Document</th>
+                    <th>Original Folder</th>
+                    <th>Archived Date</th>
+                    <th>Archived By</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><i class="bi bi-file-pdf text-danger"></i> Old_Contract_2020.pdf</td>
+                    <td>Client A</td>
+                    <td>Jan 15, 2024</td>
+                    <td>Admin</td>
+                    <td>
+                        <a href="#" class="btn btn-sm btn-outline-success"><i class="bi bi-arrow-counterclockwise"></i> Restore</a>
+                        <a href="#" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Delete</a>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>

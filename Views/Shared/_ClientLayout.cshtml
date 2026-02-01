@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Client Portal</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar" role="navigation" aria-label="Main navigation">
+            <div class="sidebar-header">
+                <a asp-controller="Dashboard" asp-action="Index" class="sidebar-brand">
+                    <i class="bi bi-person-circle" aria-hidden="true"></i>
+                    <span>Client Portal</span>
+                </a>
+            </div>
+            
+            <div class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title" id="nav-main">Main</div>
+                    <ul class="nav flex-column" role="menu" aria-labelledby="nav-main">
+                        <li class="nav-item" role="none">
+                            <a class="nav-link" asp-controller="Dashboard" asp-action="Index" role="menuitem">
+                                <i class="bi bi-grid-1x2" aria-hidden="true"></i>
+                                <span>Dashboard</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" role="none">
+                            <a class="nav-link" asp-controller="Document" asp-action="MyDocuments" role="menuitem">
+                                <i class="bi bi-file-earmark-text" aria-hidden="true"></i>
+                                <span>My Documents</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" role="none">
+                            <a class="nav-link" asp-controller="Folder" asp-action="Index" role="menuitem">
+                                <i class="bi bi-folder" aria-hidden="true"></i>
+                                <span>Folders</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="nav-section">
+                    <div class="nav-section-title" id="nav-actions">Actions</div>
+                    <ul class="nav flex-column" role="menu" aria-labelledby="nav-actions">
+                        <li class="nav-item" role="none">
+                            <a class="nav-link" asp-controller="Document" asp-action="Upload" role="menuitem">
+                                <i class="bi bi-cloud-upload" aria-hidden="true"></i>
+                                <span>Upload Document</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" role="none">
+                            <a class="nav-link" asp-controller="Document" asp-action="Search" role="menuitem">
+                                <i class="bi bi-search" aria-hidden="true"></i>
+                                <span>Search</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" role="none">
+                            <a class="nav-link" asp-controller="Notification" asp-action="Index" role="menuitem">
+                                <i class="bi bi-bell" aria-hidden="true"></i>
+                                <span>Notifications</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="sidebar-user">
+                <div class="user-info">
+                    <div class="user-avatar" aria-hidden="true">
+                        <i class="bi bi-person"></i>
+                    </div>
+                    <div class="user-details">
+                        <div class="user-name">@User.Identity?.Name</div>
+                        <div class="user-role">Client</div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+        
+        <!-- Main Content -->
+        <main class="main-content" id="main-content" role="main">
+            <header class="header">
+                <h1 class="header-title">@ViewData["Title"]</h1>
+                <div class="header-actions">
+                    <a asp-controller="Notification" asp-action="Index" class="btn btn-secondary" aria-label="View notifications">
+                        <i class="bi bi-bell" aria-hidden="true"></i>
+                        <span class="sr-only">Notifications</span>
+                    </a>
+                    <form asp-controller="Auth" asp-action="Logout" method="post">
+                        <button type="submit" class="btn btn-secondary">
+                            <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+                            <span>Logout</span>
+                        </button>
+                    </form>
+                </div>
+            </header>
+            
+            <div class="page-content">
+                @RenderBody()
+            </div>
+        </main>
+    </div>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

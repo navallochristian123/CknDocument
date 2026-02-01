@@ -1,0 +1,68 @@
+@* Bootstrap Toast Notification Partial View *@
+@* Include this in layouts to show toast messages from TempData *@
+
+@if (TempData["ToastMessage"] != null)
+{
+    var toastType = TempData["ToastType"]?.ToString() ?? "info";
+    var toastMessage = TempData["ToastMessage"]?.ToString();
+    
+    var bgClass = toastType switch
+    {
+        "success" => "bg-success",
+        "error" => "bg-danger",
+        "warning" => "bg-warning",
+        "info" => "bg-primary",
+        _ => "bg-primary"
+    };
+    
+    var iconClass = toastType switch
+    {
+        "success" => "bi-check-circle-fill",
+        "error" => "bi-x-circle-fill",
+        "warning" => "bi-exclamation-triangle-fill",
+        "info" => "bi-info-circle-fill",
+        _ => "bi-info-circle-fill"
+    };
+    
+    var titleText = toastType switch
+    {
+        "success" => "Success",
+        "error" => "Error",
+        "warning" => "Warning",
+        "info" => "Information",
+        _ => "Notice"
+    };
+
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 11000;">
+        <div id="notificationToast" 
+             class="toast" 
+             role="alert" 
+             aria-live="assertive" 
+             aria-atomic="true"
+             data-bs-autohide="true"
+             data-bs-delay="5000">
+            <div class="toast-header @bgClass text-white">
+                <i class="bi @iconClass me-2" aria-hidden="true"></i>
+                <strong class="me-auto">@titleText</strong>
+                <small>Just now</small>
+                <button type="button" 
+                        class="btn-close btn-close-white" 
+                        data-bs-dismiss="toast" 
+                        aria-label="Close notification"></button>
+            </div>
+            <div class="toast-body">
+                @toastMessage
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var toastEl = document.getElementById('notificationToast');
+            if (toastEl) {
+                var toast = new bootstrap.Toast(toastEl);
+                toast.show();
+            }
+        });
+    </script>
+}

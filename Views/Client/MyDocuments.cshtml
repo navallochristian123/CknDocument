@@ -1,0 +1,72 @@
+@{
+    ViewData["Title"] = "My Documents";
+    Layout = "_ClientLayout";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0">My Documents</h4>
+        <p class="text-muted mb-0">All your uploaded and shared documents</p>
+    </div>
+    <a href="#" class="btn btn-primary">
+        <i class="bi bi-cloud-upload"></i> Upload Document
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-header bg-white">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <input type="text" class="form-control" placeholder="Search documents...">
+            </div>
+            <div class="col-md-3">
+                <select class="form-select">
+                    <option value="">All Status</option>
+                    <option>Approved</option>
+                    <option>Pending</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Document Name</th>
+                    <th>Type</th>
+                    <th>Folder</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><i class="bi bi-file-pdf text-danger"></i> My_Contract.pdf</td>
+                    <td>Contract</td>
+                    <td>General</td>
+                    <td>Jan 20, 2024</td>
+                    <td><span class="badge bg-success">Approved</span></td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <a href="#" class="btn btn-outline-primary"><i class="bi bi-eye"></i></a>
+                            <a href="#" class="btn btn-outline-secondary"><i class="bi bi-download"></i></a>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td><i class="bi bi-file-pdf text-danger"></i> Agreement.pdf</td>
+                    <td>Agreement</td>
+                    <td>General</td>
+                    <td>Jan 18, 2024</td>
+                    <td><span class="badge bg-warning">Pending</span></td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <a href="#" class="btn btn-outline-primary"><i class="bi bi-eye"></i></a>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
