@@ -3,20 +3,17 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using CKNDocument.Data;
+using CKNDocument.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ===========================================
-// DATABASE CONTEXTS - Dual Database Setup
+// DATABASE CONTEXT - Single Unified Database
 // ===========================================
 
-// OwnerERP Database (Platform/SaaS Owner)
-builder.Services.AddDbContext<OwnerERPDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("OwnerERPConnection")));
-
-// LawFirmDMS Database (Tenant/Law Firm)
+// LawFirmDMS Database (Unified - includes all entities)
 builder.Services.AddDbContext<LawFirmDMSDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("LawFirmDMSConnection")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // ===========================================
 // AUTHENTICATION - Cookie + JWT
@@ -69,13 +66,13 @@ builder.Services.AddAuthorization(options =>
 {
     // Platform-level policies
     options.AddPolicy("SuperAdminOnly", policy => policy.RequireRole("SuperAdmin"));
-    
+
     // Law Firm-level policies
     options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
     options.AddPolicy("StaffOnly", policy => policy.RequireRole("Staff"));
     options.AddPolicy("ClientOnly", policy => policy.RequireRole("Client"));
     options.AddPolicy("AuditorOnly", policy => policy.RequireRole("Auditor"));
-    
+
     // Combined policies
     options.AddPolicy("AdminOrStaff", policy => policy.RequireRole("Admin", "Staff"));
     options.AddPolicy("FirmMember", policy => policy.RequireRole("Admin", "Staff", "Client", "Auditor"));
@@ -100,8 +97,9 @@ builder.Services.AddSession(options =>
 // HttpContext accessor for getting current user
 builder.Services.AddHttpContextAccessor();
 
-// Database Seeder Service
-builder.Services.AddScoped<CKNDocument.Services.DatabaseSeeder>();
+// Services
+builder.Services.AddScoped<DatabaseSeeder>();
+builder.Services.AddScoped<AuditLogService>();
 
 var app = builder.Build();
 
@@ -164,4 +162,4 @@ app.MapControllerRoute(
 
 app.MapRazorPages();
 
-    app.Run();
+app.Run();

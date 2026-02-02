@@ -1,22 +1,23 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using CKNDocument.Models.Common;
 
-namespace CKNDocument.Models.OwnerERP;
+namespace CKNDocument.Models.LawFirmDMS;
 
 /// <summary>
 /// Revenue entity - Revenue tracking for the platform
-/// Table: Revenue (OwnerERP database)
+/// Table: Revenue (LawFirmDMS database - merged)
 /// </summary>
 [Table("Revenue")]
-public class Revenue
+public class Revenue : BaseEntity
 {
     [Key]
     public int RevenueID { get; set; }
 
-    public int? ClientID { get; set; }
+    public int? SubscriptionID { get; set; }
 
     [MaxLength(100)]
-    public string? Source { get; set; }
+    public string? Source { get; set; } // Subscription, Setup, Custom
 
     [Column(TypeName = "decimal(12,2)")]
     public decimal? Amount { get; set; }
@@ -24,7 +25,10 @@ public class Revenue
     [Column(TypeName = "date")]
     public DateTime? RevenueDate { get; set; }
 
+    [MaxLength(500)]
+    public string? Description { get; set; }
+
     // Navigation properties
-    [ForeignKey("ClientID")]
-    public virtual Client? Client { get; set; }
+    [ForeignKey("SubscriptionID")]
+    public virtual FirmSubscription? Subscription { get; set; }
 }

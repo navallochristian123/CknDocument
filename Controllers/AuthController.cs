@@ -17,17 +17,17 @@ namespace CKNDocument.Controllers;
 /// </summary>
 public class AuthController : Controller
 {
-    private readonly OwnerERPDbContext _ownerContext;
-    private readonly LawFirmDMSDbContext _lawFirmContext;
+    private readonly LawFirmDMSDbContext _context;
+    private readonly AuditLogService _auditLogService;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
-        OwnerERPDbContext ownerContext,
-        LawFirmDMSDbContext lawFirmContext,
+        LawFirmDMSDbContext context,
+        AuditLogService auditLogService,
         ILogger<AuthController> logger)
     {
-        _ownerContext = ownerContext;
-        _lawFirmContext = lawFirmContext;
+        _context = context;
+        _auditLogService = auditLogService;
         _logger = logger;
     }
 
@@ -106,9 +106,9 @@ public class AuthController : Controller
             }
 
             // Check if it's SuperAdmin login
-            var superAdmin = await _ownerContext.SuperAdmins
-                .FirstOrDefaultAsync(s => 
-                    (s.Email.ToLower() == request.EmailOrUsername.ToLower() || 
+            var superAdmin = await _context.SuperAdmins
+                .FirstOrDefaultAsync(s =>
+                    (s.Email.ToLower() == request.EmailOrUsername.ToLower() ||
                      s.Username.ToLower() == request.EmailOrUsername.ToLower()) &&
                     s.Status == "Active");
 
@@ -118,7 +118,7 @@ public class AuthController : Controller
                 {
                     await SignInUser(
                         superAdmin.SuperAdminId,
-                        superAdmin.FirstName + " " + superAdmin.LastName,
+                        superAdmin.FullName,
                         superAdmin.Email,
                         superAdmin.Username,
                         "SuperAdmin",
@@ -126,7 +126,10 @@ public class AuthController : Controller
                         request.RememberMe);
 
                     superAdmin.LastLoginAt = DateTime.UtcNow;
-                    await _ownerContext.SaveChangesAsync();
+                    await _context.SaveChangesAsync();
+
+                    // Log successful login
+                    await _auditLogService.LogLoginAsync(null, superAdmin.SuperAdminId, superAdmin.Email, true);
 
                     _logger.LogInformation("SuperAdmin {Email} logged in", superAdmin.Email);
 
@@ -135,15 +138,20 @@ public class AuthController : Controller
 
                     return RedirectToAction("Index", "SuperAdminDashboard");
                 }
+                else
+                {
+                    // Log failed login attempt
+                    await _auditLogService.LogLoginAsync(null, superAdmin.SuperAdminId, superAdmin.Email, false, "Invalid password");
+                }
             }
 
             // Check LawFirm users
-            var user = await _lawFirmContext.Users
+            var user = await _context.Users
                 .Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
                 .Include(u => u.Firm)
-                .FirstOrDefaultAsync(u => 
-                    (u.Email != null && u.Email.ToLower() == request.EmailOrUsername.ToLower()) || 
+                .FirstOrDefaultAsync(u =>
+                    (u.Email != null && u.Email.ToLower() == request.EmailOrUsername.ToLower()) ||
                     (u.Username != null && u.Username.ToLower() == request.EmailOrUsername.ToLower()));
 
             if (user == null)
@@ -157,6 +165,7 @@ public class AuthController : Controller
             // Check account status
             if (user.Status != "Active")
             {
+                await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, $"Account inactive: {user.Status}");
                 TempData["ToastType"] = "error";
                 TempData["ToastMessage"] = "Your account is inactive. Please contact your administrator.";
                 ViewData["Firms"] = await GetFirmsForDropdown();
@@ -167,6 +176,7 @@ public class AuthController : Controller
             if (user.LockoutEnd.HasValue && user.LockoutEnd > DateTime.UtcNow)
             {
                 var remainingMinutes = (user.LockoutEnd.Value - DateTime.UtcNow).TotalMinutes;
+                await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, "Account locked");
                 TempData["ToastType"] = "error";
                 TempData["ToastMessage"] = $"Account locked. Please try again in {Math.Ceiling(remainingMinutes)} minutes.";
                 ViewData["Firms"] = await GetFirmsForDropdown();
@@ -182,16 +192,18 @@ public class AuthController : Controller
                 if (user.FailedLoginAttempts >= 5)
                 {
                     user.LockoutEnd = DateTime.UtcNow.AddMinutes(15);
+                    await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, "Account locked due to failed attempts");
                     TempData["ToastType"] = "error";
                     TempData["ToastMessage"] = "Account locked due to too many failed attempts. Please try again in 15 minutes.";
                 }
                 else
                 {
+                    await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, "Invalid password");
                     TempData["ToastType"] = "error";
                     TempData["ToastMessage"] = $"Invalid password. {5 - user.FailedLoginAttempts} attempts remaining.";
                 }
 
-                await _lawFirmContext.SaveChangesAsync();
+                await _context.SaveChangesAsync();
                 ViewData["Firms"] = await GetFirmsForDropdown();
                 return View("~/Views/Auth/Login.cshtml", request);
             }
@@ -200,7 +212,7 @@ public class AuthController : Controller
             user.FailedLoginAttempts = 0;
             user.LockoutEnd = null;
             user.LastLoginAt = DateTime.UtcNow;
-            await _lawFirmContext.SaveChangesAsync();
+            await _context.SaveChangesAsync();
 
             // Get user role
             var role = user.UserRoles.FirstOrDefault()?.Role?.RoleName ?? "Client";
@@ -213,6 +225,9 @@ public class AuthController : Controller
                 role,
                 user.FirmID,
                 request.RememberMe);
+
+            // Log successful login
+            await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", true);
 
             _logger.LogInformation("User {Email} ({Role}) logged in", user.Email, role);
 
@@ -229,18 +244,18 @@ public class AuthController : Controller
         catch (Exception ex)
         {
             _logger.LogError(ex, "Login error for {EmailOrUsername}: {Message}", request.EmailOrUsername, ex.Message);
-            
+
             // Get inner exception details
             var innerMessage = ex.InnerException?.Message ?? ex.Message;
             _logger.LogError("Inner exception: {InnerMessage}", innerMessage);
-            
+
             TempData["ToastType"] = "error";
-            #if DEBUG
+#if DEBUG
             TempData["ToastMessage"] = $"Login failed: {innerMessage}";
-            #else
+#else
             TempData["ToastMessage"] = "An error occurred. Please try again.";
-            #endif
-            
+#endif
+
             ViewData["Firms"] = await GetFirmsForDropdown();
             return View("~/Views/Auth/Login.cshtml", request);
         }
@@ -279,7 +294,7 @@ public class AuthController : Controller
             }
 
             // Check if email already exists
-            if (await _lawFirmContext.Users.AnyAsync(u => u.Email != null && u.Email.ToLower() == request.Email.ToLower()))
+            if (await _context.Users.AnyAsync(u => u.Email != null && u.Email.ToLower() == request.Email.ToLower()))
             {
                 ModelState.AddModelError("Email", "This email is already registered.");
                 TempData["ToastType"] = "error";
@@ -289,7 +304,7 @@ public class AuthController : Controller
             }
 
             // Check if username already exists
-            if (await _lawFirmContext.Users.AnyAsync(u => u.Username != null && u.Username.ToLower() == request.Username.ToLower()))
+            if (await _context.Users.AnyAsync(u => u.Username != null && u.Username.ToLower() == request.Username.ToLower()))
             {
                 ModelState.AddModelError("Username", "This username is already taken.");
                 TempData["ToastType"] = "error";
@@ -299,7 +314,7 @@ public class AuthController : Controller
             }
 
             // Check if firm exists
-            var firm = await _lawFirmContext.Firms.FindAsync(request.FirmId);
+            var firm = await _context.Firms.FindAsync(request.FirmId);
             if (firm == null)
             {
                 ModelState.AddModelError("FirmId", "Selected law firm is not valid.");
@@ -322,7 +337,7 @@ public class AuthController : Controller
             }
 
             // Get Client role
-            var clientRole = await _lawFirmContext.Roles.FirstOrDefaultAsync(r => r.RoleName == "Client");
+            var clientRole = await _context.Roles.FirstOrDefaultAsync(r => r.RoleName == "Client");
             if (clientRole == null)
             {
                 _logger.LogError("Client role not found in database");
@@ -354,8 +369,8 @@ public class AuthController : Controller
                 CreatedAt = DateTime.UtcNow
             };
 
-            _lawFirmContext.Users.Add(user);
-            await _lawFirmContext.SaveChangesAsync();
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
 
             // Assign Client role
             var userRole = new UserRole
@@ -364,8 +379,11 @@ public class AuthController : Controller
                 RoleID = clientRole.RoleID,
                 AssignedAt = DateTime.UtcNow
             };
-            _lawFirmContext.UserRoles.Add(userRole);
-            await _lawFirmContext.SaveChangesAsync();
+            _context.UserRoles.Add(userRole);
+            await _context.SaveChangesAsync();
+
+            // Log registration
+            await _auditLogService.LogRegistrationAsync(user.UserID, user.Email, request.FirmId);
 
             _logger.LogInformation("New client registered: {Email}", user.Email);
 
@@ -377,19 +395,19 @@ public class AuthController : Controller
         catch (Exception ex)
         {
             _logger.LogError(ex, "Registration error for {Email}: {Message}", request?.Email ?? "unknown", ex.Message);
-            
+
             // Get inner exception details
             var innerMessage = ex.InnerException?.Message ?? ex.Message;
             _logger.LogError("Inner exception: {InnerMessage}", innerMessage);
-            
+
             TempData["ToastType"] = "error";
             // Show more detailed error in development
-            #if DEBUG
+#if DEBUG
             TempData["ToastMessage"] = $"Registration failed: {innerMessage}";
-            #else
+#else
             TempData["ToastMessage"] = "An error occurred during registration. Please try again.";
-            #endif
-            
+#endif
+
             ViewData["Firms"] = await GetFirmsForDropdown();
             return View("~/Views/Auth/Register.cshtml", request);
         }
@@ -403,8 +421,24 @@ public class AuthController : Controller
     public async Task<IActionResult> Logout()
     {
         var userEmail = User.FindFirst(ClaimTypes.Email)?.Value;
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+        // Log logout
+        if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out int userId))
+        {
+            if (role == "SuperAdmin")
+            {
+                await _auditLogService.LogLogoutAsync(null, userId, userEmail ?? "");
+            }
+            else
+            {
+                await _auditLogService.LogLogoutAsync(userId, null, userEmail ?? "");
+            }
+        }
+
         await HttpContext.SignOutAsync("CookieAuth");
-        
+
         _logger.LogInformation("User {Email} logged out", userEmail);
 
         TempData["ToastType"] = "success";
@@ -431,7 +465,7 @@ public class AuthController : Controller
     [AllowAnonymous]
     public async Task<IActionResult> CheckEmail(string email)
     {
-        var exists = await _lawFirmContext.Users.AnyAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+        var exists = await _context.Users.AnyAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
         return Json(new { exists });
     }
 
@@ -442,7 +476,7 @@ public class AuthController : Controller
     [AllowAnonymous]
     public async Task<IActionResult> CheckUsername(string username)
     {
-        var exists = await _lawFirmContext.Users.AnyAsync(u => u.Username != null && u.Username.ToLower() == username.ToLower());
+        var exists = await _context.Users.AnyAsync(u => u.Username != null && u.Username.ToLower() == username.ToLower());
         return Json(new { exists });
     }
 
@@ -454,78 +488,66 @@ public class AuthController : Controller
     public async Task<IActionResult> DiagnosticCheck()
     {
         var result = new Dictionary<string, object>();
-        
+
         try
         {
-            // Check OwnerERP connection
-            var ownerCanConnect = await _ownerContext.Database.CanConnectAsync();
-            result["OwnerERP_CanConnect"] = ownerCanConnect;
-            
-            if (ownerCanConnect)
+            // Check database connection
+            var canConnect = await _context.Database.CanConnectAsync();
+            result["Database_CanConnect"] = canConnect;
+
+            if (canConnect)
             {
                 try
                 {
-                    var superAdmins = await _ownerContext.SuperAdmins
-                        .Select(s => new { 
-                            s.SuperAdminId, 
-                            s.Username, 
-                            s.Email, 
+                    var superAdmins = await _context.SuperAdmins
+                        .Select(s => new
+                        {
+                            s.SuperAdminId,
+                            s.Username,
+                            s.Email,
                             s.Status,
                             PasswordHashLength = s.PasswordHash.Length,
                             PasswordHashPreview = s.PasswordHash.Length > 20 ? s.PasswordHash.Substring(0, 20) + "..." : s.PasswordHash
                         })
                         .ToListAsync();
-                    result["OwnerERP_SuperAdmins"] = superAdmins;
+                    result["SuperAdmins"] = superAdmins;
                 }
                 catch (Exception ex)
                 {
-                    result["OwnerERP_SuperAdminError"] = ex.Message;
+                    result["SuperAdminError"] = ex.Message;
                 }
-            }
-        }
-        catch (Exception ex)
-        {
-            result["OwnerERP_Error"] = ex.Message;
-        }
-        
-        try
-        {
-            // Check LawFirmDMS connection
-            var lawFirmCanConnect = await _lawFirmContext.Database.CanConnectAsync();
-            result["LawFirmDMS_CanConnect"] = lawFirmCanConnect;
-            
-            if (lawFirmCanConnect)
-            {
+
                 try
                 {
-                    var firms = await _lawFirmContext.Firms
+                    var firms = await _context.Firms
                         .Select(f => new { f.FirmID, f.FirmName, f.Status })
                         .ToListAsync();
-                    result["LawFirmDMS_Firms"] = firms;
+                    result["Firms"] = firms;
                 }
                 catch (Exception ex)
                 {
-                    result["LawFirmDMS_FirmError"] = ex.Message;
+                    result["FirmError"] = ex.Message;
                 }
-                
+
                 try
                 {
-                    var roles = await _lawFirmContext.Roles
+                    var roles = await _context.Roles
                         .Select(r => new { r.RoleID, r.RoleName })
                         .ToListAsync();
-                    result["LawFirmDMS_Roles"] = roles;
+                    result["Roles"] = roles;
                 }
                 catch (Exception ex)
                 {
-                    result["LawFirmDMS_RoleError"] = ex.Message;
+                    result["RoleError"] = ex.Message;
                 }
-                
+
                 try
                 {
-                    var users = await _lawFirmContext.Users
+                    var users = await _context.Users
                         .Include(u => u.UserRoles)
                             .ThenInclude(ur => ur.Role)
-                        .Select(u => new {
+                        .Select(u => new
+                        {
                             u.UserID,
                             u.Username,
                             u.Email,
@@ -535,19 +557,19 @@ public class AuthController : Controller
                             PasswordHashPreview = u.PasswordHash != null && u.PasswordHash.Length > 20 ? u.PasswordHash.Substring(0, 20) + "..." : u.PasswordHash
                         })
                         .ToListAsync();
-                    result["LawFirmDMS_Users"] = users;
+                    result["Users"] = users;
                 }
                 catch (Exception ex)
                 {
-                    result["LawFirmDMS_UserError"] = ex.Message;
+                    result["UserError"] = ex.Message;
                 }
             }
         }
         catch (Exception ex)
         {
-            result["LawFirmDMS_Error"] = ex.Message;
+            result["Error"] = ex.Message;
         }
-        
+
         return Json(result);
     }
 
@@ -560,8 +582,8 @@ public class AuthController : Controller
     public IActionResult GeneratePasswordHash(string password = "Password@123!")
     {
         var hash = PasswordHelper.HashPassword(password);
-        return Json(new 
-        { 
+        return Json(new
+        {
             password = password,
             hash = hash,
             hashLength = hash.Length,
@@ -577,33 +599,33 @@ public class AuthController : Controller
     [AllowAnonymous]
     public async Task<IActionResult> ResetAllPasswords(string newPassword = "Password@123!")
     {
-        #if !DEBUG
+#if !DEBUG
         return NotFound();
-        #endif
+#endif
 
         try
         {
             var hash = PasswordHelper.HashPassword(newPassword);
-            
+
             // Reset SuperAdmin passwords
-            var superAdmins = await _ownerContext.SuperAdmins.ToListAsync();
+            var superAdmins = await _context.SuperAdmins.ToListAsync();
             foreach (var admin in superAdmins)
             {
                 admin.PasswordHash = hash;
             }
-            await _ownerContext.SaveChangesAsync();
 
             // Reset User passwords
-            var users = await _lawFirmContext.Users.ToListAsync();
+            var users = await _context.Users.ToListAsync();
             foreach (var user in users)
             {
                 user.PasswordHash = hash;
             }
-            await _lawFirmContext.SaveChangesAsync();
 
-            return Json(new 
-            { 
-                success = true, 
+            await _context.SaveChangesAsync();
+
+            return Json(new
+            {
+                success = true,
                 message = $"All passwords have been reset",
                 newPassword = newPassword,
                 superAdminsUpdated = superAdmins.Count,
@@ -622,7 +644,7 @@ public class AuthController : Controller
 
     private async Task<List<FirmDropdownDto>> GetFirmsForDropdown()
     {
-        return await _lawFirmContext.Firms
+        return await _context.Firms
             .Where(f => f.Status == "Active")
             .OrderBy(f => f.FirmName)
             .Select(f => new FirmDropdownDto
@@ -671,7 +693,7 @@ public class AuthController : Controller
 
         // Remove spaces and normalize case
         var normalized = role.Replace(" ", "");
-        
+
         return normalized.ToLower() switch
         {
             "superadmin" => "SuperAdmin",
@@ -686,7 +708,7 @@ public class AuthController : Controller
     private IActionResult RedirectBasedOnRole(string? role = null)
     {
         role ??= User.FindFirst(ClaimTypes.Role)?.Value;
-        
+
         // Normalize the role for comparison
         var normalizedRole = NormalizeRole(role ?? "");
 

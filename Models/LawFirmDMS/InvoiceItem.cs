@@ -1,13 +1,13 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace CKNDocument.Models.OwnerERP;
+namespace CKNDocument.Models.LawFirmDMS;
 
 /// <summary>
 /// Invoice Item entity - Line items for invoices
-/// Table: Invoice_Item (OwnerERP database)
+/// Table: InvoiceItem (LawFirmDMS database - merged)
 /// </summary>
-[Table("Invoice_Item")]
+[Table("InvoiceItem")]
 public class InvoiceItem
 {
     [Key]

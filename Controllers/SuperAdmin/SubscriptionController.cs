@@ -11,9 +11,9 @@ namespace CKNDocument.Controllers.SuperAdmin;
 [Authorize(Policy = "SuperAdminOnly")]
 public class SubscriptionController : Controller
 {
-    private readonly OwnerERPDbContext _context;
+    private readonly LawFirmDMSDbContext _context;
 
-    public SubscriptionController(OwnerERPDbContext context)
+    public SubscriptionController(LawFirmDMSDbContext context)
     {
         _context = context;
     }

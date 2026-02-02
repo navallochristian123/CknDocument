@@ -11,9 +11,9 @@ namespace CKNDocument.Controllers.SuperAdmin;
 [Authorize(Policy = "SuperAdminOnly")]
 public class RevenueController : Controller
 {
-    private readonly OwnerERPDbContext _context;
+    private readonly LawFirmDMSDbContext _context;
 
-    public RevenueController(OwnerERPDbContext context)
+    public RevenueController(LawFirmDMSDbContext context)
     {
         _context = context;
     }

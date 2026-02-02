@@ -1,6 +1,11 @@
+@model IEnumerable<CKNDocument.Models.LawFirmDMS.Firm>
 @{
     ViewData["Title"] = "Law Firms";
     Layout = "_SuperAdminLayout";
+    var totalCount = (int)(ViewData["TotalCount"] ?? 0);
+    var currentPage = (int)(ViewData["CurrentPage"] ?? 1);
+    var pageSize = (int)(ViewData["PageSize"] ?? 10);
+    var totalPages = (int)(ViewData["TotalPages"] ?? 1);
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -8,93 +13,806 @@
         <h4 class="mb-0">Law Firms</h4>
         <p class="text-muted mb-0">Manage all registered law firms</p>
     </div>
-    <a href="#" class="btn btn-primary">
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addFirmModal">
         <i class="bi bi-plus-circle"></i> Add Law Firm
-    </a>
+    </button>
 </div>
 
-<div class="card">
-    <div class="card-header bg-white">
-        <div class="row align-items-center">
-            <div class="col-md-6">
-                <input type="text" class="form-control" placeholder="Search law firms...">
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body py-2">
+        <form id="filterForm" method="get" class="row align-items-center g-2">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control border-start-0" name="search" id="searchInput" 
+                           value="@ViewData["Search"]" placeholder="Search law firms...">
+                </div>
             </div>
-            <div class="col-md-3">
-                <select class="form-select">
+            @{
+                var statusFilter = ViewData["Status"]?.ToString() ?? "";
+                var planFilter = ViewData["Plan"]?.ToString() ?? "";
+            }
+            <div class="col-md-2">
+                <select class="form-select" name="status" id="statusFilter">
                     <option value="">All Status</option>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                    <option value="suspended">Suspended</option>
+                    @if (statusFilter == "Active") { <option value="Active" selected>Active</option> } else { <option value="Active">Active</option> }
+                    @if (statusFilter == "Inactive") { <option value="Inactive" selected>Inactive</option> } else { <option value="Inactive">Inactive</option> }
+                    @if (statusFilter == "Suspended") { <option value="Suspended" selected>Suspended</option> } else { <option value="Suspended">Suspended</option> }
                 </select>
             </div>
-            <div class="col-md-3">
-                <select class="form-select">
-                    <option value="">All Subscriptions</option>
-                    <option value="basic">Basic</option>
-                    <option value="professional">Professional</option>
-                    <option value="enterprise">Enterprise</option>
+            <div class="col-md-2">
+                <select class="form-select" name="plan" id="planFilter">
+                    <option value="">All Plans</option>
+                    @if (planFilter == "Basic") { <option value="Basic" selected>Basic</option> } else { <option value="Basic">Basic</option> }
+                    @if (planFilter == "Professional") { <option value="Professional" selected>Professional</option> } else { <option value="Professional">Professional</option> }
+                    @if (planFilter == "Enterprise") { <option value="Enterprise" selected>Enterprise</option> } else { <option value="Enterprise">Enterprise</option> }
                 </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-primary w-100">
+                    <i class="bi bi-filter"></i> Filter
+                </button>
+            </div>
+            <div class="col-md-2">
+                <a href="/SuperAdmin/LawFirm" class="btn btn-outline-secondary w-100">
+                    <i class="bi bi-arrow-clockwise"></i> Reset
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Firms Table -->
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="firmsTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Firm Name</th>
+                        <th>Owner</th>
+                        <th>Email</th>
+                        <th>Subscription</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="firmsTableBody">
+                    @if (Model != null && Model.Any())
+                    {
+                        @foreach (var firm in Model)
+                        {
+                            var subscription = firm.Subscriptions?.OrderByDescending(s => s.CreatedAt).FirstOrDefault();
+                            var admin = firm.Users?.FirstOrDefault(u => u.UserRoles.Any(ur => ur.Role?.RoleName == "Admin"));
+                            var planBadgeClass = subscription?.PlanType switch
+                            {
+                                "Enterprise" => "bg-primary",
+                                "Professional" => "bg-info",
+                                "Basic" => "bg-secondary",
+                                _ => "bg-light text-dark"
+                            };
+                            var statusBadgeClass = firm.Status switch
+                            {
+                                "Active" => "bg-success",
+                                "Inactive" => "bg-secondary",
+                                "Suspended" => "bg-danger",
+                                _ => "bg-warning"
+                            };
+
+                            <tr data-firm-id="@firm.FirmID">
+                                <td>@firm.FirmID</td>
+                                <td>
+                                    <div class="fw-medium">@firm.FirmName</div>
+                                    <small class="text-muted">@firm.ContactEmail</small>
+                                </td>
+                                <td>@(admin != null ? $"{admin.FirstName} {admin.LastName}" : "No Admin")</td>
+                                <td>@firm.ContactEmail</td>
+                                <td><span class="badge @planBadgeClass">@(subscription?.PlanType ?? "None")</span></td>
+                                <td><span class="badge @statusBadgeClass">@firm.Status</span></td>
+                                <td>@(firm.CreatedAt?.ToString("MMM dd, yyyy") ?? "N/A")</td>
+                                <td class="text-center">
+                                    <div class="btn-group btn-group-sm">
+                                        <button type="button" class="btn btn-outline-primary" onclick="viewFirm(@firm.FirmID)" title="View Details">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary" onclick="editFirm(@firm.FirmID)" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        @if (firm.Status == "Active")
+                                        {
+                                            <button type="button" class="btn btn-outline-danger" onclick="confirmDeactivate(@firm.FirmID, '@firm.FirmName')" title="Deactivate">
+                                                <i class="bi bi-x-circle"></i>
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button type="button" class="btn btn-outline-success" onclick="confirmActivate(@firm.FirmID, '@firm.FirmName')" title="Activate">
+                                                <i class="bi bi-check-circle"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="8" class="text-center py-4">
+                                <i class="bi bi-building text-muted" style="font-size: 3rem;"></i>
+                                <p class="text-muted mt-2">No law firms found. Click "Add Law Firm" to register one.</p>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @if (totalPages > 1)
+    {
+        <div class="card-footer bg-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="text-muted">
+                    Showing @((currentPage - 1) * pageSize + 1) to @Math.Min(currentPage * pageSize, totalCount) of @totalCount firms
+                </div>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                            <a class="page-link" href="?page=@(currentPage - 1)&search=@ViewData["Search"]&status=@ViewData["Status"]&plan=@ViewData["Plan"]">Previous</a>
+                        </li>
+                        @for (int i = 1; i <= totalPages; i++)
+                        {
+                            <li class="page-item @(i == currentPage ? "active" : "")">
+                                <a class="page-link" href="?page=@i&search=@ViewData["Search"]&status=@ViewData["Status"]&plan=@ViewData["Plan"]">@i</a>
+                            </li>
+                        }
+                        <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                            <a class="page-link" href="?page=@(currentPage + 1)&search=@ViewData["Search"]&status=@ViewData["Status"]&plan=@ViewData["Plan"]">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Add Law Firm Modal -->
+<div class="modal fade" id="addFirmModal" tabindex="-1" aria-labelledby="addFirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form id="addFirmForm">
+                @Html.AntiForgeryToken()
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="addFirmModalLabel">
+                        <i class="bi bi-building-add me-2"></i>Add New Law Firm
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Subscription Plan Selection -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Subscription Plan <span class="text-danger">*</span></label>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <div class="plan-card" data-plan="Basic">
+                                    <input type="radio" name="SubscriptionPlan" id="planBasic" value="Basic" class="visually-hidden" checked>
+                                    <label for="planBasic" class="plan-card-label">
+                                        <div class="plan-header border-bottom" style="color: #6c757d;">
+                                            <i class="bi bi-box me-1"></i>Basic
+                                        </div>
+                                        <div class="plan-body">
+                                            <div class="plan-price">$49<span>/month</span></div>
+                                            <ul class="plan-features">
+                                                <li><i class="bi bi-check text-success"></i> Up to 5 users</li>
+                                                <li><i class="bi bi-check text-success"></i> 10GB storage</li>
+                                                <li><i class="bi bi-check text-success"></i> Email support</li>
+                                            </ul>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="plan-card" data-plan="Professional">
+                                    <input type="radio" name="SubscriptionPlan" id="planPro" value="Professional" class="visually-hidden">
+                                    <label for="planPro" class="plan-card-label">
+                                        <div class="plan-header border-bottom" style="color: #0dcaf0;">
+                                            <i class="bi bi-star me-1"></i>Professional
+                                        </div>
+                                        <div class="plan-body">
+                                            <div class="plan-price">$99<span>/month</span></div>
+                                            <ul class="plan-features">
+                                                <li><i class="bi bi-check text-success"></i> Up to 20 users</li>
+                                                <li><i class="bi bi-check text-success"></i> 50GB storage</li>
+                                                <li><i class="bi bi-check text-success"></i> Priority support</li>
+                                            </ul>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="plan-card" data-plan="Enterprise">
+                                    <input type="radio" name="SubscriptionPlan" id="planEnterprise" value="Enterprise" class="visually-hidden">
+                                    <label for="planEnterprise" class="plan-card-label">
+                                        <div class="plan-header border-bottom" style="color: #0d6efd;">
+                                            <i class="bi bi-gem me-1"></i>Enterprise
+                                        </div>
+                                        <div class="plan-body">
+                                            <div class="plan-price">$249<span>/month</span></div>
+                                            <ul class="plan-features">
+                                                <li><i class="bi bi-check text-success"></i> Unlimited users</li>
+                                                <li><i class="bi bi-check text-success"></i> 500GB storage</li>
+                                                <li><i class="bi bi-check text-success"></i> 24/7 support</li>
+                                            </ul>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <label class="form-label">Subscription Duration</label>
+                            <select class="form-select" name="SubscriptionMonths" style="max-width: 200px;">
+                                <option value="1">1 Month</option>
+                                <option value="6">6 Months</option>
+                                <option value="12" selected>12 Months (1 Year)</option>
+                                <option value="24">24 Months (2 Years)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Firm Information -->
+                    <h6 class="text-muted mb-3"><i class="bi bi-building me-2"></i>Firm Information</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">Firm Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="FirmName" required maxlength="200">
+                            <div class="invalid-feedback">Firm name is required.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Contact Email <span class="text-danger">*</span></label>
+                            <input type="email" class="form-control" name="ContactEmail" required maxlength="100">
+                            <div class="invalid-feedback">Valid email is required.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Phone Number</label>
+                            <input type="tel" class="form-control" name="PhoneNumber" maxlength="20" pattern="[0-9+\-\s()]+">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Address</label>
+                            <input type="text" class="form-control" name="Address" maxlength="255">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">City</label>
+                            <input type="text" class="form-control" name="City" maxlength="100">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Province</label>
+                            <input type="text" class="form-control" name="Province" maxlength="100">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Zip Code</label>
+                            <input type="text" class="form-control" name="ZipCode" maxlength="10">
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Admin Information -->
+                    <h6 class="text-muted mb-3"><i class="bi bi-person-badge me-2"></i>Firm Administrator</h6>
+                    <p class="small text-muted mb-3">This user will be created as the firm's administrator and can create additional staff members.</p>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">First Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="AdminFirstName" required maxlength="100">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Last Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="AdminLastName" required maxlength="100">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Admin Email <span class="text-danger">*</span></label>
+                            <input type="email" class="form-control" name="AdminEmail" required maxlength="100">
+                            <div class="form-text">This will be used for login credentials.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Admin Phone</label>
+                            <input type="tel" class="form-control" name="AdminPhone" maxlength="11" pattern="[0-9]{11}">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="submitAddFirm">
+                        <i class="bi bi-check-lg me-1"></i>Create Law Firm
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Law Firm Modal -->
+<div class="modal fade" id="editFirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form id="editFirmForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="firmId" id="editFirmId">
+                <div class="modal-header bg-secondary text-white">
+                    <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>Edit Law Firm</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="editFirmContent">
+                    <!-- Loaded via JS -->
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="submitEditFirm">
+                        <i class="bi bi-check-lg me-1"></i>Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- View Law Firm Modal -->
+<div class="modal fade" id="viewFirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="bi bi-building me-2"></i>Law Firm Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="viewFirmContent">
+                <!-- Loaded via JS -->
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="editFromViewBtn">
+                    <i class="bi bi-pencil me-1"></i>Edit
+                </button>
             </div>
         </div>
     </div>
-    <div class="card-body p-0">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>ID</th>
-                    <th>Firm Name</th>
-                    <th>Owner</th>
-                    <th>Email</th>
-                    <th>Subscription</th>
-                    <th>Status</th>
-                    <th>Created</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>1</td>
-                    <td>Smith & Associates</td>
-                    <td>John Smith</td>
-                    <td>john@smith.com</td>
-                    <td><span class="badge bg-primary">Enterprise</span></td>
-                    <td><span class="badge bg-success">Active</span></td>
-                    <td>Jan 15, 2024</td>
-                    <td>
-                        <div class="btn-group btn-group-sm">
-                            <a href="#" class="btn btn-outline-primary"><i class="bi bi-eye"></i></a>
-                            <a href="#" class="btn btn-outline-secondary"><i class="bi bi-pencil"></i></a>
-                            <a href="#" class="btn btn-outline-danger"><i class="bi bi-trash"></i></a>
-                        </div>
-                    </td>
-                </tr>
-                <tr>
-                    <td>2</td>
-                    <td>Legal Eagles LLP</td>
-                    <td>Sarah Johnson</td>
-                    <td>sarah@legaleagles.com</td>
-                    <td><span class="badge bg-info">Professional</span></td>
-                    <td><span class="badge bg-success">Active</span></td>
-                    <td>Feb 20, 2024</td>
-                    <td>
-                        <div class="btn-group btn-group-sm">
-                            <a href="#" class="btn btn-outline-primary"><i class="bi bi-eye"></i></a>
-                            <a href="#" class="btn btn-outline-secondary"><i class="bi bi-pencil"></i></a>
-                            <a href="#" class="btn btn-outline-danger"><i class="bi bi-trash"></i></a>
-                        </div>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-    <div class="card-footer bg-white">
-        <nav>
-            <ul class="pagination pagination-sm mb-0 justify-content-end">
-                <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
-                <li class="page-item active"><a class="page-link" href="#">1</a></li>
-                <li class="page-item"><a class="page-link" href="#">2</a></li>
-                <li class="page-item"><a class="page-link" href="#">Next</a></li>
-            </ul>
-        </nav>
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header" id="confirmModalHeader">
+                <h5 class="modal-title" id="confirmModalTitle">Confirm</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p id="confirmModalMessage"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm" id="confirmBtn" onclick="executeConfirmAction()">Confirm</button>
+            </div>
+        </div>
     </div>
 </div>
+
+<!-- Success Modal (for showing temp password) -->
+<div class="modal fade" id="successModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-check-circle me-2"></i>Law Firm Created</h5>
+            </div>
+            <div class="modal-body text-center">
+                <i class="bi bi-building-check text-success" style="font-size: 4rem;"></i>
+                <h5 class="mt-3" id="successFirmName"></h5>
+                <p class="text-muted">The law firm has been created successfully.</p>
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>Important!</strong> Save these admin credentials:
+                    <div class="mt-2 p-2 bg-light rounded">
+                        <div><strong>Email:</strong> <span id="successAdminEmail"></span></div>
+                        <div><strong>Temporary Password:</strong> <code id="successTempPassword" class="fs-5"></code></div>
+                    </div>
+                    <small class="text-muted d-block mt-2">The admin should change this password on first login.</small>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-success" onclick="copyCredentials()">
+                    <i class="bi bi-clipboard me-1"></i>Copy Credentials
+                </button>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal" onclick="location.reload()">Done</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1100;">
+    <div id="toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header" id="toastHeader">
+            <i class="bi me-2" id="toastIcon"></i>
+            <strong class="me-auto" id="toastTitle">Notification</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body" id="toastMessage"></div>
+    </div>
+</div>
+
+@section Styles {
+<style>
+    .plan-card-label {
+        display: block;
+        border: 2px solid #dee2e6;
+        border-radius: 0.5rem;
+        overflow: hidden;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .plan-card-label:hover {
+        border-color: #0d6efd;
+        transform: translateY(-2px);
+    }
+
+    .plan-card input:checked + .plan-card-label {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25);
+    }
+
+    .plan-header {
+        padding: 0.75rem;
+        text-align: center;
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+
+    .plan-body {
+        padding: 1rem;
+        text-align: center;
+    }
+
+    .plan-price {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #212529;
+    }
+
+    .plan-price span {
+        font-size: 0.9rem;
+        font-weight: 400;
+        color: #6c757d;
+    }
+
+    .plan-features {
+        list-style: none;
+        padding: 0;
+        margin: 1rem 0 0;
+        text-align: left;
+    }
+
+    .plan-features li {
+        padding: 0.25rem 0;
+        font-size: 0.875rem;
+    }
+
+    .plan-features li i {
+        color: #198754;
+        margin-right: 0.5rem;
+    }
+
+    .table td {
+        vertical-align: middle;
+    }
+
+    .form-label {
+        font-weight: 500;
+        font-size: 0.875rem;
+    }
+</style>
+}
+
+@section Scripts {
+<script>
+    let confirmAction = null;
+    let currentFirmId = null;
+
+    // Initialize toasts
+    function showToast(type, message) {
+        const toast = document.getElementById('toast');
+        const toastHeader = document.getElementById('toastHeader');
+        const toastIcon = document.getElementById('toastIcon');
+        const toastTitle = document.getElementById('toastTitle');
+        const toastMessage = document.getElementById('toastMessage');
+
+        toastHeader.className = 'toast-header';
+        toastIcon.className = 'bi me-2';
+
+        if (type === 'success') {
+            toastHeader.classList.add('bg-success', 'text-white');
+            toastIcon.classList.add('bi-check-circle');
+            toastTitle.textContent = 'Success';
+        } else if (type === 'error') {
+            toastHeader.classList.add('bg-danger', 'text-white');
+            toastIcon.classList.add('bi-x-circle');
+            toastTitle.textContent = 'Error';
+        } else {
+            toastHeader.classList.add('bg-info', 'text-white');
+            toastIcon.classList.add('bi-info-circle');
+            toastTitle.textContent = 'Info';
+        }
+
+        toastMessage.textContent = message;
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+    }
+
+    // Add Firm Form Submit
+    document.getElementById('addFirmForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const form = this;
+        const submitBtn = document.getElementById('submitAddFirm');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Creating...';
+
+        try {
+            const formData = new FormData(form);
+            const response = await fetch('/SuperAdmin/LawFirm/Create', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                bootstrap.Modal.getInstance(document.getElementById('addFirmModal')).hide();
+
+                // Show success modal with credentials
+                document.getElementById('successFirmName').textContent = result.data.firmName;
+                document.getElementById('successAdminEmail').textContent = result.data.adminEmail;
+                document.getElementById('successTempPassword').textContent = result.data.temporaryPassword;
+                new bootstrap.Modal(document.getElementById('successModal')).show();
+            } else {
+                showToast('error', result.message);
+            }
+        } catch (error) {
+            showToast('error', 'An error occurred. Please try again.');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Create Law Firm';
+        }
+    });
+
+    // Copy credentials to clipboard
+    function copyCredentials() {
+        const email = document.getElementById('successAdminEmail').textContent;
+        const password = document.getElementById('successTempPassword').textContent;
+        const text = `Email: ${email}\nPassword: ${password}`;
+        navigator.clipboard.writeText(text).then(() => {
+            showToast('success', 'Credentials copied to clipboard!');
+        });
+    }
+
+    // View firm details
+    async function viewFirm(firmId) {
+        currentFirmId = firmId;
+        try {
+            const response = await fetch(`/SuperAdmin/LawFirm/GetFirm?id=${firmId}`);
+            const result = await response.json();
+
+            if (result.success) {
+                const d = result.data;
+                document.getElementById('viewFirmContent').innerHTML = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-3">Firm Information</h6>
+                            <table class="table table-sm">
+                                <tr><th width="35%">Firm Name</th><td>${d.firmName || 'N/A'}</td></tr>
+                                <tr><th>Email</th><td>${d.contactEmail || 'N/A'}</td></tr>
+                                <tr><th>Phone</th><td>${d.phoneNumber || 'N/A'}</td></tr>
+                                <tr><th>Address</th><td>${d.address || 'N/A'}</td></tr>
+                                <tr><th>City</th><td>${d.city || 'N/A'}</td></tr>
+                                <tr><th>Province</th><td>${d.province || 'N/A'}</td></tr>
+                                <tr><th>Status</th><td><span class="badge ${d.status === 'Active' ? 'bg-success' : 'bg-secondary'}">${d.status}</span></td></tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-3">Subscription</h6>
+                            <table class="table table-sm">
+                                <tr><th width="35%">Plan</th><td><span class="badge bg-info">${d.subscriptionPlan || 'None'}</span></td></tr>
+                                <tr><th>Status</th><td>${d.subscriptionStatus || 'N/A'}</td></tr>
+                                <tr><th>Start Date</th><td>${d.subscriptionStart || 'N/A'}</td></tr>
+                                <tr><th>End Date</th><td>${d.subscriptionEnd || 'N/A'}</td></tr>
+                            </table>
+                            <h6 class="text-muted mb-3 mt-4">Administrator</h6>
+                            <table class="table table-sm">
+                                <tr><th width="35%">Name</th><td>${d.adminFirstName || ''} ${d.adminLastName || 'No Admin'}</td></tr>
+                                <tr><th>Email</th><td>${d.adminEmail || 'N/A'}</td></tr>
+                                <tr><th>Phone</th><td>${d.adminPhone || 'N/A'}</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('editFromViewBtn').onclick = () => {
+                    bootstrap.Modal.getInstance(document.getElementById('viewFirmModal')).hide();
+                    editFirm(firmId);
+                };
+                new bootstrap.Modal(document.getElementById('viewFirmModal')).show();
+            } else {
+                showToast('error', result.message);
+            }
+        } catch (error) {
+            showToast('error', 'Failed to load firm details.');
+        }
+    }
+
+    // Edit firm
+    async function editFirm(firmId) {
+        currentFirmId = firmId;
+        try {
+            const response = await fetch(`/SuperAdmin/LawFirm/GetFirm?id=${firmId}`);
+            const result = await response.json();
+
+            if (result.success) {
+                const d = result.data;
+                document.getElementById('editFirmId').value = firmId;
+                document.getElementById('editFirmContent').innerHTML = `
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Firm Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="FirmName" value="${d.firmName || ''}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Contact Email <span class="text-danger">*</span></label>
+                            <input type="email" class="form-control" name="ContactEmail" value="${d.contactEmail || ''}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Phone Number</label>
+                            <input type="tel" class="form-control" name="PhoneNumber" value="${d.phoneNumber || ''}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Status</label>
+                            <select class="form-select" name="Status">
+                                <option value="Active" ${d.status === 'Active' ? 'selected' : ''}>Active</option>
+                                <option value="Inactive" ${d.status === 'Inactive' ? 'selected' : ''}>Inactive</option>
+                                <option value="Suspended" ${d.status === 'Suspended' ? 'selected' : ''}>Suspended</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Address</label>
+                            <input type="text" class="form-control" name="Address" value="${d.address || ''}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">City</label>
+                            <input type="text" class="form-control" name="City" value="${d.city || ''}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Province</label>
+                            <input type="text" class="form-control" name="Province" value="${d.province || ''}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Zip Code</label>
+                            <input type="text" class="form-control" name="ZipCode" value="${d.zipCode || ''}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Subscription Plan</label>
+                            <select class="form-select" name="SubscriptionPlan">
+                                <option value="Basic" ${d.subscriptionPlan === 'Basic' ? 'selected' : ''}>Basic</option>
+                                <option value="Professional" ${d.subscriptionPlan === 'Professional' ? 'selected' : ''}>Professional</option>
+                                <option value="Enterprise" ${d.subscriptionPlan === 'Enterprise' ? 'selected' : ''}>Enterprise</option>
+                            </select>
+                        </div>
+                    </div>
+                `;
+                new bootstrap.Modal(document.getElementById('editFirmModal')).show();
+            } else {
+                showToast('error', result.message);
+            }
+        } catch (error) {
+            showToast('error', 'Failed to load firm details.');
+        }
+    }
+
+    // Edit Firm Form Submit
+    document.getElementById('editFirmForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const form = this;
+        const firmId = document.getElementById('editFirmId').value;
+        const submitBtn = document.getElementById('submitEditFirm');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+
+        try {
+            const formData = new FormData(form);
+            const response = await fetch(`/SuperAdmin/LawFirm/Edit/${firmId}`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                bootstrap.Modal.getInstance(document.getElementById('editFirmModal')).hide();
+                showToast('success', result.message);
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast('error', result.message);
+            }
+        } catch (error) {
+            showToast('error', 'An error occurred. Please try again.');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Save Changes';
+        }
+    });
+
+    // Confirm deactivate
+    function confirmDeactivate(firmId, firmName) {
+        currentFirmId = firmId;
+        confirmAction = 'deactivate';
+        document.getElementById('confirmModalTitle').textContent = 'Deactivate Law Firm';
+        document.getElementById('confirmModalHeader').className = 'modal-header bg-danger text-white';
+        document.getElementById('confirmModalMessage').textContent = `Are you sure you want to deactivate "${firmName}"? All users will lose access.`;
+        document.getElementById('confirmBtn').className = 'btn btn-danger btn-sm';
+        document.getElementById('confirmBtn').textContent = 'Deactivate';
+        new bootstrap.Modal(document.getElementById('confirmModal')).show();
+    }
+
+    // Confirm activate
+    function confirmActivate(firmId, firmName) {
+        currentFirmId = firmId;
+        confirmAction = 'activate';
+        document.getElementById('confirmModalTitle').textContent = 'Activate Law Firm';
+        document.getElementById('confirmModalHeader').className = 'modal-header bg-success text-white';
+        document.getElementById('confirmModalMessage').textContent = `Are you sure you want to activate "${firmName}"?`;
+        document.getElementById('confirmBtn').className = 'btn btn-success btn-sm';
+        document.getElementById('confirmBtn').textContent = 'Activate';
+        new bootstrap.Modal(document.getElementById('confirmModal')).show();
+    }
+
+    // Execute confirm action
+    async function executeConfirmAction() {
+        const url = confirmAction === 'deactivate'
+            ? `/SuperAdmin/LawFirm/Delete/${currentFirmId}`
+            : `/SuperAdmin/LawFirm/Activate/${currentFirmId}`;
+
+        try {
+            const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'RequestVerificationToken': token
+                }
+            });
+
+            const result = await response.json();
+            bootstrap.Modal.getInstance(document.getElementById('confirmModal')).hide();
+
+            if (result.success) {
+                showToast('success', result.message);
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast('error', result.message);
+            }
+        } catch (error) {
+            showToast('error', 'An error occurred. Please try again.');
+        }
+    }
+
+    // Show server-side toasts
+    @if (TempData["ToastType"] != null)
+    {
+        <text>
+        document.addEventListener('DOMContentLoaded', () => {
+            showToast('@TempData["ToastType"]', '@TempData["ToastMessage"]');
+        });
+        </text>
+    }
+</script>
+}

@@ -2,11 +2,11 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using CKNDocument.Models.Common;
 
-namespace CKNDocument.Models.OwnerERP;
+namespace CKNDocument.Models.LawFirmDMS;
 
 /// <summary>
 /// SuperAdmin entity - Platform owner/administrator
-/// Table: SuperAdmin (OwnerERP database)
+/// Table: SuperAdmin (LawFirmDMS database - merged)
 /// </summary>
 [Table("SuperAdmin")]
 public class SuperAdmin : BaseEntity
@@ -39,4 +39,8 @@ public class SuperAdmin : BaseEntity
     public string? Status { get; set; } = "Active";
 
     public DateTime? LastLoginAt { get; set; }
+
+    // Computed property
+    [NotMapped]
+    public string FullName => $"{FirstName} {LastName}".Trim();
 }

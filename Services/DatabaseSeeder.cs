@@ -1,53 +1,46 @@
 using Microsoft.EntityFrameworkCore;
 using CKNDocument.Data;
-using CKNDocument.Models.OwnerERP;
 using CKNDocument.Models.LawFirmDMS;
 
 namespace CKNDocument.Services;
 
 /// <summary>
 /// Database seeder service
-/// Seeds: SuperAdmin (OwnerERP), Firm, Roles, Admin/Staff/Client/Auditor (LawFirmDMS)
+/// Seeds: SuperAdmin, Firm, Roles, Admin/Staff/Client/Auditor (all in unified LawFirmDMS database)
 /// </summary>
 public class DatabaseSeeder
 {
-    private readonly OwnerERPDbContext _ownerContext;
-    private readonly LawFirmDMSDbContext _lawFirmContext;
+    private readonly LawFirmDMSDbContext _context;
     private readonly ILogger<DatabaseSeeder> _logger;
 
     public DatabaseSeeder(
-        OwnerERPDbContext ownerContext,
-        LawFirmDMSDbContext lawFirmContext,
+        LawFirmDMSDbContext context,
         ILogger<DatabaseSeeder> logger)
     {
-        _ownerContext = ownerContext;
-        _lawFirmContext = lawFirmContext;
+        _context = context;
         _logger = logger;
     }
 
     /// <summary>
-    /// Seed all databases
+    /// Seed database
     /// </summary>
     public async Task SeedAsync()
     {
         try
         {
             _logger.LogInformation("Starting database seeding...");
-            
-            // Ensure databases are created
-            _logger.LogInformation("Creating OwnerERP database if not exists...");
-            var ownerCreated = await _ownerContext.Database.EnsureCreatedAsync();
-            _logger.LogInformation("OwnerERP database created: {Created}", ownerCreated);
-            
+
+            // Ensure database is created
             _logger.LogInformation("Creating LawFirmDMS database if not exists...");
-            var lawFirmCreated = await _lawFirmContext.Database.EnsureCreatedAsync();
-            _logger.LogInformation("LawFirmDMS database created: {Created}", lawFirmCreated);
+            var created = await _context.Database.EnsureCreatedAsync();
+            _logger.LogInformation("LawFirmDMS database created: {Created}", created);
 
             // Seed in order
             await SeedSuperAdminAsync();
             await SeedRolesAsync();
             await SeedFirmAsync();
             await SeedUsersAsync();
+            await SeedFirmSubscriptionAsync();
 
             _logger.LogInformation("Database seeding completed successfully");
         }
@@ -59,14 +52,14 @@ public class DatabaseSeeder
     }
 
     /// <summary>
-    /// Seed SuperAdmin account in OwnerERP database
+    /// Seed SuperAdmin account
     /// </summary>
     private async Task SeedSuperAdminAsync()
     {
         try
         {
             _logger.LogInformation("Checking SuperAdmin table...");
-            if (await _ownerContext.SuperAdmins.AnyAsync())
+            if (await _context.SuperAdmins.AnyAsync())
             {
                 _logger.LogInformation("SuperAdmin already exists, skipping seed");
                 return;
@@ -85,8 +78,8 @@ public class DatabaseSeeder
                 CreatedAt = DateTime.UtcNow
             };
 
-            _ownerContext.SuperAdmins.Add(superAdmin);
-            await _ownerContext.SaveChangesAsync();
+            _context.SuperAdmins.Add(superAdmin);
+            await _context.SaveChangesAsync();
 
             _logger.LogInformation("SuperAdmin seeded: superadmin / SuperAdmin@123");
         }
@@ -98,14 +91,14 @@ public class DatabaseSeeder
     }
 
     /// <summary>
-    /// Seed roles in LawFirmDMS database
+    /// Seed roles
     /// </summary>
     private async Task SeedRolesAsync()
     {
         try
         {
             _logger.LogInformation("Checking Roles table...");
-            if (await _lawFirmContext.Roles.AnyAsync())
+            if (await _context.Roles.AnyAsync())
             {
                 _logger.LogInformation("Roles already exist, skipping seed");
                 return;
@@ -120,8 +113,8 @@ public class DatabaseSeeder
                 new Role { RoleName = "Auditor", Description = "Auditor - Read-only access for compliance review" }
             };
 
-            _lawFirmContext.Roles.AddRange(roles);
-            await _lawFirmContext.SaveChangesAsync();
+            _context.Roles.AddRange(roles);
+            await _context.SaveChangesAsync();
 
             _logger.LogInformation("Roles seeded: Admin, Staff, Client, Auditor");
         }
@@ -133,14 +126,14 @@ public class DatabaseSeeder
     }
 
     /// <summary>
-    /// Seed sample law firm in LawFirmDMS database
+    /// Seed sample law firm
     /// </summary>
     private async Task SeedFirmAsync()
     {
         try
         {
             _logger.LogInformation("Checking Firms table...");
-            if (await _lawFirmContext.Firms.AnyAsync())
+            if (await _context.Firms.AnyAsync())
             {
                 _logger.LogInformation("Firms already exist, skipping seed");
                 return;
@@ -152,12 +145,13 @@ public class DatabaseSeeder
                 FirmName = "Demo Law Firm",
                 ContactEmail = "contact@demolawfirm.com",
                 Address = "123 Legal Street, Metro Manila",
+                PhoneNumber = "09123456789",
                 Status = "Active",
                 CreatedAt = DateTime.UtcNow
             };
 
-            _lawFirmContext.Firms.Add(firm);
-            await _lawFirmContext.SaveChangesAsync();
+            _context.Firms.Add(firm);
+            await _context.SaveChangesAsync();
 
             _logger.LogInformation("Demo Law Firm seeded with ID: {FirmId}", firm.FirmID);
         }
@@ -169,27 +163,74 @@ public class DatabaseSeeder
     }
 
     /// <summary>
-    /// Seed sample users in LawFirmDMS database
+    /// Seed firm subscription for billing
+    /// </summary>
+    private async Task SeedFirmSubscriptionAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Checking FirmSubscription table...");
+            if (await _context.FirmSubscriptions.AnyAsync())
+            {
+                _logger.LogInformation("FirmSubscriptions already exist, skipping seed");
+                return;
+            }
+
+            var firm = await _context.Firms.FirstOrDefaultAsync();
+            if (firm == null)
+            {
+                _logger.LogWarning("No firm found, cannot seed subscription");
+                return;
+            }
+
+            _logger.LogInformation("Seeding Demo Subscription...");
+            var subscription = new FirmSubscription
+            {
+                FirmID = firm.FirmID,
+                SubscriptionName = "Demo Law Firm Subscription",
+                ContactEmail = firm.ContactEmail,
+                BillingAddress = firm.Address,
+                Status = "Active",
+                PlanType = "Premium",
+                StartDate = DateTime.UtcNow,
+                EndDate = DateTime.UtcNow.AddYears(1),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.FirmSubscriptions.Add(subscription);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Demo Subscription seeded with ID: {SubscriptionId}", subscription.SubscriptionID);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error seeding FirmSubscription: {Message}", ex.Message);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Seed sample users
     /// </summary>
     private async Task SeedUsersAsync()
     {
         try
         {
             _logger.LogInformation("Checking Users table...");
-            if (await _lawFirmContext.Users.AnyAsync())
+            if (await _context.Users.AnyAsync())
             {
                 _logger.LogInformation("Users already exist, skipping seed");
                 return;
             }
 
-            var firm = await _lawFirmContext.Firms.FirstOrDefaultAsync();
+            var firm = await _context.Firms.FirstOrDefaultAsync();
             if (firm == null)
             {
                 _logger.LogWarning("No firm found, cannot seed users");
                 return;
             }
 
-            var roles = await _lawFirmContext.Roles.ToListAsync();
+            var roles = await _context.Roles.ToListAsync();
             if (!roles.Any())
             {
                 _logger.LogWarning("No roles found, cannot seed users");
@@ -231,9 +272,9 @@ public class DatabaseSeeder
                 EmailConfirmed = true,
                 CreatedAt = DateTime.UtcNow
             };
-            _lawFirmContext.Users.Add(adminUser);
-            await _lawFirmContext.SaveChangesAsync();
-            _lawFirmContext.UserRoles.Add(new UserRole { UserID = adminUser.UserID, RoleID = adminRole.RoleID, AssignedAt = DateTime.UtcNow });
+            _context.Users.Add(adminUser);
+            await _context.SaveChangesAsync();
+            _context.UserRoles.Add(new UserRole { UserID = adminUser.UserID, RoleID = adminRole.RoleID, AssignedAt = DateTime.UtcNow });
             _logger.LogInformation("Admin user seeded: admin / Admin@123456");
 
             // Staff User
@@ -259,9 +300,9 @@ public class DatabaseSeeder
                 EmailConfirmed = true,
                 CreatedAt = DateTime.UtcNow
             };
-            _lawFirmContext.Users.Add(staffUser);
-            await _lawFirmContext.SaveChangesAsync();
-            _lawFirmContext.UserRoles.Add(new UserRole { UserID = staffUser.UserID, RoleID = staffRole.RoleID, AssignedAt = DateTime.UtcNow });
+            _context.Users.Add(staffUser);
+            await _context.SaveChangesAsync();
+            _context.UserRoles.Add(new UserRole { UserID = staffUser.UserID, RoleID = staffRole.RoleID, AssignedAt = DateTime.UtcNow });
             _logger.LogInformation("Staff user seeded: staff / Staff@123456");
 
             // Client User
@@ -284,9 +325,9 @@ public class DatabaseSeeder
                 EmailConfirmed = true,
                 CreatedAt = DateTime.UtcNow
             };
-            _lawFirmContext.Users.Add(clientUser);
-            await _lawFirmContext.SaveChangesAsync();
-            _lawFirmContext.UserRoles.Add(new UserRole { UserID = clientUser.UserID, RoleID = clientRole.RoleID, AssignedAt = DateTime.UtcNow });
+            _context.Users.Add(clientUser);
+            await _context.SaveChangesAsync();
+            _context.UserRoles.Add(new UserRole { UserID = clientUser.UserID, RoleID = clientRole.RoleID, AssignedAt = DateTime.UtcNow });
             _logger.LogInformation("Client user seeded: client / Client@123456");
 
             // Auditor User
@@ -312,18 +353,19 @@ public class DatabaseSeeder
                 EmailConfirmed = true,
                 CreatedAt = DateTime.UtcNow
             };
-            _lawFirmContext.Users.Add(auditorUser);
-            await _lawFirmContext.SaveChangesAsync();
-            _lawFirmContext.UserRoles.Add(new UserRole { UserID = auditorUser.UserID, RoleID = auditorRole.RoleID, AssignedAt = DateTime.UtcNow });
+            _context.Users.Add(auditorUser);
+            await _context.SaveChangesAsync();
+            _context.UserRoles.Add(new UserRole { UserID = auditorUser.UserID, RoleID = auditorRole.RoleID, AssignedAt = DateTime.UtcNow });
             _logger.LogInformation("Auditor user seeded: auditor / Auditor@12345");
 
-            await _lawFirmContext.SaveChangesAsync();
+            await _context.SaveChangesAsync();
 
             _logger.LogInformation("All users seeded successfully:");
-            _logger.LogInformation("  Admin:   admin / Admin@123456");
-            _logger.LogInformation("  Staff:   staff / Staff@123456");
-            _logger.LogInformation("  Client:  client / Client@123456");
-            _logger.LogInformation("  Auditor: auditor / Auditor@12345");
+            _logger.LogInformation("  SuperAdmin: superadmin / SuperAdmin@123");
+            _logger.LogInformation("  Admin:      admin / Admin@123456");
+            _logger.LogInformation("  Staff:      staff / Staff@123456");
+            _logger.LogInformation("  Client:     client / Client@123456");
+            _logger.LogInformation("  Auditor:    auditor / Auditor@12345");
         }
         catch (Exception ex)
         {

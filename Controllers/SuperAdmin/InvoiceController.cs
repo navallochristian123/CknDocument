@@ -11,9 +11,9 @@ namespace CKNDocument.Controllers.SuperAdmin;
 [Authorize(Policy = "SuperAdminOnly")]
 public class InvoiceController : Controller
 {
-    private readonly OwnerERPDbContext _context;
+    private readonly LawFirmDMSDbContext _context;
 
-    public InvoiceController(OwnerERPDbContext context)
+    public InvoiceController(LawFirmDMSDbContext context)
     {
         _context = context;
     }

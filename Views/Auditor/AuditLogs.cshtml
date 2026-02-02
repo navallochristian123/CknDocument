@@ -1,6 +1,16 @@
+@model IEnumerable<CKNDocument.Models.LawFirmDMS.AuditLog>
 @{
     ViewData["Title"] = "Audit Logs";
     Layout = "_AuditorLayout";
+    var users = ViewData["Users"] as IEnumerable<dynamic> ?? new List<dynamic>();
+    var actions = ViewData["Actions"] as string[] ?? Array.Empty<string>();
+    var categories = ViewData["Categories"] as string[] ?? Array.Empty<string>();
+    var totalCount = (int)(ViewData["TotalCount"] ?? 0);
+    var currentPage = (int)(ViewData["CurrentPage"] ?? 1);
+    var pageSize = (int)(ViewData["PageSize"] ?? 20);
+    var totalPages = (int)(ViewData["TotalPages"] ?? 1);
+    var maxDate = DateTime.Now.ToString("yyyy-MM-dd");
+    var minDate = DateTime.Now.AddDays(-90).ToString("yyyy-MM-dd");
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -8,108 +18,537 @@
         <h4 class="mb-0">Audit Logs</h4>
         <p class="text-muted mb-0">Complete system audit trail</p>
     </div>
-    <a href="#" class="btn btn-primary">
-        <i class="bi bi-download"></i> Export Logs
-    </a>
+    <div class="btn-group">
+        <button type="button" class="btn btn-outline-primary" onclick="showStatistics()">
+            <i class="bi bi-bar-chart"></i> Statistics
+        </button>
+        <div class="btn-group">
+            <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
+                <i class="bi bi-download"></i> Export
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="#" onclick="exportLogs('csv')"><i class="bi bi-filetype-csv me-2"></i>Export as CSV</a></li>
+                <li><a class="dropdown-item" href="#" onclick="exportLogs('excel')"><i class="bi bi-file-earmark-excel me-2"></i>Export as Excel</a></li>
+                <li><a class="dropdown-item" href="#" onclick="exportLogs('pdf')"><i class="bi bi-file-earmark-pdf me-2"></i>Export as PDF</a></li>
+            </ul>
+        </div>
+    </div>
 </div>
 
-<div class="card">
-    <div class="card-header bg-white">
-        <div class="row align-items-center">
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <form id="filterForm" method="get" class="row g-2 align-items-end">
             <div class="col-md-3">
-                <input type="text" class="form-control" placeholder="Search logs...">
+                <label class="form-label small">Search</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control border-start-0" name="search" id="searchInput" 
+                           placeholder="Search logs..." value="@Context.Request.Query["search"]">
+                </div>
             </div>
             <div class="col-md-2">
-                <select class="form-select">
+                <label class="form-label small">Action</label>
+                <select class="form-select" name="action" id="actionFilter">
                     <option value="">All Actions</option>
-                    <option>Create</option>
-                    <option>Update</option>
-                    <option>Delete</option>
-                    <option>View</option>
-                    <option>Login</option>
+                    @{
+                        var filterAction = ViewData["FilterAction"]?.ToString() ?? "";
+                    }
+                    @foreach (var action in actions)
+                    {
+                        if (filterAction == action) {
+                            <option value="@action" selected>@action</option>
+                        } else {
+                            <option value="@action">@action</option>
+                        }
+                    }
                 </select>
             </div>
             <div class="col-md-2">
-                <select class="form-select">
+                <label class="form-label small">Category</label>
+                <select class="form-select" name="category" id="categoryFilter">
+                    <option value="">All Categories</option>
+                    @{
+                        var filterCategory = ViewData["FilterCategory"]?.ToString() ?? "";
+                    }
+                    @foreach (var category in categories)
+                    {
+                        if (filterCategory == category) {
+                            <option value="@category" selected>@category</option>
+                        } else {
+                            <option value="@category">@category</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">User</label>
+                <select class="form-select" name="userId" id="userFilter">
                     <option value="">All Users</option>
-                    <option>John Doe</option>
-                    <option>Jane Smith</option>
-                    <option>Admin</option>
+                    @{
+                        var filterUserId = ViewData["FilterUserId"]?.ToString() ?? "";
+                    }
+                    @foreach (var user in users)
+                    {
+                        if (filterUserId == user.UserID.ToString()) {
+                            <option value="@user.UserID" selected>@user.Name</option>
+                        } else {
+                            <option value="@user.UserID">@user.Name</option>
+                        }
+                    }
                 </select>
             </div>
-            <div class="col-md-2">
-                <input type="date" class="form-control" placeholder="From">
+            <div class="col-md-3">
+                <label class="form-label small">Date Range (Max 90 days)</label>
+                <div class="input-group">
+                    <input type="date" class="form-control" name="startDate" id="startDate" 
+                           value="@ViewData["FilterStartDate"]" min="@minDate" max="@maxDate">
+                    <span class="input-group-text">to</span>
+                    <input type="date" class="form-control" name="endDate" id="endDate" 
+                           value="@ViewData["FilterEndDate"]" min="@minDate" max="@maxDate">
+                </div>
             </div>
-            <div class="col-md-2">
-                <input type="date" class="form-control" placeholder="To">
+            <div class="col-12 mt-2">
+                <button type="submit" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-filter"></i> Apply Filters
+                </button>
+                <a href="/Audit" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-x-circle"></i> Clear Filters
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Results Count -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <span class="text-muted">Showing @((currentPage - 1) * pageSize + 1) to @Math.Min(currentPage * pageSize, totalCount) of @totalCount logs</span>
+    <div>
+        <select class="form-select form-select-sm" style="width: auto;" onchange="changePageSize(this.value)">
+            @if (pageSize == 20) { <option value="20" selected>20 per page</option> } else { <option value="20">20 per page</option> }
+            @if (pageSize == 50) { <option value="50" selected>50 per page</option> } else { <option value="50">50 per page</option> }
+            @if (pageSize == 100) { <option value="100" selected>100 per page</option> } else { <option value="100">100 per page</option> }
+        </select>
+    </div>
+</div>
+
+<!-- Logs Table -->
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0" id="logsTable">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 160px;">Timestamp</th>
+                        <th style="width: 140px;">User</th>
+                        <th style="width: 100px;">Action</th>
+                        <th style="width: 100px;">Resource</th>
+                        <th>Details</th>
+                        <th style="width: 120px;">IP Address</th>
+                        <th style="width: 60px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model != null && Model.Any())
+                    {
+                        @foreach (var log in Model)
+                        {
+                            var actionBadgeClass = log.Action switch
+                            {
+                                "Login" => "bg-primary",
+                                "Logout" => "bg-secondary",
+                                "LoginFailed" => "bg-warning text-dark",
+                                "Registration" or "AccountCreated" => "bg-success",
+                                "PasswordChanged" => "bg-info",
+                                "DocumentCreated" => "bg-success",
+                                "DocumentViewed" => "bg-info",
+                                "DocumentUpdated" => "bg-warning text-dark",
+                                "DocumentDeleted" => "bg-danger",
+                                _ => "bg-secondary"
+                            };
+
+                            <tr>
+                                <td>
+                                    <span class="text-nowrap">@log.Timestamp.ToString("yyyy-MM-dd")</span>
+                                    <span class="text-muted">@log.Timestamp.ToString("HH:mm:ss")</span>
+                                </td>
+                                <td>@(log.User?.FullName ?? log.SuperAdmin?.FullName ?? "System")</td>
+                                <td><span class="badge @actionBadgeClass">@log.Action</span></td>
+                                <td>@(log.EntityType ?? "-")</td>
+                                <td class="text-truncate" style="max-width: 300px;" title="@log.Description">
+                                    @(log.Description ?? "-")
+                                </td>
+                                <td><code class="small">@(log.IPAddress ?? "-")</code></td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="viewLogDetails(@log.AuditID)" title="View Details">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center py-4">
+                                <i class="bi bi-clipboard-x text-muted" style="font-size: 3rem;"></i>
+                                <p class="text-muted mt-2">No audit logs found for the selected filters.</p>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @if (totalPages > 1)
+    {
+        <div class="card-footer bg-white">
+            <nav aria-label="Audit logs pagination">
+                <ul class="pagination pagination-sm mb-0 justify-content-center">
+                    <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                        <a class="page-link" href="@BuildPageUrl(1)">First</a>
+                    </li>
+                    <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                        <a class="page-link" href="@BuildPageUrl(currentPage - 1)">Previous</a>
+                    </li>
+                    @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
+                    {
+                        <li class="page-item @(i == currentPage ? "active" : "")">
+                            <a class="page-link" href="@BuildPageUrl(i)">@i</a>
+                        </li>
+                    }
+                    <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                        <a class="page-link" href="@BuildPageUrl(currentPage + 1)">Next</a>
+                    </li>
+                    <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                        <a class="page-link" href="@BuildPageUrl(totalPages)">Last</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
+</div>
+
+@functions {
+    string BuildPageUrl(int page)
+    {
+        var query = Context.Request.Query;
+        return $"?page={page}&action={query["action"]}&category={query["category"]}&userId={query["userId"]}&startDate={query["startDate"]}&endDate={query["endDate"]}&pageSize={ViewData["PageSize"]}";
+    }
+}
+
+<!-- Log Details Modal -->
+<div class="modal fade" id="logDetailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="bi bi-clipboard-data me-2"></i>Audit Log Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="logDetailsContent">
+                <!-- Loaded via AJAX -->
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
-    <div class="card-body p-0">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Timestamp</th>
-                    <th>User</th>
-                    <th>Action</th>
-                    <th>Resource</th>
-                    <th>Details</th>
-                    <th>IP Address</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>2024-01-20 14:32:15</td>
-                    <td>John Doe</td>
-                    <td><span class="badge bg-success">Create</span></td>
-                    <td>Document</td>
-                    <td>Uploaded Contract_Smith.pdf</td>
-                    <td>192.168.1.100</td>
-                </tr>
-                <tr>
-                    <td>2024-01-20 14:30:00</td>
-                    <td>Jane Smith</td>
-                    <td><span class="badge bg-info">View</span></td>
-                    <td>Document</td>
-                    <td>Viewed Brief_Case123.docx</td>
-                    <td>192.168.1.101</td>
-                </tr>
-                <tr>
-                    <td>2024-01-20 14:25:10</td>
-                    <td>Admin</td>
-                    <td><span class="badge bg-warning">Update</span></td>
-                    <td>User</td>
-                    <td>Updated user permissions for Mike</td>
-                    <td>192.168.1.1</td>
-                </tr>
-                <tr>
-                    <td>2024-01-20 14:20:00</td>
-                    <td>Mike Johnson</td>
-                    <td><span class="badge bg-primary">Login</span></td>
-                    <td>Session</td>
-                    <td>User logged in successfully</td>
-                    <td>192.168.1.102</td>
-                </tr>
-                <tr>
-                    <td>2024-01-20 14:15:30</td>
-                    <td>Admin</td>
-                    <td><span class="badge bg-danger">Delete</span></td>
-                    <td>Document</td>
-                    <td>Deleted Old_Contract.pdf</td>
-                    <td>192.168.1.1</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-    <div class="card-footer bg-white">
-        <nav>
-            <ul class="pagination pagination-sm mb-0 justify-content-end">
-                <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
-                <li class="page-item active"><a class="page-link" href="#">1</a></li>
-                <li class="page-item"><a class="page-link" href="#">2</a></li>
-                <li class="page-item"><a class="page-link" href="#">3</a></li>
-                <li class="page-item"><a class="page-link" href="#">Next</a></li>
-            </ul>
-        </nav>
+</div>
+
+<!-- Statistics Modal -->
+<div class="modal fade" id="statisticsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-bar-chart me-2"></i>Audit Log Statistics</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="statisticsContent">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
     </div>
 </div>
+
+<!-- Toast Container -->
+<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1100;">
+    <div id="toast" class="toast" role="alert">
+        <div class="toast-header" id="toastHeader">
+            <i class="bi me-2" id="toastIcon"></i>
+            <strong class="me-auto" id="toastTitle">Notification</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body" id="toastMessage"></div>
+    </div>
+</div>
+
+@section Styles {
+<style>
+    .table td {
+        vertical-align: middle;
+        font-size: 0.875rem;
+    }
+
+    .table th {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .form-label {
+        font-weight: 500;
+        margin-bottom: 0.25rem;
+    }
+
+    .stat-card {
+        text-align: center;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    }
+
+    .stat-card .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #0d6efd;
+    }
+
+    .stat-card .stat-label {
+        font-size: 0.8rem;
+        color: #6c757d;
+        text-transform: uppercase;
+    }
+
+    .detail-row {
+        display: flex;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .detail-row:last-child {
+        border-bottom: none;
+    }
+
+    .detail-label {
+        font-weight: 600;
+        width: 150px;
+        color: #6c757d;
+    }
+
+    .detail-value {
+        flex: 1;
+    }
+
+    code {
+        background-color: #f8f9fa;
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+</style>
+}
+
+@section Scripts {
+<script>
+    // Toast function
+    function showToast(type, message) {
+        const toast = document.getElementById('toast');
+        const toastHeader = document.getElementById('toastHeader');
+        const toastIcon = document.getElementById('toastIcon');
+        const toastTitle = document.getElementById('toastTitle');
+        const toastMessage = document.getElementById('toastMessage');
+
+        toastHeader.className = 'toast-header';
+        toastIcon.className = 'bi me-2';
+
+        if (type === 'success') {
+            toastHeader.classList.add('bg-success', 'text-white');
+            toastIcon.classList.add('bi-check-circle');
+            toastTitle.textContent = 'Success';
+        } else if (type === 'error') {
+            toastHeader.classList.add('bg-danger', 'text-white');
+            toastIcon.classList.add('bi-x-circle');
+            toastTitle.textContent = 'Error';
+        } else {
+            toastHeader.classList.add('bg-info', 'text-white');
+            toastIcon.classList.add('bi-info-circle');
+            toastTitle.textContent = 'Info';
+        }
+
+        toastMessage.textContent = message;
+        new bootstrap.Toast(toast).show();
+    }
+
+    // View log details
+    async function viewLogDetails(logId) {
+        try {
+            const response = await fetch(`/Audit/Details/${logId}`);
+            if (response.redirected) {
+                window.location.href = response.url;
+                return;
+            }
+
+            // For now, build the modal content from available data
+            // In production, you'd parse the response or use a JSON endpoint
+            document.getElementById('logDetailsContent').innerHTML = `
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="text-muted mt-2">Loading details...</p>
+                </div>
+            `;
+            new bootstrap.Modal(document.getElementById('logDetailsModal')).show();
+
+            // Fetch details via API
+            const apiResponse = await fetch(`/Audit/GetLogs?page=1&pageSize=1`);
+            const data = await apiResponse.json();
+
+            // Redirect to details page for full view
+            window.location.href = `/Audit/Details/${logId}`;
+        } catch (error) {
+            showToast('error', 'Failed to load log details.');
+        }
+    }
+
+    // Show statistics
+    async function showStatistics() {
+        const modal = new bootstrap.Modal(document.getElementById('statisticsModal'));
+        modal.show();
+
+        try {
+            const startDate = document.getElementById('startDate').value || '';
+            const endDate = document.getElementById('endDate').value || '';
+            const response = await fetch(`/Audit/Statistics?startDate=${startDate}&endDate=${endDate}`);
+            const stats = await response.json();
+
+            document.getElementById('statisticsContent').innerHTML = `
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.totalLogs.toLocaleString()}</div>
+                            <div class="stat-label">Total Logs</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-value text-success">${stats.loginCount.toLocaleString()}</div>
+                            <div class="stat-label">Logins</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-value text-warning">${stats.failedLogins.toLocaleString()}</div>
+                            <div class="stat-label">Failed Logins</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-value text-info">${stats.accountsCreated.toLocaleString()}</div>
+                            <div class="stat-label">Accounts Created</div>
+                        </div>
+                    </div>
+                </div>
+                <h6 class="text-muted mb-3">Activity by Category</h6>
+                <div class="row g-2 mb-4">
+                    ${stats.byCategory.map(c => `
+                        <div class="col-md-3">
+                            <div class="d-flex justify-content-between align-items-center p-2 bg-light rounded">
+                                <span>${c.category || 'Unknown'}</span>
+                                <span class="badge bg-primary">${c.count}</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                <h6 class="text-muted mb-3">Daily Activity (Last 30 Days)</h6>
+                <div class="border rounded p-3">
+                    <div class="d-flex align-items-end" style="height: 100px; gap: 2px;">
+                        ${stats.byDay.slice(-30).map(d => {
+                            const maxCount = Math.max(...stats.byDay.map(x => x.count));
+                            const height = maxCount > 0 ? (d.count / maxCount * 100) : 0;
+                            return `<div class="flex-fill bg-primary rounded-top" style="height: ${height}%;" title="${d.date}: ${d.count} logs"></div>`;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        } catch (error) {
+            document.getElementById('statisticsContent').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Failed to load statistics. Please try again.
+                </div>
+            `;
+        }
+    }
+
+    // Export logs
+    function exportLogs(format) {
+        const params = new URLSearchParams(window.location.search);
+        const action = params.get('action') || '';
+        const category = params.get('category') || '';
+        const userId = params.get('userId') || '';
+        const startDate = params.get('startDate') || '';
+        const endDate = params.get('endDate') || '';
+
+        if (format === 'csv') {
+            window.location.href = `/Audit/Export?format=csv&action=${action}&category=${category}&userId=${userId}&startDate=${startDate}&endDate=${endDate}`;
+        } else if (format === 'excel') {
+            window.location.href = `/Audit/ExportExcel?action=${action}&category=${category}&userId=${userId}&startDate=${startDate}&endDate=${endDate}`;
+        } else if (format === 'pdf') {
+            window.location.href = `/Audit/ExportPdf?action=${action}&category=${category}&userId=${userId}&startDate=${startDate}&endDate=${endDate}`;
+        }
+
+        showToast('info', `Preparing ${format.toUpperCase()} export...`);
+    }
+
+    // Change page size
+    function changePageSize(size) {
+        const params = new URLSearchParams(window.location.search);
+        params.set('pageSize', size);
+        params.set('page', '1');
+        window.location.search = params.toString();
+    }
+
+    // Date range validation
+    document.getElementById('startDate').addEventListener('change', validateDateRange);
+    document.getElementById('endDate').addEventListener('change', validateDateRange);
+
+    function validateDateRange() {
+        const startDate = document.getElementById('startDate');
+        const endDate = document.getElementById('endDate');
+
+        if (startDate.value && endDate.value) {
+            const start = new Date(startDate.value);
+            const end = new Date(endDate.value);
+            const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+
+            if (diffDays > 90) {
+                showToast('error', 'Date range cannot exceed 90 days.');
+                endDate.value = '';
+            }
+
+            if (start > end) {
+                showToast('error', 'Start date cannot be after end date.');
+                startDate.value = '';
+            }
+        }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        // Show any server-side toast messages
+        @if (TempData["ToastType"] != null)
+        {
+            <text>
+            showToast('@TempData["ToastType"]', '@TempData["ToastMessage"]');
+            </text>
+        }
+    });
+</script>
+}

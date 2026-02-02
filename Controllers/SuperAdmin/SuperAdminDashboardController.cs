@@ -11,9 +11,9 @@ namespace CKNDocument.Controllers.SuperAdmin;
 [Authorize(Policy = "SuperAdminOnly")]
 public class SuperAdminDashboardController : Controller
 {
-    private readonly OwnerERPDbContext _context;
+    private readonly LawFirmDMSDbContext _context;
 
-    public SuperAdminDashboardController(OwnerERPDbContext context)
+    public SuperAdminDashboardController(LawFirmDMSDbContext context)
     {
         _context = context;
     }
