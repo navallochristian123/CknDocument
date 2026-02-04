@@ -24,6 +24,9 @@ public class DocumentChecklistItem : BaseEntity
     [MaxLength(500)]
     public string? Description { get; set; }
 
+    [MaxLength(100)]
+    public string? DocumentType { get; set; }
+
     public bool? IsRequired { get; set; } = true;
 
     public int? DisplayOrder { get; set; } = 0;

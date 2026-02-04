@@ -40,6 +40,9 @@ public class DocumentVersion : BaseEntity
     [MaxLength(50)]
     public string? ChangedBy { get; set; }
 
+    [MaxLength(128)]
+    public string? FileHash { get; set; }
+
     public bool? IsCurrentVersion { get; set; } = false;
 
     // Navigation properties

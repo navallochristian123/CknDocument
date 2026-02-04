@@ -100,6 +100,9 @@ builder.Services.AddHttpContextAccessor();
 // Services
 builder.Services.AddScoped<DatabaseSeeder>();
 builder.Services.AddScoped<AuditLogService>();
+builder.Services.AddScoped<DocumentWorkflowService>();
+builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<DocumentAIService>();
 
 var app = builder.Build();
 

@@ -6,35 +6,311 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h4 class="mb-0">Notifications</h4>
+        <small class="text-muted" id="unreadCount">Loading...</small>
     </div>
-    <a href="#" class="btn btn-outline-secondary">
-        <i class="bi bi-check-all"></i> Mark All as Read
-    </a>
+    <div>
+        <button type="button" class="btn btn-outline-secondary" onclick="markAllAsRead()">
+            <i class="bi bi-check-all"></i> Mark All as Read
+        </button>
+        <button type="button" class="btn btn-outline-primary ms-2" onclick="loadNotifications()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+    </div>
 </div>
+
+<!-- Filter Tabs -->
+<ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item">
+        <button class="nav-link active" data-filter="all" onclick="filterNotifications('all', this)">
+            <i class="bi bi-bell"></i> All
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-filter="unread" onclick="filterNotifications('unread', this)">
+            <i class="bi bi-envelope"></i> Unread
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-filter="read" onclick="filterNotifications('read', this)">
+            <i class="bi bi-envelope-open"></i> Read
+        </button>
+    </li>
+</ul>
 
 <div class="card">
     <div class="card-body p-0">
-        <div class="list-group list-group-flush">
-            <a href="#" class="list-group-item list-group-item-action bg-light">
-                <div class="d-flex w-100 justify-content-between">
-                    <div>
-                        <i class="bi bi-check-circle text-success me-2"></i>
-                        <strong>Document Approved</strong>
-                    </div>
-                    <small class="text-muted">2 hours ago</small>
-                </div>
-                <p class="mb-0 text-muted">Your document My_Contract.pdf has been approved</p>
-            </a>
-            <a href="#" class="list-group-item list-group-item-action">
-                <div class="d-flex w-100 justify-content-between">
-                    <div>
-                        <i class="bi bi-info-circle text-info me-2"></i>
-                        <strong>Document Under Review</strong>
-                    </div>
-                    <small class="text-muted">1 day ago</small>
-                </div>
-                <p class="mb-0 text-muted">Agreement.pdf is being reviewed by staff</p>
-            </a>
+        <div class="list-group list-group-flush" id="notificationsList">
+            <!-- Notifications will be loaded here -->
+        </div>
+        
+        <!-- Empty State -->
+        <div id="emptyState" class="text-center py-5 d-none">
+            <i class="bi bi-bell-slash display-1 text-muted"></i>
+            <h5 class="mt-3 text-muted">No notifications</h5>
+            <p class="text-muted">You're all caught up!</p>
+        </div>
+        
+        <!-- Loading State -->
+        <div id="loadingState" class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading notifications...</p>
         </div>
     </div>
 </div>
+
+<!-- Notification Detail Modal -->
+<div class="modal fade" id="notificationModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="notificationModalTitle">Notification Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="notificationDetails">
+                    <div class="d-flex align-items-center mb-3">
+                        <i id="notificationIcon" class="bi fs-1 me-3"></i>
+                        <div>
+                            <h6 id="notificationTitle" class="mb-0"></h6>
+                            <small id="notificationTime" class="text-muted"></small>
+                        </div>
+                    </div>
+                    <hr>
+                    <p id="notificationMessage" class="mb-0"></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a id="notificationActionBtn" href="#" class="btn btn-primary d-none">
+                    <i class="bi bi-box-arrow-up-right"></i> View Document
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let allNotifications = [];
+    let currentFilter = 'all';
+    
+    // Notification type icons and colors
+    const notificationTypes = {
+        'DocumentUploaded': { icon: 'bi-upload', color: 'text-info', title: 'Document Uploaded' },
+        'PendingReview': { icon: 'bi-hourglass-split', color: 'text-warning', title: 'Pending Review' },
+        'StaffApproved': { icon: 'bi-check-circle', color: 'text-success', title: 'Staff Approved' },
+        'StaffRejected': { icon: 'bi-x-circle', color: 'text-danger', title: 'Staff Rejected' },
+        'AdminApproved': { icon: 'bi-shield-check', color: 'text-success', title: 'Admin Approved' },
+        'AdminRejected': { icon: 'bi-shield-x', color: 'text-danger', title: 'Admin Rejected' },
+        'DocumentVersioned': { icon: 'bi-arrow-repeat', color: 'text-primary', title: 'New Version' },
+        'DocumentArchived': { icon: 'bi-archive', color: 'text-secondary', title: 'Document Archived' },
+        'General': { icon: 'bi-bell', color: 'text-primary', title: 'Notification' }
+    };
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        loadNotifications();
+    });
+    
+    async function loadNotifications() {
+        const listContainer = document.getElementById('notificationsList');
+        const loadingState = document.getElementById('loadingState');
+        const emptyState = document.getElementById('emptyState');
+        
+        loadingState.classList.remove('d-none');
+        emptyState.classList.add('d-none');
+        listContainer.innerHTML = '';
+        
+        try {
+            const response = await fetch('/api/notification');
+            if (response.ok) {
+                const data = await response.json();
+                allNotifications = data.notifications || [];
+                updateUnreadCount();
+                applyFilter();
+            } else {
+                showToast('Failed to load notifications', 'error');
+            }
+        } catch (error) {
+            console.error('Error loading notifications:', error);
+            showToast('Error loading notifications', 'error');
+        }
+        
+        loadingState.classList.add('d-none');
+    }
+    
+    function updateUnreadCount() {
+        const unread = allNotifications.filter(n => !n.isRead).length;
+        document.getElementById('unreadCount').textContent = 
+            unread > 0 ? `${unread} unread notification${unread > 1 ? 's' : ''}` : 'All caught up!';
+    }
+    
+    function filterNotifications(filter, btn) {
+        currentFilter = filter;
+        
+        // Update active tab
+        document.querySelectorAll('.nav-tabs .nav-link').forEach(tab => tab.classList.remove('active'));
+        btn.classList.add('active');
+        
+        applyFilter();
+    }
+    
+    function applyFilter() {
+        let filtered = [...allNotifications];
+        
+        if (currentFilter === 'unread') {
+            filtered = filtered.filter(n => !n.isRead);
+        } else if (currentFilter === 'read') {
+            filtered = filtered.filter(n => n.isRead);
+        }
+        
+        renderNotifications(filtered);
+    }
+    
+    function renderNotifications(notifications) {
+        const listContainer = document.getElementById('notificationsList');
+        const emptyState = document.getElementById('emptyState');
+        
+        if (notifications.length === 0) {
+            listContainer.innerHTML = '';
+            emptyState.classList.remove('d-none');
+            return;
+        }
+        
+        emptyState.classList.add('d-none');
+        
+        listContainer.innerHTML = notifications.map(n => {
+            const typeInfo = notificationTypes[n.notificationType] || notificationTypes['General'];
+            const bgClass = n.isRead ? '' : 'bg-light';
+            const timeAgo = formatTimeAgo(n.createdAt);
+            
+            return `
+                <div class="list-group-item list-group-item-action ${bgClass}" 
+                     onclick="openNotification(${n.id})" style="cursor: pointer;">
+                    <div class="d-flex w-100 justify-content-between align-items-start">
+                        <div class="d-flex align-items-start">
+                            <i class="bi ${typeInfo.icon} ${typeInfo.color} fs-4 me-3"></i>
+                            <div>
+                                <div class="d-flex align-items-center">
+                                    <strong class="me-2">${typeInfo.title}</strong>
+                                    ${!n.isRead ? '<span class="badge bg-primary">New</span>' : ''}
+                                </div>
+                                <p class="mb-0 text-muted">${escapeHtml(n.message)}</p>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <small class="text-muted">${timeAgo}</small>
+                            <div class="mt-1">
+                                ${!n.isRead ? `<button class="btn btn-sm btn-link p-0" onclick="event.stopPropagation(); markAsRead(${n.id})"><i class="bi bi-check"></i></button>` : ''}
+                                <button class="btn btn-sm btn-link p-0 text-danger" onclick="event.stopPropagation(); deleteNotification(${n.id})"><i class="bi bi-trash"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    async function openNotification(id) {
+        const notification = allNotifications.find(n => n.id === id);
+        if (!notification) return;
+        
+        const typeInfo = notificationTypes[notification.notificationType] || notificationTypes['General'];
+        
+        document.getElementById('notificationModalTitle').textContent = typeInfo.title;
+        document.getElementById('notificationIcon').className = `bi ${typeInfo.icon} ${typeInfo.color}`;
+        document.getElementById('notificationTitle').textContent = typeInfo.title;
+        document.getElementById('notificationTime').textContent = formatTimeAgo(notification.createdAt);
+        document.getElementById('notificationMessage').textContent = notification.message;
+        
+        const actionBtn = document.getElementById('notificationActionBtn');
+        if (notification.actionUrl) {
+            actionBtn.href = notification.actionUrl;
+            actionBtn.classList.remove('d-none');
+        } else {
+            actionBtn.classList.add('d-none');
+        }
+        
+        new bootstrap.Modal(document.getElementById('notificationModal')).show();
+        
+        // Mark as read if unread
+        if (!notification.isRead) {
+            await markAsRead(id);
+        }
+    }
+    
+    async function markAsRead(id) {
+        try {
+            const response = await fetch(`/api/notification/${id}/read`, { method: 'POST' });
+            if (response.ok) {
+                const notification = allNotifications.find(n => n.id === id);
+                if (notification) {
+                    notification.isRead = true;
+                    updateUnreadCount();
+                    applyFilter();
+                }
+            }
+        } catch (error) {
+            console.error('Error marking notification as read:', error);
+        }
+    }
+    
+    async function markAllAsRead() {
+        try {
+            const response = await fetch('/api/notification/read-all', { method: 'POST' });
+            if (response.ok) {
+                allNotifications.forEach(n => n.isRead = true);
+                updateUnreadCount();
+                applyFilter();
+                showToast('All notifications marked as read', 'success');
+            }
+        } catch (error) {
+            console.error('Error marking all as read:', error);
+            showToast('Error marking notifications as read', 'error');
+        }
+    }
+    
+    async function deleteNotification(id) {
+        try {
+            const response = await fetch(`/api/notification/${id}`, { method: 'DELETE' });
+            if (response.ok) {
+                allNotifications = allNotifications.filter(n => n.id !== id);
+                updateUnreadCount();
+                applyFilter();
+                showToast('Notification deleted', 'success');
+            }
+        } catch (error) {
+            console.error('Error deleting notification:', error);
+            showToast('Error deleting notification', 'error');
+        }
+    }
+    
+    function formatTimeAgo(dateString) {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffInSeconds = Math.floor((now - date) / 1000);
+        
+        if (diffInSeconds < 60) return 'Just now';
+        if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} min ago`;
+        if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hour${Math.floor(diffInSeconds / 3600) > 1 ? 's' : ''} ago`;
+        if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} day${Math.floor(diffInSeconds / 86400) > 1 ? 's' : ''} ago`;
+        return date.toLocaleDateString();
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    function showToast(message, type) {
+        // Simple toast using alert for now - can be replaced with a toast library
+        if (type === 'error') {
+            console.error(message);
+        } else {
+            console.log(message);
+        }
+    }
+</script>
+}

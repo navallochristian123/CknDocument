@@ -63,6 +63,12 @@
                             </a>
                         </li>
                         <li class="nav-item" role="none">
+                            <a class="nav-link" asp-controller="Archive" asp-action="Index" role="menuitem">
+                                <i class="bi bi-archive" aria-hidden="true"></i>
+                                <span>Archive</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" role="none">
                             <a class="nav-link" asp-controller="Notification" asp-action="Index" role="menuitem">
                                 <i class="bi bi-bell" aria-hidden="true"></i>
                                 <span>Notifications</span>
@@ -90,10 +96,31 @@
             <header class="header">
                 <h1 class="header-title">@ViewData["Title"]</h1>
                 <div class="header-actions">
-                    <a asp-controller="Notification" asp-action="Index" class="btn btn-secondary" aria-label="View notifications">
-                        <i class="bi bi-bell" aria-hidden="true"></i>
-                        <span class="sr-only">Notifications</span>
-                    </a>
+                    <!-- Notification Dropdown -->
+                    <div class="dropdown">
+                        <button class="btn btn-secondary position-relative" type="button" id="notificationDropdown" data-bs-toggle="dropdown" aria-expanded="false" aria-label="View notifications">
+                            <i class="bi bi-bell" aria-hidden="true"></i>
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" id="notificationBadge">
+                                0
+                            </span>
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end notification-dropdown" aria-labelledby="notificationDropdown" style="width: 350px; max-height: 400px; overflow-y: auto;">
+                            <div class="dropdown-header d-flex justify-content-between align-items-center">
+                                <strong>Notifications</strong>
+                                <a href="/Client/Notification" class="small text-decoration-none">View All</a>
+                            </div>
+                            <div id="notificationList">
+                                <div class="text-center py-3 text-muted">
+                                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                                    <span class="ms-2">Loading...</span>
+                                </div>
+                            </div>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item text-center text-primary" href="/Client/Notification">
+                                <i class="bi bi-arrow-right-circle"></i> See all notifications
+                            </a>
+                        </div>
+                    </div>
                     <form asp-controller="Auth" asp-action="Logout" method="post">
                         <button type="submit" class="btn btn-secondary">
                             <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
@@ -112,6 +139,108 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    
+    <!-- Notification Icon Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            loadNotificationBadge();
+            
+            // Load notifications when dropdown is opened
+            document.getElementById('notificationDropdown')?.addEventListener('show.bs.dropdown', loadNotifications);
+            
+            // Refresh badge every 30 seconds
+            setInterval(loadNotificationBadge, 30000);
+        });
+        
+        async function loadNotificationBadge() {
+            try {
+                const response = await fetch('/api/notification/unread-count');
+                if (response.ok) {
+                    const data = await response.json();
+                    const badge = document.getElementById('notificationBadge');
+                    if (data.count > 0) {
+                        badge.textContent = data.count > 99 ? '99+' : data.count;
+                        badge.classList.remove('d-none');
+                    } else {
+                        badge.classList.add('d-none');
+                    }
+                }
+            } catch (e) { console.log('Could not load notification count'); }
+        }
+        
+        async function loadNotifications() {
+            const container = document.getElementById('notificationList');
+            try {
+                const response = await fetch('/api/notification/recent');
+                if (response.ok) {
+                    const data = await response.json();
+                    const notifications = data.notifications || [];
+                    
+                    if (notifications.length === 0) {
+                        container.innerHTML = '<div class="text-center py-3 text-muted"><i class="bi bi-bell-slash"></i> No notifications</div>';
+                        return;
+                    }
+                    
+                    container.innerHTML = notifications.slice(0, 5).map(n => `
+                        <a class="dropdown-item py-2 ${n.isRead ? '' : 'bg-light'}" href="${n.actionUrl || '/Client/Notification'}">
+                            <div class="d-flex">
+                                <i class="bi ${getNotificationIcon(n.notificationType)} me-2 ${getNotificationColor(n.notificationType)}"></i>
+                                <div class="flex-grow-1">
+                                    <div class="small fw-bold">${escapeHtml(n.title)}</div>
+                                    <div class="small text-muted text-truncate" style="max-width: 250px;">${escapeHtml(n.message)}</div>
+                                    <div class="small text-muted">${formatTimeAgo(n.createdAt)}</div>
+                                </div>
+                            </div>
+                        </a>
+                    `).join('');
+                }
+            } catch (e) { 
+                container.innerHTML = '<div class="text-center py-3 text-muted">Could not load notifications</div>';
+            }
+        }
+        
+        function getNotificationIcon(type) {
+            const icons = {
+                'DocumentUploaded': 'bi-upload',
+                'PendingReview': 'bi-hourglass-split',
+                'StaffApproved': 'bi-check-circle',
+                'StaffRejected': 'bi-x-circle',
+                'AdminApproved': 'bi-shield-check',
+                'AdminRejected': 'bi-shield-x',
+                'DocumentVersioned': 'bi-arrow-repeat',
+                'DocumentArchived': 'bi-archive'
+            };
+            return icons[type] || 'bi-bell';
+        }
+        
+        function getNotificationColor(type) {
+            const colors = {
+                'StaffApproved': 'text-success',
+                'AdminApproved': 'text-success',
+                'StaffRejected': 'text-danger',
+                'AdminRejected': 'text-danger',
+                'PendingReview': 'text-warning'
+            };
+            return colors[type] || 'text-primary';
+        }
+        
+        function formatTimeAgo(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffInSeconds = Math.floor((now - date) / 1000);
+            if (diffInSeconds < 60) return 'Just now';
+            if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+            if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+            return `${Math.floor(diffInSeconds / 86400)}d ago`;
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

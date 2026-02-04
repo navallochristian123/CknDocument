@@ -1,0 +1,632 @@
+using CKNDocument.Data;
+using CKNDocument.Models.LawFirmDMS;
+using Microsoft.EntityFrameworkCore;
+
+namespace CKNDocument.Services;
+
+/// <summary>
+/// Service for managing document workflow stages
+/// Workflow: ClientUpload → PendingStaffReview → StaffReview → PendingAdminReview → AdminReview → Approved → Completed
+/// </summary>
+public class DocumentWorkflowService
+{
+    private readonly LawFirmDMSDbContext _context;
+    private readonly NotificationService _notificationService;
+    private readonly AuditLogService _auditLogService;
+    private readonly ILogger<DocumentWorkflowService> _logger;
+
+    // Workflow Stage Constants
+    public const string STAGE_CLIENT_UPLOAD = "ClientUpload";
+    public const string STAGE_PENDING_STAFF_REVIEW = "PendingStaffReview";
+    public const string STAGE_STAFF_REVIEW = "StaffReview";
+    public const string STAGE_STAFF_REJECTED = "StaffRejected";
+    public const string STAGE_PENDING_ADMIN_REVIEW = "PendingAdminReview";
+    public const string STAGE_ADMIN_REVIEW = "AdminReview";
+    public const string STAGE_ADMIN_REJECTED = "AdminRejected";
+    public const string STAGE_APPROVED = "Approved";
+    public const string STAGE_COMPLETED = "Completed";
+    public const string STAGE_ARCHIVED = "Archived";
+
+    // Status Constants
+    public const string STATUS_PENDING = "Pending";
+    public const string STATUS_UNDER_REVIEW = "UnderReview";
+    public const string STATUS_APPROVED = "Approved";
+    public const string STATUS_REJECTED = "Rejected";
+    public const string STATUS_COMPLETED = "Completed";
+    public const string STATUS_ARCHIVED = "Archived";
+
+    public DocumentWorkflowService(
+        LawFirmDMSDbContext context,
+        NotificationService notificationService,
+        AuditLogService auditLogService,
+        ILogger<DocumentWorkflowService> logger)
+    {
+        _context = context;
+        _notificationService = notificationService;
+        _auditLogService = auditLogService;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Assign document to a staff member for review (round-robin or least loaded)
+    /// </summary>
+    public async Task<User?> AssignToStaffAsync(int documentId, int firmId)
+    {
+        // Get all active staff members in the firm
+        var staffMembers = await _context.Users
+            .Include(u => u.UserRoles)
+            .ThenInclude(ur => ur.Role)
+            .Where(u => u.FirmID == firmId &&
+                        u.Status == "Active" &&
+                        u.UserRoles.Any(ur => ur.Role != null && ur.Role.RoleName == "Staff"))
+            .ToListAsync();
+
+        if (!staffMembers.Any())
+        {
+            _logger.LogWarning("No active staff members found for firm {FirmId}", firmId);
+            return null;
+        }
+
+        // Get staff workload (count of pending documents assigned to each)
+        var staffWorkload = await _context.Documents
+            .Where(d => d.FirmID == firmId &&
+                        d.AssignedStaffId != null &&
+                        (d.WorkflowStage == STAGE_PENDING_STAFF_REVIEW || d.WorkflowStage == STAGE_STAFF_REVIEW))
+            .GroupBy(d => d.AssignedStaffId)
+            .Select(g => new { StaffId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.StaffId!.Value, x => x.Count);
+
+        // Find staff with least workload
+        var selectedStaff = staffMembers
+            .OrderBy(s => staffWorkload.GetValueOrDefault(s.UserID, 0))
+            .First();
+
+        // Update document assignment
+        var document = await _context.Documents.FindAsync(documentId);
+        if (document != null)
+        {
+            document.AssignedStaffId = selectedStaff.UserID;
+            document.WorkflowStage = STAGE_PENDING_STAFF_REVIEW;
+            document.Status = STATUS_PENDING;
+            document.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
+
+        return selectedStaff;
+    }
+
+    /// <summary>
+    /// Assign document to an admin for final review
+    /// </summary>
+    public async Task<User?> AssignToAdminAsync(int documentId, int firmId)
+    {
+        // Get all active admin members in the firm
+        var adminMembers = await _context.Users
+            .Include(u => u.UserRoles)
+            .ThenInclude(ur => ur.Role)
+            .Where(u => u.FirmID == firmId &&
+                        u.Status == "Active" &&
+                        u.UserRoles.Any(ur => ur.Role != null && ur.Role.RoleName == "Admin"))
+            .ToListAsync();
+
+        if (!adminMembers.Any())
+        {
+            _logger.LogWarning("No active admin members found for firm {FirmId}", firmId);
+            return null;
+        }
+
+        // Get admin workload
+        var adminWorkload = await _context.Documents
+            .Where(d => d.FirmID == firmId &&
+                        d.AssignedAdminId != null &&
+                        (d.WorkflowStage == STAGE_PENDING_ADMIN_REVIEW || d.WorkflowStage == STAGE_ADMIN_REVIEW))
+            .GroupBy(d => d.AssignedAdminId)
+            .Select(g => new { AdminId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.AdminId!.Value, x => x.Count);
+
+        // Find admin with least workload
+        var selectedAdmin = adminMembers
+            .OrderBy(a => adminWorkload.GetValueOrDefault(a.UserID, 0))
+            .First();
+
+        // Update document assignment
+        var document = await _context.Documents.FindAsync(documentId);
+        if (document != null)
+        {
+            document.AssignedAdminId = selectedAdmin.UserID;
+            document.WorkflowStage = STAGE_PENDING_ADMIN_REVIEW;
+            document.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
+
+        return selectedAdmin;
+    }
+
+    /// <summary>
+    /// Staff approves document and forwards to admin
+    /// </summary>
+    public async Task<DocumentReview> StaffApproveAsync(int documentId, int staffId, string? remarks, string? internalNotes, List<DocumentChecklistResult>? checklistResults)
+    {
+        var document = await _context.Documents
+            .Include(d => d.Uploader)
+            .FirstOrDefaultAsync(d => d.DocumentID == documentId);
+
+        if (document == null)
+            throw new InvalidOperationException("Document not found");
+
+        // Create review record
+        var review = new DocumentReview
+        {
+            DocumentId = documentId,
+            ReviewedBy = staffId,
+            ReviewStatus = STATUS_APPROVED,
+            Remarks = remarks,
+            InternalNotes = internalNotes,
+            ReviewedAt = DateTime.UtcNow,
+            ReviewerRole = "Staff",
+            IsChecklistComplete = checklistResults?.All(r => r.IsPassed == true) ?? true,
+            ChecklistScore = checklistResults?.Count(r => r.IsPassed == true) ?? 0,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.DocumentReviews.Add(review);
+        await _context.SaveChangesAsync();
+
+        // Add checklist results if provided
+        if (checklistResults != null && checklistResults.Any())
+        {
+            foreach (var result in checklistResults)
+            {
+                result.ReviewId = review.ReviewId;
+                result.CheckedAt = DateTime.UtcNow;
+                _context.DocumentChecklistResults.Add(result);
+            }
+            await _context.SaveChangesAsync();
+        }
+
+        // Update document workflow
+        document.StaffReviewedAt = DateTime.UtcNow;
+        document.UpdatedAt = DateTime.UtcNow;
+
+        // Assign to admin
+        var admin = await AssignToAdminAsync(documentId, document.FirmID);
+
+        // Notify admin
+        if (admin != null)
+        {
+            await _notificationService.NotifyAsync(
+                admin.UserID,
+                "New Document for Review",
+                $"Document '{document.Title}' has been forwarded for your review.",
+                "StaffApproved",
+                documentId,
+                $"/Review/Review/{documentId}");
+        }
+
+        // Notify client
+        if (document.UploadedBy.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.UploadedBy.Value,
+                "Document Reviewed by Staff",
+                $"Your document '{document.Title}' has been reviewed by staff and forwarded to admin for final approval.",
+                "StaffApproved",
+                documentId,
+                $"/Document/Details/{documentId}");
+        }
+
+        // Audit log
+        await _auditLogService.LogAsync(
+            "StaffApprove",
+            "Document",
+            documentId,
+            $"Staff approved document: {document.Title}",
+            null,
+            $"{{\"remarks\":\"{remarks}\"}}",
+            "DocumentReview");
+
+        return review;
+    }
+
+    /// <summary>
+    /// Staff rejects document
+    /// </summary>
+    public async Task<DocumentReview> StaffRejectAsync(int documentId, int staffId, string remarks, List<DocumentChecklistResult>? checklistResults)
+    {
+        var document = await _context.Documents
+            .Include(d => d.Uploader)
+            .FirstOrDefaultAsync(d => d.DocumentID == documentId);
+
+        if (document == null)
+            throw new InvalidOperationException("Document not found");
+
+        // Create review record
+        var review = new DocumentReview
+        {
+            DocumentId = documentId,
+            ReviewedBy = staffId,
+            ReviewStatus = STATUS_REJECTED,
+            Remarks = remarks,
+            ReviewedAt = DateTime.UtcNow,
+            ReviewerRole = "Staff",
+            IsChecklistComplete = false,
+            ChecklistScore = checklistResults?.Count(r => r.IsPassed == true) ?? 0,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.DocumentReviews.Add(review);
+        await _context.SaveChangesAsync();
+
+        // Add checklist results if provided
+        if (checklistResults != null && checklistResults.Any())
+        {
+            foreach (var result in checklistResults)
+            {
+                result.ReviewId = review.ReviewId;
+                result.CheckedAt = DateTime.UtcNow;
+                _context.DocumentChecklistResults.Add(result);
+            }
+            await _context.SaveChangesAsync();
+        }
+
+        // Update document
+        document.WorkflowStage = STAGE_STAFF_REJECTED;
+        document.Status = STATUS_REJECTED;
+        document.CurrentRemarks = remarks;
+        document.StaffReviewedAt = DateTime.UtcNow;
+        document.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        // Notify client
+        if (document.UploadedBy.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.UploadedBy.Value,
+                "Document Rejected",
+                $"Your document '{document.Title}' has been rejected. Reason: {remarks}",
+                "StaffRejected",
+                documentId,
+                $"/Document/Details/{documentId}");
+        }
+
+        // Audit log
+        await _auditLogService.LogAsync(
+            "StaffReject",
+            "Document",
+            documentId,
+            $"Staff rejected document: {document.Title}. Reason: {remarks}",
+            null,
+            $"{{\"remarks\":\"{remarks}\"}}",
+            "DocumentReview");
+
+        return review;
+    }
+
+    /// <summary>
+    /// Staff edits document (creates new version)
+    /// </summary>
+    public async Task<DocumentVersion> StaffEditDocumentAsync(int documentId, int staffId, string filePath, string originalFileName, long fileSize, string? mimeType, string changeDescription)
+    {
+        var document = await _context.Documents
+            .Include(d => d.Uploader)
+            .Include(d => d.Versions)
+            .FirstOrDefaultAsync(d => d.DocumentID == documentId);
+
+        if (document == null)
+            throw new InvalidOperationException("Document not found");
+
+        // Mark current version as not current
+        var currentVersion = document.Versions.FirstOrDefault(v => v.IsCurrentVersion == true);
+        if (currentVersion != null)
+        {
+            currentVersion.IsCurrentVersion = false;
+        }
+
+        // Get file extension
+        var fileExtension = Path.GetExtension(originalFileName);
+
+        // Create new version
+        var newVersionNumber = (document.CurrentVersion ?? 1) + 1;
+        var newVersion = new DocumentVersion
+        {
+            DocumentId = documentId,
+            VersionNumber = newVersionNumber,
+            FilePath = filePath,
+            FileSize = fileSize,
+            UploadedBy = staffId,
+            OriginalFileName = originalFileName,
+            FileExtension = fileExtension,
+            MimeType = mimeType,
+            ChangeDescription = changeDescription,
+            ChangedBy = "Staff",
+            IsCurrentVersion = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.DocumentVersions.Add(newVersion);
+
+        // Update document
+        document.CurrentVersion = newVersionNumber;
+        document.TotalFileSize = fileSize;
+        document.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        // Notify client
+        if (document.UploadedBy.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.UploadedBy.Value,
+                "Document Updated",
+                $"Your document '{document.Title}' has been updated by staff. Version {newVersionNumber} created. Reason: {changeDescription}",
+                "DocumentVersioned",
+                documentId,
+                $"/Document/Details/{documentId}");
+        }
+
+        // Audit log
+        await _auditLogService.LogAsync(
+            "StaffEditDocument",
+            "Document",
+            documentId,
+            $"Staff created new version {newVersionNumber} for document: {document.Title}",
+            null,
+            $"{{\"version\":{newVersionNumber},\"changeDescription\":\"{changeDescription}\"}}",
+            "DocumentVersion");
+
+        return newVersion;
+    }
+
+    /// <summary>
+    /// Admin approves document
+    /// </summary>
+    public async Task<DocumentReview> AdminApproveAsync(int documentId, int adminId, string? remarks)
+    {
+        var document = await _context.Documents
+            .Include(d => d.Uploader)
+            .FirstOrDefaultAsync(d => d.DocumentID == documentId);
+
+        if (document == null)
+            throw new InvalidOperationException("Document not found");
+
+        // Create review record
+        var review = new DocumentReview
+        {
+            DocumentId = documentId,
+            ReviewedBy = adminId,
+            ReviewStatus = STATUS_APPROVED,
+            Remarks = remarks,
+            ReviewedAt = DateTime.UtcNow,
+            ReviewerRole = "Admin",
+            IsChecklistComplete = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.DocumentReviews.Add(review);
+
+        // Update document
+        document.WorkflowStage = STAGE_COMPLETED;
+        document.Status = STATUS_COMPLETED;
+        document.AdminReviewedAt = DateTime.UtcNow;
+        document.ApprovedAt = DateTime.UtcNow;
+        document.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        // Notify client
+        if (document.UploadedBy.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.UploadedBy.Value,
+                "Document Approved",
+                $"Your document '{document.Title}' has been fully approved and completed.",
+                "AdminApproved",
+                documentId,
+                $"/Document/Details/{documentId}");
+        }
+
+        // Notify assigned staff
+        if (document.AssignedStaffId.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.AssignedStaffId.Value,
+                "Document Completed",
+                $"Document '{document.Title}' that you reviewed has been approved by admin.",
+                "AdminApproved",
+                documentId,
+                $"/Document/Details/{documentId}");
+        }
+
+        // Audit log
+        await _auditLogService.LogAsync(
+            "AdminApprove",
+            "Document",
+            documentId,
+            $"Admin approved document: {document.Title}",
+            null,
+            null,
+            "DocumentReview");
+
+        return review;
+    }
+
+    /// <summary>
+    /// Admin rejects document
+    /// </summary>
+    public async Task<DocumentReview> AdminRejectAsync(int documentId, int adminId, string remarks)
+    {
+        var document = await _context.Documents
+            .Include(d => d.Uploader)
+            .FirstOrDefaultAsync(d => d.DocumentID == documentId);
+
+        if (document == null)
+            throw new InvalidOperationException("Document not found");
+
+        // Create review record
+        var review = new DocumentReview
+        {
+            DocumentId = documentId,
+            ReviewedBy = adminId,
+            ReviewStatus = STATUS_REJECTED,
+            Remarks = remarks,
+            ReviewedAt = DateTime.UtcNow,
+            ReviewerRole = "Admin",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.DocumentReviews.Add(review);
+
+        // Update document
+        document.WorkflowStage = STAGE_ADMIN_REJECTED;
+        document.Status = STATUS_REJECTED;
+        document.CurrentRemarks = remarks;
+        document.AdminReviewedAt = DateTime.UtcNow;
+        document.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        // Notify client
+        if (document.UploadedBy.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.UploadedBy.Value,
+                "Document Rejected by Admin",
+                $"Your document '{document.Title}' has been rejected by admin. Reason: {remarks}",
+                "AdminRejected",
+                documentId,
+                $"/Document/Details/{documentId}");
+        }
+
+        // Notify assigned staff
+        if (document.AssignedStaffId.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.AssignedStaffId.Value,
+                "Document Rejected by Admin",
+                $"Document '{document.Title}' that you reviewed has been rejected by admin. Reason: {remarks}",
+                "AdminRejected",
+                documentId,
+                $"/Document/Details/{documentId}");
+        }
+
+        // Audit log
+        await _auditLogService.LogAsync(
+            "AdminReject",
+            "Document",
+            documentId,
+            $"Admin rejected document: {document.Title}. Reason: {remarks}",
+            null,
+            $"{{\"remarks\":\"{remarks}\"}}",
+            "DocumentReview");
+
+        return review;
+    }
+
+    /// <summary>
+    /// Archive a document
+    /// </summary>
+    public async Task<Archive> ArchiveDocumentAsync(int documentId, int archivedBy, string reason, string archiveType = "Manual")
+    {
+        var document = await _context.Documents
+            .Include(d => d.Uploader)
+            .FirstOrDefaultAsync(d => d.DocumentID == documentId);
+
+        if (document == null)
+            throw new InvalidOperationException("Document not found");
+
+        var archive = new Archive
+        {
+            DocumentID = documentId,
+            ArchivedDate = DateTime.UtcNow,
+            Reason = reason,
+            ArchiveType = archiveType,
+            OriginalRetentionDate = document.RetentionExpiryDate,
+            ArchivedBy = archivedBy,
+            IsRestored = false
+        };
+
+        _context.Archives.Add(archive);
+
+        // Update document
+        document.WorkflowStage = STAGE_ARCHIVED;
+        document.Status = STATUS_ARCHIVED;
+        document.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        // Notify client
+        if (document.UploadedBy.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.UploadedBy.Value,
+                "Document Archived",
+                $"Your document '{document.Title}' has been archived. Reason: {reason}",
+                "DocumentArchived",
+                documentId,
+                $"/Document/Details/{documentId}");
+        }
+
+        // Audit log
+        await _auditLogService.LogAsync(
+            "ArchiveDocument",
+            "Document",
+            documentId,
+            $"Document archived: {document.Title}. Reason: {reason}",
+            null,
+            $"{{\"reason\":\"{reason}\",\"archiveType\":\"{archiveType}\"}}",
+            "DocumentArchive");
+
+        return archive;
+    }
+
+    /// <summary>
+    /// Get document workflow history
+    /// </summary>
+    public async Task<List<DocumentReview>> GetDocumentReviewHistoryAsync(int documentId)
+    {
+        return await _context.DocumentReviews
+            .Include(r => r.Reviewer)
+            .Include(r => r.ChecklistResults)
+            .ThenInclude(cr => cr.ChecklistItem)
+            .Where(r => r.DocumentId == documentId)
+            .OrderByDescending(r => r.ReviewedAt)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Get pending documents for staff
+    /// </summary>
+    public async Task<List<Document>> GetPendingStaffReviewsAsync(int firmId, int? staffId = null)
+    {
+        var query = _context.Documents
+            .Include(d => d.Uploader)
+            .Include(d => d.Folder)
+            .Include(d => d.Versions.OrderByDescending(v => v.VersionNumber).Take(1))
+            .Where(d => d.FirmID == firmId &&
+                        (d.WorkflowStage == STAGE_PENDING_STAFF_REVIEW || d.WorkflowStage == STAGE_STAFF_REVIEW));
+
+        if (staffId.HasValue)
+        {
+            query = query.Where(d => d.AssignedStaffId == staffId);
+        }
+
+        return await query.OrderByDescending(d => d.CreatedAt).ToListAsync();
+    }
+
+    /// <summary>
+    /// Get pending documents for admin
+    /// </summary>
+    public async Task<List<Document>> GetPendingAdminReviewsAsync(int firmId, int? adminId = null)
+    {
+        var query = _context.Documents
+            .Include(d => d.Uploader)
+            .Include(d => d.Folder)
+            .Include(d => d.AssignedStaff)
+            .Include(d => d.Reviews.OrderByDescending(r => r.ReviewedAt).Take(1))
+            .Where(d => d.FirmID == firmId &&
+                        (d.WorkflowStage == STAGE_PENDING_ADMIN_REVIEW || d.WorkflowStage == STAGE_ADMIN_REVIEW));
+
+        if (adminId.HasValue)
+        {
+            query = query.Where(d => d.AssignedAdminId == adminId);
+        }
+
+        return await query.OrderByDescending(d => d.CreatedAt).ToListAsync();
+    }
+}

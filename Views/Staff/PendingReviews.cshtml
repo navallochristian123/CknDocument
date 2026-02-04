@@ -8,31 +8,880 @@
         <h4 class="mb-0">Pending Reviews</h4>
         <p class="text-muted mb-0">Documents awaiting your review</p>
     </div>
+    <div class="btn-group">
+        <button type="button" class="btn btn-outline-primary active" id="btnAssignedToMe">
+            <i class="bi bi-person"></i> Assigned to Me
+        </button>
+        <button type="button" class="btn btn-outline-primary" id="btnAllPending">
+            <i class="bi bi-list"></i> All Pending
+        </button>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4" id="statsRow">
+    <div class="col-md-3">
+        <div class="card bg-warning bg-opacity-10 border-warning">
+            <div class="card-body text-center">
+                <h3 class="text-warning mb-0" id="statPending">-</h3>
+                <small class="text-muted">Pending</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success bg-opacity-10 border-success">
+            <div class="card-body text-center">
+                <h3 class="text-success mb-0" id="statApprovedToday">-</h3>
+                <small class="text-muted">Approved Today</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-danger bg-opacity-10 border-danger">
+            <div class="card-body text-center">
+                <h3 class="text-danger mb-0" id="statRejectedToday">-</h3>
+                <small class="text-muted">Rejected Today</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-primary bg-opacity-10 border-primary">
+            <div class="card-body text-center">
+                <h3 class="text-primary mb-0" id="statTotalReviewed">-</h3>
+                <small class="text-muted">Total Reviewed</small>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="card">
     <div class="card-body p-0">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Document</th>
-                    <th>Submitted By</th>
-                    <th>Date</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><i class="bi bi-file-pdf text-danger"></i> Draft_Contract.pdf</td>
-                    <td>John Doe</td>
-                    <td>Jan 20, 2024</td>
-                    <td>
-                        <a href="#" class="btn btn-sm btn-success"><i class="bi bi-check"></i> Approve</a>
-                        <a href="#" class="btn btn-sm btn-danger"><i class="bi bi-x"></i> Reject</a>
-                        <a href="#" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Document</th>
+                        <th>Type</th>
+                        <th>Submitted By</th>
+                        <th>Folder</th>
+                        <th>Date</th>
+                        <th>AI Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="documents-tbody">
+                    <tr>
+                        <td colspan="7" class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status"></div>
+                            <p class="text-muted mt-2 mb-0">Loading documents...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
+
+<!-- Document Review Modal -->
+<div class="modal fade" id="reviewModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Review Document</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <!-- Document Info -->
+                    <div class="col-lg-4">
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0">Document Information</h6>
+                            </div>
+                            <div class="card-body">
+                                <dl class="row mb-0">
+                                    <dt class="col-sm-4">Title:</dt>
+                                    <dd class="col-sm-8" id="modalDocTitle">-</dd>
+                                    <dt class="col-sm-4">Type:</dt>
+                                    <dd class="col-sm-8" id="modalDocType">-</dd>
+                                    <dt class="col-sm-4">Category:</dt>
+                                    <dd class="col-sm-8" id="modalDocCategory">-</dd>
+                                    <dt class="col-sm-4">File:</dt>
+                                    <dd class="col-sm-8" id="modalDocFile">-</dd>
+                                    <dt class="col-sm-4">Size:</dt>
+                                    <dd class="col-sm-8" id="modalDocSize">-</dd>
+                                    <dt class="col-sm-4">Submitted:</dt>
+                                    <dd class="col-sm-8" id="modalDocDate">-</dd>
+                                    <dt class="col-sm-4">By:</dt>
+                                    <dd class="col-sm-8" id="modalDocUploader">-</dd>
+                                </dl>
+                            </div>
+                        </div>
+
+                        <!-- AI Analysis Results -->
+                        <div class="card mb-3" id="aiResultsCard">
+                            <div class="card-header bg-info bg-opacity-10">
+                                <h6 class="mb-0"><i class="bi bi-robot me-2"></i>AI Analysis</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-2">
+                                    <small class="text-muted">Detected Type:</small>
+                                    <br><strong id="aiDetectedType">-</strong>
+                                </div>
+                                <div class="mb-2" id="duplicateWarning" style="display: none;">
+                                    <div class="alert alert-warning mb-0 py-2">
+                                        <i class="bi bi-exclamation-triangle me-1"></i>
+                                        <strong>Possible Duplicate</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- File Actions -->
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <button type="button" class="btn btn-outline-primary w-100 mb-2" id="btnViewDocument" onclick="openDocumentViewer()">
+                                    <i class="bi bi-eye"></i> View Document
+                                </button>
+                                <!-- Download removed for staff - view only -->
+                            </div>
+                        </div>
+
+                        <!-- Edit Restrictions Alert -->
+                        <div class="card mb-3 d-none" id="editRestrictionsCard">
+                            <div class="card-body">
+                                <div class="alert alert-warning mb-0" id="editRestrictionsAlert">
+                                    <i class="bi bi-lock me-2"></i>
+                                    <strong>Edit Restricted</strong>
+                                    <p class="mb-0 small" id="editRestrictionReason">-</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Versions -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">Version History</h6>
+                            </div>
+                            <div class="card-body p-0">
+                                <ul class="list-group list-group-flush" id="versionsList">
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Checklist & Review -->
+                    <div class="col-lg-8">
+                        <!-- Checklist -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="bi bi-list-check me-2"></i>Review Checklist</h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="checklistContainer">
+                                    <p class="text-muted">Loading checklist...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Review Actions -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">Review Decision</h6>
+                            </div>
+                            <div class="card-body">
+                                <input type="hidden" id="reviewDocumentId">
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Remarks (visible to client)</label>
+                                    <textarea class="form-control" id="reviewRemarks" rows="3" placeholder="Enter remarks for the client..."></textarea>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Internal Notes (staff/admin only)</label>
+                                    <textarea class="form-control" id="reviewInternalNotes" rows="2" placeholder="Internal notes..."></textarea>
+                                </div>
+
+                                <!-- Minor Edit Option -->
+                                <div class="accordion mb-3" id="editAccordion">
+                                    <div class="accordion-item" id="editAccordionItem">
+                                        <h2 class="accordion-header">
+                                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#editCollapse" id="editAccordionBtn">
+                                                <i class="bi bi-pencil me-2"></i>Make Minor Edit (Upload New Version)
+                                            </button>
+                                        </h2>
+                                        <div id="editCollapse" class="accordion-collapse collapse" data-bs-parent="#editAccordion">
+                                            <div class="accordion-body">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Upload Corrected File</label>
+                                                    <input type="file" class="form-control" id="editFile">
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Change Description <span class="text-danger">*</span></label>
+                                                    <input type="text" class="form-control" id="editChangeDescription" placeholder="Describe what was changed...">
+                                                </div>
+                                                <button type="button" class="btn btn-warning" id="btnUploadNewVersion">
+                                                    <i class="bi bi-upload"></i> Upload New Version
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Pass to Admin Option (for non-editable docs) -->
+                                <div class="alert alert-info d-none mb-3" id="passToAdminAlert">
+                                    <i class="bi bi-arrow-up-right-circle me-2"></i>
+                                    <strong>Cannot Edit This Document</strong>
+                                    <p class="mb-2 small">This document type cannot be edited by staff. You can:</p>
+                                    <ul class="mb-0 small">
+                                        <li>Approve and forward to Admin for editing</li>
+                                        <li>Reject and request client resubmission</li>
+                                    </ul>
+                                </div>
+
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-success flex-fill" id="btnApprove">
+                                        <i class="bi bi-check-lg"></i> Approve & Forward to Admin
+                                    </button>
+                                    <button type="button" class="btn btn-danger" id="btnReject">
+                                        <i class="bi bi-x-lg"></i> Reject
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Document Viewer Modal -->
+<div class="modal fade" id="documentViewerModal" tabindex="-1">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-file-earmark-text me-2"></i>
+                    <span id="viewerDocTitle">Document Viewer</span>
+                </h5>
+                <div class="ms-auto me-3">
+                    <span class="badge bg-info" id="viewerAIMistakesCount">0 issues detected</span>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="row g-0 h-100">
+                    <!-- Document Preview -->
+                    <div class="col-lg-9 h-100 bg-dark position-relative">
+                        <div id="documentPreviewContainer" class="h-100 d-flex align-items-center justify-content-center">
+                            <div class="text-center text-white">
+                                <div class="spinner-border text-light" role="status"></div>
+                                <p class="mt-2">Loading document...</p>
+                            </div>
+                        </div>
+                        <!-- PDF Viewer -->
+                        <iframe id="pdfViewer" class="w-100 h-100 d-none" style="border: none;"></iframe>
+                        <!-- Image Viewer -->
+                        <div id="imageViewer" class="d-none h-100 d-flex align-items-center justify-content-center">
+                            <img id="imagePreview" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                        </div>
+                        <!-- Unsupported Format -->
+                        <div id="unsupportedViewer" class="d-none h-100 d-flex align-items-center justify-content-center flex-column text-white">
+                            <i class="bi bi-file-earmark-x" style="font-size: 5rem;"></i>
+                            <h4 class="mt-3">Preview not available</h4>
+                            <p class="text-muted">This file format cannot be previewed in browser</p>
+                        </div>
+                    </div>
+                    
+                    <!-- AI Analysis Sidebar -->
+                    <div class="col-lg-3 h-100 bg-light" style="overflow-y: auto;">
+                        <div class="p-3">
+                            <h6 class="mb-3">
+                                <i class="bi bi-robot me-2"></i>AI Analysis Results
+                            </h6>
+                            
+                            <!-- Document Analysis -->
+                            <div class="card mb-3">
+                                <div class="card-header bg-primary text-white py-2">
+                                    <small class="fw-bold">Document Type</small>
+                                </div>
+                                <div class="card-body py-2">
+                                    <span id="viewerDetectedType">-</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Confidence Score -->
+                            <div class="card mb-3">
+                                <div class="card-header bg-secondary text-white py-2">
+                                    <small class="fw-bold">AI Confidence</small>
+                                </div>
+                                <div class="card-body py-2">
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar" id="viewerConfidenceBar" role="progressbar" style="width: 0%">0%</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Issues/Mistakes Found -->
+                            <div class="card mb-3">
+                                <div class="card-header bg-warning text-dark py-2">
+                                    <small class="fw-bold"><i class="bi bi-exclamation-triangle me-1"></i>Issues Detected</small>
+                                </div>
+                                <div class="card-body p-0">
+                                    <ul class="list-group list-group-flush" id="viewerIssuesList">
+                                        <li class="list-group-item text-muted small">
+                                            No issues detected
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                            
+                            <!-- Confidentiality Alert -->
+                            <div class="alert alert-danger d-none mb-3" id="viewerConfidentialAlert">
+                                <i class="bi bi-shield-lock me-2"></i>
+                                <strong>Confidential Document</strong>
+                                <p class="mb-0 small">This document contains sensitive information and requires admin approval for any edits.</p>
+                            </div>
+                            
+                            <!-- Duplicate Alert -->
+                            <div class="alert alert-warning d-none mb-3" id="viewerDuplicateAlert">
+                                <i class="bi bi-files me-2"></i>
+                                <strong>Possible Duplicate</strong>
+                                <p class="mb-0 small" id="viewerDuplicateInfo">Similar document found in the system.</p>
+                            </div>
+                            
+                            <!-- Keywords/Entities -->
+                            <div class="card">
+                                <div class="card-header bg-info text-white py-2">
+                                    <small class="fw-bold">Key Information Extracted</small>
+                                </div>
+                                <div class="card-body py-2">
+                                    <div id="viewerKeywords">
+                                        <span class="text-muted small">No keywords extracted</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let assignedToMe = true;
+    let currentDocumentId = null;
+    let currentDocument = null;
+    let checklistItems = [];
+
+    // Non-editable file types
+    const NON_EDITABLE_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png', '.gif'];
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadStats();
+        loadPendingDocuments(true);
+
+        document.getElementById('btnAssignedToMe').addEventListener('click', function() {
+            this.classList.add('active');
+            document.getElementById('btnAllPending').classList.remove('active');
+            assignedToMe = true;
+            loadPendingDocuments(true);
+        });
+
+        document.getElementById('btnAllPending').addEventListener('click', function() {
+            this.classList.add('active');
+            document.getElementById('btnAssignedToMe').classList.remove('active');
+            assignedToMe = false;
+            loadPendingDocuments(false);
+        });
+
+        document.getElementById('btnApprove').addEventListener('click', approveDocument);
+        document.getElementById('btnReject').addEventListener('click', rejectDocument);
+        document.getElementById('btnUploadNewVersion').addEventListener('click', uploadNewVersion);
+    });
+
+    async function loadStats() {
+        try {
+            const response = await fetch('/api/ReviewApi/stats');
+            const data = await response.json();
+
+            if (data.success) {
+                document.getElementById('statPending').textContent = data.stats.pendingCount;
+                document.getElementById('statApprovedToday').textContent = data.stats.approvedToday;
+                document.getElementById('statRejectedToday').textContent = data.stats.rejectedToday;
+                document.getElementById('statTotalReviewed').textContent = data.stats.totalReviewed;
+            }
+        } catch (error) {
+            console.error('Error loading stats:', error);
+        }
+    }
+
+    async function loadPendingDocuments(assignedOnly) {
+        const tbody = document.getElementById('documents-tbody');
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </td>
+            </tr>
+        `;
+
+        try {
+            const response = await fetch(`/api/ReviewApi/pending?assignedToMe=${assignedOnly}`);
+            const data = await response.json();
+
+            if (data.success) {
+                if (data.documents.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="7" class="text-center py-5">
+                                <i class="bi bi-check-circle text-success" style="font-size: 3rem;"></i>
+                                <h5 class="mt-3 text-muted">No pending reviews</h5>
+                                <p class="text-muted">All documents have been reviewed</p>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = data.documents.map(doc => `
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <i class="bi ${getFileIcon(doc.fileExtension)} fs-4 me-2"></i>
+                                <div>
+                                    <strong>${escapeHtml(doc.title || doc.originalFileName)}</strong>
+                                    <br><small class="text-muted">${doc.originalFileName}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td><span class="badge bg-secondary">${doc.documentType || 'Unknown'}</span></td>
+                        <td>${doc.uploader?.name || 'Unknown'}</td>
+                        <td>${doc.folder?.name || '<em class="text-muted">Root</em>'}</td>
+                        <td>${formatDate(doc.createdAt)}</td>
+                        <td>
+                            ${doc.isDuplicate ? '<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle"></i> Duplicate</span>' : '<span class="badge bg-success"><i class="bi bi-check"></i> OK</span>'}
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="openReviewModal(${doc.id})">
+                                <i class="bi bi-clipboard-check"></i> Review
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        } catch (error) {
+            console.error('Error loading documents:', error);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center py-4 text-danger">
+                        Error loading documents. Please try again.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+
+    async function openReviewModal(documentId) {
+        currentDocumentId = documentId;
+        document.getElementById('reviewDocumentId').value = documentId;
+
+        const modal = new bootstrap.Modal(document.getElementById('reviewModal'));
+        modal.show();
+
+        try {
+            const response = await fetch(`/api/ReviewApi/${documentId}`);
+            const data = await response.json();
+
+            if (data.success) {
+                const doc = data.document;
+
+                // Populate document info
+                document.getElementById('modalDocTitle').textContent = doc.title || '-';
+                document.getElementById('modalDocType').textContent = doc.documentType || '-';
+                document.getElementById('modalDocCategory').textContent = doc.category || '-';
+                document.getElementById('modalDocFile').textContent = doc.originalFileName || '-';
+                document.getElementById('modalDocSize').textContent = formatFileSize(doc.totalFileSize);
+                document.getElementById('modalDocDate').textContent = formatDate(doc.createdAt);
+                document.getElementById('modalDocUploader').textContent = doc.uploader?.name || '-';
+
+                // AI results
+                document.getElementById('aiDetectedType').textContent = doc.documentType || 'Not processed';
+                document.getElementById('duplicateWarning').style.display = doc.isDuplicate ? 'block' : 'none';
+
+                // Store current document for viewer
+                currentDocument = doc;
+
+                // Check edit restrictions
+                const fileExt = (doc.fileExtension || '').toLowerCase();
+                const isNonEditable = NON_EDITABLE_EXTENSIONS.includes(fileExt);
+                const isConfidential = doc.isConfidential || false;
+
+                // Show/hide edit section based on restrictions
+                const editAccordionItem = document.getElementById('editAccordionItem');
+                const passToAdminAlert = document.getElementById('passToAdminAlert');
+                const editRestrictionsCard = document.getElementById('editRestrictionsCard');
+                const editRestrictionReason = document.getElementById('editRestrictionReason');
+
+                if (isNonEditable || isConfidential) {
+                    // Hide edit option
+                    editAccordionItem.classList.add('d-none');
+                    passToAdminAlert.classList.remove('d-none');
+                    editRestrictionsCard.classList.remove('d-none');
+                    
+                    if (isNonEditable && isConfidential) {
+                        editRestrictionReason.textContent = 'PDF/Image files cannot be edited, and this document is marked as confidential.';
+                    } else if (isNonEditable) {
+                        editRestrictionReason.textContent = 'PDF and image files cannot be edited by staff. Forward to admin if changes are needed.';
+                    } else {
+                        editRestrictionReason.textContent = 'This document is marked as confidential and requires admin approval for any edits.';
+                    }
+                } else {
+                    editAccordionItem.classList.remove('d-none');
+                    passToAdminAlert.classList.add('d-none');
+                    editRestrictionsCard.classList.add('d-none');
+                }
+
+                // Versions
+                const versionsList = document.getElementById('versionsList');
+                if (doc.versions && doc.versions.length > 0) {
+                    versionsList.innerHTML = doc.versions.map(v => `
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>v${v.versionNumber}</strong> ${v.isCurrentVersion ? '<span class="badge bg-primary">Current</span>' : ''}
+                                <br><small class="text-muted">${v.changeDescription || 'Initial upload'}</small>
+                                <br><small class="text-muted">${formatDate(v.createdAt)} by ${v.changedBy}</small>
+                            </div>
+                            <a href="/api/DocumentApi/${documentId}/download?versionId=${v.versionId}" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-download"></i>
+                            </a>
+                        </li>
+                    `).join('');
+                } else {
+                    versionsList.innerHTML = '<li class="list-group-item text-muted">No version history</li>';
+                }
+
+                // Checklist
+                checklistItems = data.checklistItems || [];
+                renderChecklist(checklistItems);
+
+                // Clear previous inputs
+                document.getElementById('reviewRemarks').value = '';
+                document.getElementById('reviewInternalNotes').value = '';
+                document.getElementById('editFile').value = '';
+                document.getElementById('editChangeDescription').value = '';
+            }
+        } catch (error) {
+            console.error('Error loading document:', error);
+            alert('Error loading document details');
+        }
+    }
+
+    function renderChecklist(items) {
+        const container = document.getElementById('checklistContainer');
+
+        if (items.length === 0) {
+            container.innerHTML = '<p class="text-muted">No checklist items configured</p>';
+            return;
+        }
+
+        container.innerHTML = items.map(item => `
+            <div class="form-check mb-2 p-3 border rounded checklist-item" data-item-id="${item.id}">
+                <input class="form-check-input" type="checkbox" id="check_${item.id}">
+                <label class="form-check-label" for="check_${item.id}">
+                    <strong>${escapeHtml(item.itemName)}</strong>
+                    ${item.isRequired ? '<span class="badge bg-danger ms-1">Required</span>' : ''}
+                    ${item.description ? `<br><small class="text-muted">${escapeHtml(item.description)}</small>` : ''}
+                </label>
+                <input type="text" class="form-control form-control-sm mt-2" placeholder="Optional remarks..." id="check_remarks_${item.id}">
+            </div>
+        `).join('');
+    }
+
+    function getChecklistResults() {
+        return checklistItems.map(item => ({
+            checklistItemId: item.id,
+            isPassed: document.getElementById(`check_${item.id}`)?.checked || false,
+            remarks: document.getElementById(`check_remarks_${item.id}`)?.value || null
+        }));
+    }
+
+    async function approveDocument() {
+        const documentId = document.getElementById('reviewDocumentId').value;
+        const remarks = document.getElementById('reviewRemarks').value;
+        const internalNotes = document.getElementById('reviewInternalNotes').value;
+        const checklistResults = getChecklistResults();
+
+        // Check required items
+        const requiredUnchecked = checklistItems.filter(item =>
+            item.isRequired && !document.getElementById(`check_${item.id}`)?.checked
+        );
+
+        if (requiredUnchecked.length > 0) {
+            if (!confirm(`${requiredUnchecked.length} required checklist items are not checked. Continue anyway?`)) {
+                return;
+            }
+        }
+
+        try {
+            const response = await fetch(`/api/ReviewApi/${documentId}/approve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ remarks, internalNotes, checklistResults })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                alert('Document approved and forwarded to admin!');
+                bootstrap.Modal.getInstance(document.getElementById('reviewModal')).hide();
+                loadStats();
+                loadPendingDocuments(assignedToMe);
+            } else {
+                alert('Error: ' + (data.message || 'Failed to approve document'));
+            }
+        } catch (error) {
+            console.error('Error approving document:', error);
+            alert('Error approving document');
+        }
+    }
+
+    async function rejectDocument() {
+        const documentId = document.getElementById('reviewDocumentId').value;
+        const remarks = document.getElementById('reviewRemarks').value;
+        const checklistResults = getChecklistResults();
+
+        if (!remarks.trim()) {
+            alert('Please provide remarks explaining why the document is rejected');
+            document.getElementById('reviewRemarks').focus();
+            return;
+        }
+
+        if (!confirm('Are you sure you want to reject this document?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/ReviewApi/${documentId}/reject`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ remarks, checklistResults })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                alert('Document rejected. Client has been notified.');
+                bootstrap.Modal.getInstance(document.getElementById('reviewModal')).hide();
+                loadStats();
+                loadPendingDocuments(assignedToMe);
+            } else {
+                alert('Error: ' + (data.message || 'Failed to reject document'));
+            }
+        } catch (error) {
+            console.error('Error rejecting document:', error);
+            alert('Error rejecting document');
+        }
+    }
+
+    async function uploadNewVersion() {
+        const documentId = document.getElementById('reviewDocumentId').value;
+        const fileInput = document.getElementById('editFile');
+        const changeDescription = document.getElementById('editChangeDescription').value;
+
+        if (!fileInput.files || fileInput.files.length === 0) {
+            alert('Please select a file');
+            return;
+        }
+
+        if (!changeDescription.trim()) {
+            alert('Please describe what was changed');
+            document.getElementById('editChangeDescription').focus();
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        formData.append('changeDescription', changeDescription);
+
+        try {
+            const response = await fetch(`/api/ReviewApi/${documentId}/edit`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                alert(`New version ${data.versionNumber} uploaded successfully! Client has been notified.`);
+                openReviewModal(documentId); // Refresh modal
+            } else {
+                alert('Error: ' + (data.message || 'Failed to upload new version'));
+            }
+        } catch (error) {
+            console.error('Error uploading version:', error);
+            alert('Error uploading new version');
+        }
+    }
+
+    function getFileIcon(ext) {
+        const icons = {
+            '.pdf': 'bi-file-pdf text-danger',
+            '.doc': 'bi-file-word text-primary',
+            '.docx': 'bi-file-word text-primary',
+            '.xls': 'bi-file-excel text-success',
+            '.xlsx': 'bi-file-excel text-success',
+            '.ppt': 'bi-file-ppt text-warning',
+            '.pptx': 'bi-file-ppt text-warning',
+            '.jpg': 'bi-file-image text-info',
+            '.jpeg': 'bi-file-image text-info',
+            '.png': 'bi-file-image text-info'
+        };
+        return icons[ext?.toLowerCase()] || 'bi-file-earmark text-secondary';
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function formatFileSize(bytes) {
+        if (!bytes) return '-';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Document Viewer Functions
+    function openDocumentViewer() {
+        if (!currentDocument) return;
+
+        const modal = new bootstrap.Modal(document.getElementById('documentViewerModal'));
+        modal.show();
+
+        // Set title
+        document.getElementById('viewerDocTitle').textContent = currentDocument.title || currentDocument.originalFileName;
+
+        // Hide all viewers first
+        document.getElementById('pdfViewer').classList.add('d-none');
+        document.getElementById('imageViewer').classList.add('d-none');
+        document.getElementById('unsupportedViewer').classList.add('d-none');
+        document.getElementById('documentPreviewContainer').classList.remove('d-none');
+
+        const fileExt = (currentDocument.fileExtension || '').toLowerCase();
+        const viewUrl = `/api/DocumentApi/${currentDocumentId}/view`;
+
+        // Load AI analysis data
+        loadAIAnalysis(currentDocumentId);
+
+        setTimeout(() => {
+            document.getElementById('documentPreviewContainer').classList.add('d-none');
+
+            if (fileExt === '.pdf') {
+                // PDF Viewer
+                const pdfViewer = document.getElementById('pdfViewer');
+                pdfViewer.src = viewUrl + '#toolbar=0&navpanes=0';
+                pdfViewer.classList.remove('d-none');
+            } else if (['.jpg', '.jpeg', '.png', '.gif'].includes(fileExt)) {
+                // Image Viewer
+                document.getElementById('imagePreview').src = viewUrl;
+                document.getElementById('imageViewer').classList.remove('d-none');
+            } else if (['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'].includes(fileExt)) {
+                // For Office docs, we'd need a server-side conversion or Office Online
+                // For now, show preview not available but with a message
+                document.getElementById('unsupportedViewer').classList.remove('d-none');
+            } else {
+                document.getElementById('unsupportedViewer').classList.remove('d-none');
+            }
+        }, 500);
+    }
+
+    async function loadAIAnalysis(documentId) {
+        try {
+            const response = await fetch(`/api/DocumentApi/${documentId}/ai-analysis`);
+            const data = await response.json();
+
+            if (data.success) {
+                // Document type and confidence
+                document.getElementById('viewerDetectedType').textContent = data.documentType || '-';
+                
+                const confidence = data.confidence || 0;
+                const confidenceBar = document.getElementById('viewerConfidenceBar');
+                confidenceBar.style.width = confidence + '%';
+                confidenceBar.textContent = confidence + '%';
+                confidenceBar.className = 'progress-bar ' + (confidence >= 80 ? 'bg-success' : confidence >= 50 ? 'bg-warning' : 'bg-danger');
+
+                // Issues/Mistakes
+                const issuesList = document.getElementById('viewerIssuesList');
+                const issues = data.issues || [];
+                document.getElementById('viewerAIMistakesCount').textContent = issues.length + ' issues detected';
+
+                if (issues.length > 0) {
+                    issuesList.innerHTML = issues.map((issue, idx) => `
+                        <li class="list-group-item small">
+                            <div class="d-flex align-items-start">
+                                <span class="badge ${getSeverityBadge(issue.severity)} me-2">${idx + 1}</span>
+                                <div>
+                                    <strong>${escapeHtml(issue.type)}</strong>
+                                    <p class="mb-0 text-muted">${escapeHtml(issue.message)}</p>
+                                    ${issue.location ? `<small class="text-muted">Location: ${escapeHtml(issue.location)}</small>` : ''}
+                                </div>
+                            </div>
+                        </li>
+                    `).join('');
+                } else {
+                    issuesList.innerHTML = '<li class="list-group-item text-success small"><i class="bi bi-check-circle me-1"></i>No issues detected</li>';
+                }
+
+                // Confidential alert
+                const confidentialAlert = document.getElementById('viewerConfidentialAlert');
+                if (data.isConfidential) {
+                    confidentialAlert.classList.remove('d-none');
+                } else {
+                    confidentialAlert.classList.add('d-none');
+                }
+
+                // Duplicate alert
+                const duplicateAlert = document.getElementById('viewerDuplicateAlert');
+                if (data.isDuplicate) {
+                    duplicateAlert.classList.remove('d-none');
+                    document.getElementById('viewerDuplicateInfo').textContent = data.duplicateInfo || 'Similar document found.';
+                } else {
+                    duplicateAlert.classList.add('d-none');
+                }
+
+                // Keywords
+                const keywordsDiv = document.getElementById('viewerKeywords');
+                const keywords = data.keywords || [];
+                if (keywords.length > 0) {
+                    keywordsDiv.innerHTML = keywords.map(k => `<span class="badge bg-secondary me-1 mb-1">${escapeHtml(k)}</span>`).join('');
+                } else {
+                    keywordsDiv.innerHTML = '<span class="text-muted small">No keywords extracted</span>';
+                }
+            }
+        } catch (error) {
+            console.error('Error loading AI analysis:', error);
+        }
+    }
+
+    function getSeverityBadge(severity) {
+        switch (severity?.toLowerCase()) {
+            case 'high': return 'bg-danger';
+            case 'medium': return 'bg-warning text-dark';
+            case 'low': return 'bg-info';
+            default: return 'bg-secondary';
+        }
+    }
+</script>
+}

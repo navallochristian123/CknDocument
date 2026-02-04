@@ -1,0 +1,245 @@
+@{
+    ViewData["Title"] = "My Archived Documents";
+    Layout = "_ClientLayout";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0">My Archived Documents</h4>
+        <p class="text-muted mb-0">View and restore your archived documents</p>
+    </div>
+    <a href="/Folder" class="btn btn-outline-primary">
+        <i class="bi bi-arrow-left"></i> Back to Folders
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-header bg-white">
+        <div class="row align-items-center g-3">
+            <div class="col-md-5">
+                <input type="text" class="form-control" id="searchArchive" placeholder="Search archived documents...">
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="filterType">
+                    <option value="">All Types</option>
+                    <option value="Contract">Contract</option>
+                    <option value="Agreement">Agreement</option>
+                    <option value="Legal Brief">Legal Brief</option>
+                    <option value="Invoice">Invoice</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="sortBy">
+                    <option value="archivedAt-desc">Newest First</option>
+                    <option value="archivedAt-asc">Oldest First</option>
+                    <option value="title-asc">Title A-Z</option>
+                    <option value="title-desc">Title Z-A</option>
+                </select>
+            </div>
+            <div class="col-md-1 text-end">
+                <button class="btn btn-outline-secondary" onclick="loadArchive()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Document</th>
+                        <th>Type</th>
+                        <th>Original Folder</th>
+                        <th>Archived Date</th>
+                        <th>Reason</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="archiveTbody">
+                    <tr>
+                        <td colspan="6" class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status"></div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Restore Confirmation Modal -->
+<div class="modal fade" id="restoreModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Restore Document</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to restore this document?</p>
+                <div class="alert alert-info">
+                    <strong id="restoreDocTitle">Document</strong> will be restored and require re-submission for review.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="confirmRestoreBtn">
+                    <i class="bi bi-arrow-counterclockwise"></i> Restore
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let archives = [];
+    let currentArchiveId = null;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadArchive();
+
+        document.getElementById('searchArchive').addEventListener('input', debounce(renderTable, 300));
+        document.getElementById('filterType').addEventListener('change', renderTable);
+        document.getElementById('sortBy').addEventListener('change', renderTable);
+    });
+
+    async function loadArchive() {
+        try {
+            const response = await fetch('/api/ArchiveApi/my-archives');
+            const data = await response.json();
+            if (data.success) {
+                archives = data.archives;
+                renderTable();
+            }
+        } catch (error) {
+            console.error('Error loading archives:', error);
+            document.getElementById('archiveTbody').innerHTML = `
+                <tr><td colspan="6" class="text-center py-4 text-danger">Error loading archives</td></tr>
+            `;
+        }
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('archiveTbody');
+        const search = document.getElementById('searchArchive').value.toLowerCase();
+        const typeFilter = document.getElementById('filterType').value;
+        const sort = document.getElementById('sortBy').value;
+
+        let filtered = archives.filter(d => {
+            const matchSearch = d.documentTitle.toLowerCase().includes(search) || 
+                               (d.originalFileName || '').toLowerCase().includes(search);
+            const matchType = !typeFilter || d.documentType === typeFilter;
+            return matchSearch && matchType;
+        });
+
+        // Sort
+        const [sortField, sortDir] = sort.split('-');
+        filtered.sort((a, b) => {
+            let aVal = sortField === 'title' ? a.documentTitle : a[sortField];
+            let bVal = sortField === 'title' ? b.documentTitle : b[sortField];
+            if (sortField === 'archivedAt') {
+                aVal = new Date(aVal || 0);
+                bVal = new Date(bVal || 0);
+            }
+            return sortDir === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
+        });
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center py-5">
+                        <i class="bi bi-archive text-muted" style="font-size: 3rem;"></i>
+                        <h5 class="mt-3 text-muted">No archived documents</h5>
+                        <p class="text-muted">Documents you archive will appear here</p>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(d => `
+            <tr>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <i class="bi ${getFileIcon(d.fileExtension)} fs-4 me-2"></i>
+                        <div>
+                            <strong>${escapeHtml(d.documentTitle)}</strong>
+                            <br><small class="text-muted">${escapeHtml(d.originalFileName || '')}</small>
+                        </div>
+                    </div>
+                </td>
+                <td><span class="badge bg-secondary">${d.documentType || 'Unknown'}</span></td>
+                <td>${d.originalFolderName || '<em class="text-muted">Root</em>'}</td>
+                <td>${formatDate(d.archivedAt)}</td>
+                <td><span class="text-truncate d-inline-block" style="max-width: 150px;">${escapeHtml(d.archiveReason || '-')}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-success" onclick="showRestoreModal(${d.archiveId}, '${escapeHtml(d.documentTitle)}')">
+                        <i class="bi bi-arrow-counterclockwise"></i> Restore
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function showRestoreModal(archiveId, title) {
+        currentArchiveId = archiveId;
+        document.getElementById('restoreDocTitle').textContent = title;
+        new bootstrap.Modal(document.getElementById('restoreModal')).show();
+    }
+
+    document.getElementById('confirmRestoreBtn').addEventListener('click', async function() {
+        if (!currentArchiveId) return;
+
+        try {
+            const response = await fetch(`/api/ArchiveApi/${currentArchiveId}/restore`, { method: 'POST' });
+            const data = await response.json();
+
+            if (data.success) {
+                alert('Document restored successfully! It has been resubmitted for review.');
+                bootstrap.Modal.getInstance(document.getElementById('restoreModal')).hide();
+                loadArchive();
+            } else {
+                alert('Error: ' + (data.message || 'Failed to restore'));
+            }
+        } catch (error) {
+            alert('Error restoring document');
+        }
+    });
+
+    function getFileIcon(ext) {
+        const icons = {
+            '.pdf': 'bi-file-pdf text-danger',
+            '.doc': 'bi-file-word text-primary',
+            '.docx': 'bi-file-word text-primary',
+            '.xls': 'bi-file-excel text-success',
+            '.xlsx': 'bi-file-excel text-success',
+            '.jpg': 'bi-file-image text-info',
+            '.jpeg': 'bi-file-image text-info',
+            '.png': 'bi-file-image text-info'
+        };
+        return icons[ext?.toLowerCase()] || 'bi-file-earmark text-secondary';
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+</script>
+}

@@ -6,10 +6,10 @@ using System.Security.Claims;
 namespace CKNDocument.Controllers.LawFirm;
 
 /// <summary>
-/// Archive management controller for Admin
-/// Handles document archiving and restoration
+/// Archive management controller
+/// Handles document archiving and restoration for all roles
 /// </summary>
-[Authorize(Policy = "AdminOnly")]
+[Authorize(Policy = "FirmMember")]
 public class ArchiveController : Controller
 {
     private readonly LawFirmDMSDbContext _context;
@@ -21,7 +21,7 @@ public class ArchiveController : Controller
 
     private string GetRoleViewPath(string viewName)
     {
-        var role = User.FindFirst(ClaimTypes.Role)?.Value ?? "Admin";
+        var role = User.FindFirst(ClaimTypes.Role)?.Value ?? "Client";
         return $"~/Views/{role}/{viewName}.cshtml";
     }
 
@@ -30,9 +30,10 @@ public class ArchiveController : Controller
         return View(GetRoleViewPath("Archive"));
     }
 
+    [Authorize(Policy = "AdminOnly")]
     public IActionResult Archive(int documentId)
     {
-        return View(GetRoleViewPath("ArchiveDocument"));
+        return View("~/Views/Admin/ArchiveDocument.cshtml");
     }
 
     public IActionResult Restore(int archiveId)
@@ -40,13 +41,15 @@ public class ArchiveController : Controller
         return View(GetRoleViewPath("RestoreDocument"));
     }
 
+    [Authorize(Policy = "AdminOnly")]
     public IActionResult Details(int id)
     {
-        return View(GetRoleViewPath("ArchiveDetails"));
+        return View("~/Views/Admin/ArchiveDetails.cshtml");
     }
 
+    [Authorize(Policy = "AdminOnly")]
     public IActionResult PermanentDelete(int id)
     {
-        return View(GetRoleViewPath("PermanentDelete"));
+        return View("~/Views/Admin/PermanentDelete.cshtml");
     }
 }

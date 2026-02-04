@@ -1,0 +1,543 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using CKNDocument.Data;
+using CKNDocument.Models.LawFirmDMS;
+using CKNDocument.Services;
+using System.Security.Claims;
+
+namespace CKNDocument.Controllers.Api;
+
+/// <summary>
+/// API Controller for Review operations
+/// Handles document reviews for Staff and Admin
+/// </summary>
+[ApiController]
+[Route("api/[controller]")]
+[Authorize(Policy = "AdminOrStaff")]
+public class ReviewApiController : ControllerBase
+{
+    private readonly LawFirmDMSDbContext _context;
+    private readonly DocumentWorkflowService _workflowService;
+    private readonly NotificationService _notificationService;
+    private readonly AuditLogService _auditLogService;
+    private readonly IWebHostEnvironment _environment;
+    private readonly ILogger<ReviewApiController> _logger;
+
+    public ReviewApiController(
+        LawFirmDMSDbContext context,
+        DocumentWorkflowService workflowService,
+        NotificationService notificationService,
+        AuditLogService auditLogService,
+        IWebHostEnvironment environment,
+        ILogger<ReviewApiController> logger)
+    {
+        _context = context;
+        _workflowService = workflowService;
+        _notificationService = notificationService;
+        _auditLogService = auditLogService;
+        _environment = environment;
+        _logger = logger;
+    }
+
+    private int GetCurrentUserId() => int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+    private int GetFirmId() => int.Parse(User.FindFirst("FirmId")?.Value ?? "0");
+    private string GetUserRole() => User.FindFirst(ClaimTypes.Role)?.Value ?? "Staff";
+
+    /// <summary>
+    /// Get pending reviews for staff
+    /// </summary>
+    [HttpGet("pending")]
+    public async Task<IActionResult> GetPendingReviews([FromQuery] bool assignedToMe = false)
+    {
+        var userId = GetCurrentUserId();
+        var firmId = GetFirmId();
+        var role = GetUserRole();
+
+        List<Document> documents;
+
+        if (role == "Staff")
+        {
+            documents = await _workflowService.GetPendingStaffReviewsAsync(
+                firmId,
+                assignedToMe ? userId : null);
+        }
+        else // Admin
+        {
+            documents = await _workflowService.GetPendingAdminReviewsAsync(
+                firmId,
+                assignedToMe ? userId : null);
+        }
+
+        var result = documents.Select(d => new
+        {
+            id = d.DocumentID,
+            title = d.Title,
+            description = d.Description,
+            documentType = d.DocumentType,
+            status = d.Status,
+            workflowStage = d.WorkflowStage,
+            originalFileName = d.OriginalFileName,
+            fileExtension = d.FileExtension,
+            totalFileSize = d.TotalFileSize,
+            currentVersion = d.CurrentVersion,
+            isDuplicate = d.IsDuplicate,
+            uploader = d.Uploader != null ? new { id = d.Uploader.UserID, name = d.Uploader.FullName } : null,
+            folder = d.Folder != null ? new { id = d.Folder.FolderId, name = d.Folder.FolderName } : null,
+            assignedStaff = d.AssignedStaff != null ? new { id = d.AssignedStaff.UserID, name = d.AssignedStaff.FullName } : null,
+            createdAt = d.CreatedAt
+        });
+
+        return Ok(new { success = true, documents = result });
+    }
+
+    /// <summary>
+    /// Get completed reviews
+    /// </summary>
+    [HttpGet("completed")]
+    public async Task<IActionResult> GetCompletedReviews([FromQuery] int take = 50)
+    {
+        var userId = GetCurrentUserId();
+        var firmId = GetFirmId();
+        var role = GetUserRole();
+
+        var reviews = await _context.DocumentReviews
+            .Include(r => r.Document)
+                .ThenInclude(d => d!.Uploader)
+            .Include(r => r.Reviewer)
+            .Where(r => r.ReviewedBy == userId && r.ReviewerRole == role)
+            .OrderByDescending(r => r.ReviewedAt)
+            .Take(take)
+            .Select(r => new
+            {
+                reviewId = r.ReviewId,
+                documentId = r.DocumentId,
+                documentTitle = r.Document != null ? r.Document.Title : null,
+                documentFileName = r.Document != null ? r.Document.OriginalFileName : null,
+                reviewStatus = r.ReviewStatus,
+                remarks = r.Remarks,
+                reviewedAt = r.ReviewedAt,
+                uploaderName = r.Document != null && r.Document.Uploader != null ? r.Document.Uploader.FullName : null,
+                isChecklistComplete = r.IsChecklistComplete
+            })
+            .ToListAsync();
+
+        return Ok(new { success = true, reviews });
+    }
+
+    /// <summary>
+    /// Get document for review with checklist
+    /// </summary>
+    [HttpGet("{documentId}")]
+    public async Task<IActionResult> GetDocumentForReview(int documentId)
+    {
+        var userId = GetCurrentUserId();
+        var firmId = GetFirmId();
+        var role = GetUserRole();
+
+        var document = await _context.Documents
+            .Include(d => d.Uploader)
+            .Include(d => d.Folder)
+            .Include(d => d.AssignedStaff)
+            .Include(d => d.AssignedAdmin)
+            .Include(d => d.Versions.OrderByDescending(v => v.VersionNumber))
+            .Include(d => d.Reviews.OrderByDescending(r => r.ReviewedAt))
+                .ThenInclude(r => r.Reviewer)
+            .Include(d => d.Reviews)
+                .ThenInclude(r => r.ChecklistResults)
+                    .ThenInclude(cr => cr.ChecklistItem)
+            .FirstOrDefaultAsync(d => d.DocumentID == documentId && d.FirmID == firmId);
+
+        if (document == null)
+            return NotFound(new { success = false, message = "Document not found" });
+
+        // Get checklist items for the firm
+        var checklistItems = await _context.DocumentChecklistItems
+            .Where(c => c.FirmId == firmId && c.IsActive == true)
+            .OrderBy(c => c.DisplayOrder)
+            .Select(c => new
+            {
+                id = c.ChecklistItemId,
+                itemName = c.ItemName,
+                description = c.Description,
+                isRequired = c.IsRequired
+            })
+            .ToListAsync();
+
+        return Ok(new
+        {
+            success = true,
+            document = new
+            {
+                id = document.DocumentID,
+                title = document.Title,
+                description = document.Description,
+                category = document.Category,
+                documentType = document.DocumentType,
+                status = document.Status,
+                workflowStage = document.WorkflowStage,
+                currentVersion = document.CurrentVersion,
+                originalFileName = document.OriginalFileName,
+                fileExtension = document.FileExtension,
+                mimeType = document.MimeType,
+                totalFileSize = document.TotalFileSize,
+                isAIProcessed = document.IsAIProcessed,
+                isDuplicate = document.IsDuplicate,
+                currentRemarks = document.CurrentRemarks,
+                uploader = document.Uploader != null ? new { id = document.Uploader.UserID, name = document.Uploader.FullName, email = document.Uploader.Email } : null,
+                folder = document.Folder != null ? new { id = document.Folder.FolderId, name = document.Folder.FolderName } : null,
+                assignedStaff = document.AssignedStaff != null ? new { id = document.AssignedStaff.UserID, name = document.AssignedStaff.FullName } : null,
+                assignedAdmin = document.AssignedAdmin != null ? new { id = document.AssignedAdmin.UserID, name = document.AssignedAdmin.FullName } : null,
+                createdAt = document.CreatedAt,
+                versions = document.Versions.Select(v => new
+                {
+                    versionId = v.VersionId,
+                    versionNumber = v.VersionNumber,
+                    originalFileName = v.OriginalFileName,
+                    fileSize = v.FileSize,
+                    changeDescription = v.ChangeDescription,
+                    changedBy = v.ChangedBy,
+                    isCurrentVersion = v.IsCurrentVersion,
+                    createdAt = v.CreatedAt
+                }),
+                reviewHistory = document.Reviews.Select(r => new
+                {
+                    reviewId = r.ReviewId,
+                    reviewStatus = r.ReviewStatus,
+                    remarks = r.Remarks,
+                    internalNotes = r.InternalNotes,
+                    reviewerRole = r.ReviewerRole,
+                    reviewer = r.Reviewer?.FullName,
+                    reviewedAt = r.ReviewedAt,
+                    isChecklistComplete = r.IsChecklistComplete,
+                    checklistScore = r.ChecklistScore,
+                    checklistResults = r.ChecklistResults.Select(cr => new
+                    {
+                        itemId = cr.ChecklistItemId,
+                        itemName = cr.ChecklistItem?.ItemName,
+                        isPassed = cr.IsPassed,
+                        remarks = cr.Remarks
+                    })
+                })
+            },
+            checklistItems = checklistItems
+        });
+    }
+
+    /// <summary>
+    /// Staff approves document
+    /// </summary>
+    [HttpPost("{documentId}/approve")]
+    [Authorize(Policy = "StaffOnly")]
+    public async Task<IActionResult> StaffApprove(int documentId, [FromBody] StaffReviewDto dto)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var firmId = GetFirmId();
+
+            var document = await _context.Documents
+                .FirstOrDefaultAsync(d => d.DocumentID == documentId && d.FirmID == firmId);
+
+            if (document == null)
+                return NotFound(new { success = false, message = "Document not found" });
+
+            if (document.AssignedStaffId != userId)
+                return BadRequest(new { success = false, message = "This document is not assigned to you" });
+
+            // Prepare checklist results
+            List<DocumentChecklistResult>? checklistResults = null;
+            if (dto.ChecklistResults != null && dto.ChecklistResults.Any())
+            {
+                checklistResults = dto.ChecklistResults.Select(r => new DocumentChecklistResult
+                {
+                    ChecklistItemId = r.ChecklistItemId,
+                    IsPassed = r.IsPassed,
+                    Remarks = r.Remarks
+                }).ToList();
+            }
+
+            var review = await _workflowService.StaffApproveAsync(
+                documentId, userId, dto.Remarks, dto.InternalNotes, checklistResults);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Document approved and forwarded to admin",
+                reviewId = review.ReviewId
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error approving document {DocumentId}", documentId);
+            return StatusCode(500, new { success = false, message = "An error occurred while approving the document" });
+        }
+    }
+
+    /// <summary>
+    /// Staff rejects document
+    /// </summary>
+    [HttpPost("{documentId}/reject")]
+    [Authorize(Policy = "StaffOnly")]
+    public async Task<IActionResult> StaffReject(int documentId, [FromBody] StaffReviewDto dto)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var firmId = GetFirmId();
+
+            if (string.IsNullOrWhiteSpace(dto.Remarks))
+                return BadRequest(new { success = false, message = "Rejection remarks are required" });
+
+            var document = await _context.Documents
+                .FirstOrDefaultAsync(d => d.DocumentID == documentId && d.FirmID == firmId);
+
+            if (document == null)
+                return NotFound(new { success = false, message = "Document not found" });
+
+            if (document.AssignedStaffId != userId)
+                return BadRequest(new { success = false, message = "This document is not assigned to you" });
+
+            // Prepare checklist results
+            List<DocumentChecklistResult>? checklistResults = null;
+            if (dto.ChecklistResults != null && dto.ChecklistResults.Any())
+            {
+                checklistResults = dto.ChecklistResults.Select(r => new DocumentChecklistResult
+                {
+                    ChecklistItemId = r.ChecklistItemId,
+                    IsPassed = r.IsPassed,
+                    Remarks = r.Remarks
+                }).ToList();
+            }
+
+            var review = await _workflowService.StaffRejectAsync(
+                documentId, userId, dto.Remarks, checklistResults);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Document rejected",
+                reviewId = review.ReviewId
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error rejecting document {DocumentId}", documentId);
+            return StatusCode(500, new { success = false, message = "An error occurred while rejecting the document" });
+        }
+    }
+
+    /// <summary>
+    /// Staff edits document (creates new version)
+    /// </summary>
+    [HttpPost("{documentId}/edit")]
+    [Authorize(Policy = "StaffOnly")]
+    public async Task<IActionResult> StaffEditDocument(int documentId, [FromForm] StaffEditDocumentDto dto)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var firmId = GetFirmId();
+
+            if (dto.File == null || dto.File.Length == 0)
+                return BadRequest(new { success = false, message = "No file provided" });
+
+            if (string.IsNullOrWhiteSpace(dto.ChangeDescription))
+                return BadRequest(new { success = false, message = "Change description is required" });
+
+            var document = await _context.Documents
+                .FirstOrDefaultAsync(d => d.DocumentID == documentId && d.FirmID == firmId);
+
+            if (document == null)
+                return NotFound(new { success = false, message = "Document not found" });
+
+            // Staff can only edit documents assigned to them
+            if (document.AssignedStaffId != userId)
+                return BadRequest(new { success = false, message = "This document is not assigned to you" });
+
+            // Save file
+            var uploadPath = Path.Combine(_environment.ContentRootPath, "Uploads", firmId.ToString(), document.UploadedBy.ToString() ?? "0");
+            Directory.CreateDirectory(uploadPath);
+
+            var extension = Path.GetExtension(dto.File.FileName).ToLower();
+            var uniqueFileName = $"{Guid.NewGuid()}{extension}";
+            var filePath = Path.Combine(uploadPath, uniqueFileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await dto.File.CopyToAsync(stream);
+            }
+
+            var version = await _workflowService.StaffEditDocumentAsync(
+                documentId,
+                userId,
+                filePath,
+                dto.File.FileName,
+                dto.File.Length,
+                dto.File.ContentType,
+                dto.ChangeDescription);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Document updated, new version created",
+                versionId = version.VersionId,
+                versionNumber = version.VersionNumber
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error editing document {DocumentId}", documentId);
+            return StatusCode(500, new { success = false, message = "An error occurred while editing the document" });
+        }
+    }
+
+    /// <summary>
+    /// Admin approves document
+    /// </summary>
+    [HttpPost("{documentId}/admin-approve")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> AdminApprove(int documentId, [FromBody] AdminReviewDto dto)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var firmId = GetFirmId();
+
+            var document = await _context.Documents
+                .FirstOrDefaultAsync(d => d.DocumentID == documentId && d.FirmID == firmId);
+
+            if (document == null)
+                return NotFound(new { success = false, message = "Document not found" });
+
+            // Verify document is in correct stage
+            if (document.WorkflowStage != DocumentWorkflowService.STAGE_PENDING_ADMIN_REVIEW &&
+                document.WorkflowStage != DocumentWorkflowService.STAGE_ADMIN_REVIEW)
+                return BadRequest(new { success = false, message = "Document is not pending admin review" });
+
+            var review = await _workflowService.AdminApproveAsync(documentId, userId, dto.Remarks);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Document approved and completed",
+                reviewId = review.ReviewId
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error admin approving document {DocumentId}", documentId);
+            return StatusCode(500, new { success = false, message = "An error occurred while approving the document" });
+        }
+    }
+
+    /// <summary>
+    /// Admin rejects document
+    /// </summary>
+    [HttpPost("{documentId}/admin-reject")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> AdminReject(int documentId, [FromBody] AdminReviewDto dto)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var firmId = GetFirmId();
+
+            if (string.IsNullOrWhiteSpace(dto.Remarks))
+                return BadRequest(new { success = false, message = "Rejection remarks are required" });
+
+            var document = await _context.Documents
+                .FirstOrDefaultAsync(d => d.DocumentID == documentId && d.FirmID == firmId);
+
+            if (document == null)
+                return NotFound(new { success = false, message = "Document not found" });
+
+            if (document.WorkflowStage != DocumentWorkflowService.STAGE_PENDING_ADMIN_REVIEW &&
+                document.WorkflowStage != DocumentWorkflowService.STAGE_ADMIN_REVIEW)
+                return BadRequest(new { success = false, message = "Document is not pending admin review" });
+
+            var review = await _workflowService.AdminRejectAsync(documentId, userId, dto.Remarks);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Document rejected",
+                reviewId = review.ReviewId
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error admin rejecting document {DocumentId}", documentId);
+            return StatusCode(500, new { success = false, message = "An error occurred while rejecting the document" });
+        }
+    }
+
+    /// <summary>
+    /// Get review statistics
+    /// </summary>
+    [HttpGet("stats")]
+    public async Task<IActionResult> GetStats()
+    {
+        var userId = GetCurrentUserId();
+        var firmId = GetFirmId();
+        var role = GetUserRole();
+
+        var stats = new
+        {
+            pendingCount = role == "Staff"
+                ? await _context.Documents.CountAsync(d => d.FirmID == firmId &&
+                    (d.WorkflowStage == DocumentWorkflowService.STAGE_PENDING_STAFF_REVIEW ||
+                     d.WorkflowStage == DocumentWorkflowService.STAGE_STAFF_REVIEW) &&
+                    d.AssignedStaffId == userId)
+                : await _context.Documents.CountAsync(d => d.FirmID == firmId &&
+                    (d.WorkflowStage == DocumentWorkflowService.STAGE_PENDING_ADMIN_REVIEW ||
+                     d.WorkflowStage == DocumentWorkflowService.STAGE_ADMIN_REVIEW)),
+
+            approvedToday = await _context.DocumentReviews.CountAsync(r =>
+                r.ReviewedBy == userId &&
+                r.ReviewerRole == role &&
+                r.ReviewStatus == "Approved" &&
+                r.ReviewedAt.HasValue &&
+                r.ReviewedAt.Value.Date == DateTime.UtcNow.Date),
+
+            rejectedToday = await _context.DocumentReviews.CountAsync(r =>
+                r.ReviewedBy == userId &&
+                r.ReviewerRole == role &&
+                r.ReviewStatus == "Rejected" &&
+                r.ReviewedAt.HasValue &&
+                r.ReviewedAt.Value.Date == DateTime.UtcNow.Date),
+
+            totalReviewed = await _context.DocumentReviews.CountAsync(r =>
+                r.ReviewedBy == userId &&
+                r.ReviewerRole == role)
+        };
+
+        return Ok(new { success = true, stats });
+    }
+}
+
+// DTOs
+public class StaffReviewDto
+{
+    public string? Remarks { get; set; }
+    public string? InternalNotes { get; set; }
+    public List<ChecklistResultDto>? ChecklistResults { get; set; }
+}
+
+public class ChecklistResultDto
+{
+    public int ChecklistItemId { get; set; }
+    public bool IsPassed { get; set; }
+    public string? Remarks { get; set; }
+}
+
+public class StaffEditDocumentDto
+{
+    public IFormFile? File { get; set; }
+    public string? ChangeDescription { get; set; }
+}
+
+public class AdminReviewDto
+{
+    public string? Remarks { get; set; }
+}

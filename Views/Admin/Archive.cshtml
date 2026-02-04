@@ -1,53 +1,552 @@
 @{
-    ViewData["Title"] = "Archive";
+    ViewData["Title"] = "Archive Management";
     Layout = "_AdminLayout";
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h4 class="mb-0">Archive</h4>
-        <p class="text-muted mb-0">Manage archived documents</p>
+        <h4 class="mb-0">Archive Management</h4>
+        <p class="text-muted mb-0">Manage archived and retention documents</p>
     </div>
 </div>
 
-<div class="card">
-    <div class="card-header bg-white">
-        <div class="row align-items-center">
-            <div class="col-md-6">
-                <input type="text" class="form-control" placeholder="Search archived documents...">
+<!-- Archive Type Tabs -->
+<ul class="nav nav-tabs mb-4" id="archiveTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="archived-tab" data-bs-toggle="tab" data-bs-target="#archived" type="button" role="tab">
+            <i class="bi bi-archive me-1"></i> Archived Documents
+            <span class="badge bg-secondary" id="archivedCount">0</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="rejected-tab" data-bs-toggle="tab" data-bs-target="#rejected" type="button" role="tab">
+            <i class="bi bi-x-circle me-1"></i> Rejected Documents
+            <span class="badge bg-danger" id="rejectedCount">0</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="retention-tab" data-bs-toggle="tab" data-bs-target="#retention" type="button" role="tab">
+            <i class="bi bi-clock-history me-1"></i> Retention Queue
+            <span class="badge bg-warning text-dark" id="retentionCount">0</span>
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="archiveTabContent">
+    <!-- Archived Documents Tab -->
+    <div class="tab-pane fade show active" id="archived" role="tabpanel">
+        <div class="card">
+            <div class="card-header bg-white">
+                <div class="row align-items-center g-3">
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" id="searchArchived" placeholder="Search archived documents...">
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="filterArchivedType">
+                            <option value="">All Types</option>
+                            <option value="Contract">Contract</option>
+                            <option value="Agreement">Agreement</option>
+                            <option value="Legal Brief">Legal Brief</option>
+                            <option value="Invoice">Invoice</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="sortArchived">
+                            <option value="archivedAt-desc">Newest First</option>
+                            <option value="archivedAt-asc">Oldest First</option>
+                            <option value="title-asc">Title A-Z</option>
+                            <option value="title-desc">Title Z-A</option>
+                            <option value="type-asc">Type A-Z</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 text-end">
+                        <button class="btn btn-outline-secondary" onclick="loadArchivedDocuments()">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </div>
+                </div>
             </div>
-            <div class="col-md-3">
-                <select class="form-select">
-                    <option value="">All Types</option>
-                    <option>Contract</option>
-                    <option>Legal Brief</option>
-                </select>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Document</th>
+                                <th>Type</th>
+                                <th>Archived Date</th>
+                                <th>Archived By</th>
+                                <th>Reason</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="archivedTbody">
+                            <tr>
+                                <td colspan="6" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
-    <div class="card-body p-0">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Document</th>
-                    <th>Original Folder</th>
-                    <th>Archived Date</th>
-                    <th>Archived By</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><i class="bi bi-file-pdf text-danger"></i> Old_Contract_2020.pdf</td>
-                    <td>Client A</td>
-                    <td>Jan 15, 2024</td>
-                    <td>Admin</td>
-                    <td>
-                        <a href="#" class="btn btn-sm btn-outline-success"><i class="bi bi-arrow-counterclockwise"></i> Restore</a>
-                        <a href="#" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Delete</a>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+
+    <!-- Rejected Documents Tab -->
+    <div class="tab-pane fade" id="rejected" role="tabpanel">
+        <div class="card">
+            <div class="card-header bg-white">
+                <div class="row align-items-center g-3">
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" id="searchRejected" placeholder="Search rejected documents...">
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="sortRejected">
+                            <option value="rejectedAt-desc">Newest First</option>
+                            <option value="rejectedAt-asc">Oldest First</option>
+                            <option value="title-asc">Title A-Z</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 text-end">
+                        <button class="btn btn-outline-secondary" onclick="loadRejectedDocuments()">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Document</th>
+                                <th>Type</th>
+                                <th>Client</th>
+                                <th>Rejected Date</th>
+                                <th>Rejected By</th>
+                                <th>Reason</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rejectedTbody">
+                            <tr>
+                                <td colspan="7" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Retention Queue Tab -->
+    <div class="tab-pane fade" id="retention" role="tabpanel">
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            Documents in this queue are pending permanent deletion based on retention policies.
+        </div>
+        <div class="card">
+            <div class="card-header bg-white">
+                <div class="row align-items-center g-3">
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" id="searchRetention" placeholder="Search...">
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="sortRetention">
+                            <option value="deleteDate-asc">Delete Date (Soonest)</option>
+                            <option value="deleteDate-desc">Delete Date (Latest)</option>
+                            <option value="title-asc">Title A-Z</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Document</th>
+                                <th>Type</th>
+                                <th>Archived Date</th>
+                                <th>Scheduled Delete</th>
+                                <th>Days Remaining</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="retentionTbody">
+                            <tr>
+                                <td colspan="6" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
+
+<!-- Restore Confirmation Modal -->
+<div class="modal fade" id="restoreModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Restore Document</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to restore this document?</p>
+                <div class="alert alert-info">
+                    <strong id="restoreDocTitle">Document</strong> will be restored to its original location.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="confirmRestoreBtn">
+                    <i class="bi bi-arrow-counterclockwise"></i> Restore
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Permanent Delete Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Permanent Delete</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>Warning:</strong> This action cannot be undone!
+                </div>
+                <p>Are you sure you want to permanently delete <strong id="deleteDocTitle">this document</strong>?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                    <i class="bi bi-trash"></i> Permanently Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let currentArchiveId = null;
+    let archivedDocs = [], rejectedDocs = [], retentionDocs = [];
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadArchivedDocuments();
+        loadRejectedDocuments();
+        loadRetentionDocuments();
+
+        // Search handlers
+        document.getElementById('searchArchived').addEventListener('input', debounce(filterArchivedDocs, 300));
+        document.getElementById('searchRejected').addEventListener('input', debounce(filterRejectedDocs, 300));
+        document.getElementById('searchRetention').addEventListener('input', debounce(filterRetentionDocs, 300));
+
+        // Sort handlers
+        document.getElementById('sortArchived').addEventListener('change', () => renderArchivedTable());
+        document.getElementById('sortRejected').addEventListener('change', () => renderRejectedTable());
+        document.getElementById('sortRetention').addEventListener('change', () => renderRetentionTable());
+
+        // Filter handlers
+        document.getElementById('filterArchivedType').addEventListener('change', filterArchivedDocs);
+    });
+
+    async function loadArchivedDocuments() {
+        try {
+            const response = await fetch('/api/ArchiveApi?type=archived');
+            const data = await response.json();
+            if (data.success) {
+                archivedDocs = data.archives;
+                document.getElementById('archivedCount').textContent = archivedDocs.length;
+                renderArchivedTable();
+            }
+        } catch (error) {
+            console.error('Error loading archived documents:', error);
+        }
+    }
+
+    async function loadRejectedDocuments() {
+        try {
+            const response = await fetch('/api/ArchiveApi?type=rejected');
+            const data = await response.json();
+            if (data.success) {
+                rejectedDocs = data.archives;
+                document.getElementById('rejectedCount').textContent = rejectedDocs.length;
+                renderRejectedTable();
+            }
+        } catch (error) {
+            console.error('Error loading rejected documents:', error);
+        }
+    }
+
+    async function loadRetentionDocuments() {
+        try {
+            const response = await fetch('/api/ArchiveApi?type=retention');
+            const data = await response.json();
+            if (data.success) {
+                retentionDocs = data.archives;
+                document.getElementById('retentionCount').textContent = retentionDocs.length;
+                renderRetentionTable();
+            }
+        } catch (error) {
+            console.error('Error loading retention documents:', error);
+        }
+    }
+
+    function filterArchivedDocs() {
+        renderArchivedTable();
+    }
+
+    function filterRejectedDocs() {
+        renderRejectedTable();
+    }
+
+    function filterRetentionDocs() {
+        renderRetentionTable();
+    }
+
+    function renderArchivedTable() {
+        const tbody = document.getElementById('archivedTbody');
+        const search = document.getElementById('searchArchived').value.toLowerCase();
+        const typeFilter = document.getElementById('filterArchivedType').value;
+        const sort = document.getElementById('sortArchived').value;
+
+        let filtered = archivedDocs.filter(d => {
+            const matchSearch = d.documentTitle.toLowerCase().includes(search) || 
+                               (d.originalFileName || '').toLowerCase().includes(search);
+            const matchType = !typeFilter || d.documentType === typeFilter;
+            return matchSearch && matchType;
+        });
+
+        // Sort
+        const [sortField, sortDir] = sort.split('-');
+        filtered.sort((a, b) => {
+            let aVal = a[sortField] || '';
+            let bVal = b[sortField] || '';
+            if (sortField === 'archivedAt') {
+                aVal = new Date(aVal);
+                bVal = new Date(bVal);
+            }
+            return sortDir === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
+        });
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted">No archived documents found</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(d => `
+            <tr>
+                <td>
+                    <i class="bi ${getFileIcon(d.fileExtension)} me-2"></i>
+                    <strong>${escapeHtml(d.documentTitle)}</strong>
+                    <br><small class="text-muted">${escapeHtml(d.originalFileName || '')}</small>
+                </td>
+                <td><span class="badge bg-secondary">${d.documentType || 'Unknown'}</span></td>
+                <td>${formatDate(d.archivedAt)}</td>
+                <td>${d.archivedByName || '-'}</td>
+                <td><span class="text-truncate d-inline-block" style="max-width: 150px;">${escapeHtml(d.archiveReason || '-')}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-success" onclick="showRestoreModal(${d.archiveId}, '${escapeHtml(d.documentTitle)}')">
+                        <i class="bi bi-arrow-counterclockwise"></i> Restore
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal(${d.archiveId}, '${escapeHtml(d.documentTitle)}')">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function renderRejectedTable() {
+        const tbody = document.getElementById('rejectedTbody');
+        const search = document.getElementById('searchRejected').value.toLowerCase();
+        const sort = document.getElementById('sortRejected').value;
+
+        let filtered = rejectedDocs.filter(d => 
+            d.documentTitle.toLowerCase().includes(search) || 
+            (d.clientName || '').toLowerCase().includes(search)
+        );
+
+        // Sort
+        const [sortField, sortDir] = sort.split('-');
+        filtered.sort((a, b) => {
+            let aVal = a[sortField] || '';
+            let bVal = b[sortField] || '';
+            if (sortField.includes('At') || sortField.includes('Date')) {
+                aVal = new Date(aVal);
+                bVal = new Date(bVal);
+            }
+            return sortDir === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
+        });
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted">No rejected documents found</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(d => `
+            <tr>
+                <td>
+                    <i class="bi ${getFileIcon(d.fileExtension)} me-2"></i>
+                    <strong>${escapeHtml(d.documentTitle)}</strong>
+                </td>
+                <td><span class="badge bg-secondary">${d.documentType || 'Unknown'}</span></td>
+                <td>${d.clientName || '-'}</td>
+                <td>${formatDate(d.rejectedAt || d.archivedAt)}</td>
+                <td>${d.rejectedByName || d.archivedByName || '-'}</td>
+                <td><span class="text-truncate d-inline-block" style="max-width: 150px;">${escapeHtml(d.archiveReason || '-')}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-success" onclick="showRestoreModal(${d.archiveId}, '${escapeHtml(d.documentTitle)}')">
+                        <i class="bi bi-arrow-counterclockwise"></i> Retrieve
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function renderRetentionTable() {
+        const tbody = document.getElementById('retentionTbody');
+        const search = document.getElementById('searchRetention').value.toLowerCase();
+        const sort = document.getElementById('sortRetention').value;
+
+        let filtered = retentionDocs.filter(d => d.documentTitle.toLowerCase().includes(search));
+
+        // Sort
+        const [sortField, sortDir] = sort.split('-');
+        filtered.sort((a, b) => {
+            let aVal = a[sortField] || '';
+            let bVal = b[sortField] || '';
+            if (sortField.includes('Date')) {
+                aVal = new Date(aVal);
+                bVal = new Date(bVal);
+            }
+            return sortDir === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
+        });
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted">No documents in retention queue</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(d => {
+            const daysRemaining = d.scheduledDeleteDate ? Math.ceil((new Date(d.scheduledDeleteDate) - new Date()) / (1000 * 60 * 60 * 24)) : '-';
+            const urgencyClass = daysRemaining <= 7 ? 'text-danger' : daysRemaining <= 30 ? 'text-warning' : '';
+            
+            return `
+                <tr>
+                    <td>
+                        <i class="bi ${getFileIcon(d.fileExtension)} me-2"></i>
+                        <strong>${escapeHtml(d.documentTitle)}</strong>
+                    </td>
+                    <td><span class="badge bg-secondary">${d.documentType || 'Unknown'}</span></td>
+                    <td>${formatDate(d.archivedAt)}</td>
+                    <td>${formatDate(d.scheduledDeleteDate)}</td>
+                    <td class="${urgencyClass}"><strong>${daysRemaining}</strong> days</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-success" onclick="showRestoreModal(${d.archiveId}, '${escapeHtml(d.documentTitle)}')">
+                            <i class="bi bi-arrow-counterclockwise"></i> Cancel Deletion
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function showRestoreModal(archiveId, title) {
+        currentArchiveId = archiveId;
+        document.getElementById('restoreDocTitle').textContent = title;
+        new bootstrap.Modal(document.getElementById('restoreModal')).show();
+    }
+
+    function showDeleteModal(archiveId, title) {
+        currentArchiveId = archiveId;
+        document.getElementById('deleteDocTitle').textContent = title;
+        new bootstrap.Modal(document.getElementById('deleteModal')).show();
+    }
+
+    document.getElementById('confirmRestoreBtn').addEventListener('click', async function() {
+        if (!currentArchiveId) return;
+
+        try {
+            const response = await fetch(`/api/ArchiveApi/${currentArchiveId}/restore`, { method: 'POST' });
+            const data = await response.json();
+
+            if (data.success) {
+                alert('Document restored successfully!');
+                bootstrap.Modal.getInstance(document.getElementById('restoreModal')).hide();
+                loadArchivedDocuments();
+                loadRejectedDocuments();
+                loadRetentionDocuments();
+            } else {
+                alert('Error: ' + (data.message || 'Failed to restore'));
+            }
+        } catch (error) {
+            alert('Error restoring document');
+        }
+    });
+
+    document.getElementById('confirmDeleteBtn').addEventListener('click', async function() {
+        if (!currentArchiveId) return;
+
+        try {
+            const response = await fetch(`/api/ArchiveApi/${currentArchiveId}`, { method: 'DELETE' });
+            const data = await response.json();
+
+            if (data.success) {
+                alert('Document permanently deleted!');
+                bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
+                loadArchivedDocuments();
+                loadRejectedDocuments();
+                loadRetentionDocuments();
+            } else {
+                alert('Error: ' + (data.message || 'Failed to delete'));
+            }
+        } catch (error) {
+            alert('Error deleting document');
+        }
+    });
+
+    function getFileIcon(ext) {
+        const icons = {
+            '.pdf': 'bi-file-pdf text-danger',
+            '.doc': 'bi-file-word text-primary',
+            '.docx': 'bi-file-word text-primary',
+            '.xls': 'bi-file-excel text-success',
+            '.xlsx': 'bi-file-excel text-success'
+        };
+        return icons[ext?.toLowerCase()] || 'bi-file-earmark text-secondary';
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+</script>
+}

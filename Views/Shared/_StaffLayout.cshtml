@@ -81,6 +81,12 @@
                             </a>
                         </li>
                         <li class="nav-item" role="none">
+                            <a class="nav-link" asp-controller="Archive" asp-action="Index" role="menuitem">
+                                <i class="bi bi-archive" aria-hidden="true"></i>
+                                <span>Archive</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" role="none">
                             <a class="nav-link" asp-controller="Notification" asp-action="Index" role="menuitem">
                                 <i class="bi bi-bell" aria-hidden="true"></i>
                                 <span>Notifications</span>
@@ -108,10 +114,33 @@
             <header class="header">
                 <h1 class="header-title">@ViewData["Title"]</h1>
                 <div class="header-actions">
-                    <a asp-controller="Notification" asp-action="Index" class="btn btn-secondary" aria-label="View notifications">
-                        <i class="bi bi-bell" aria-hidden="true"></i>
-                        <span class="sr-only">Notifications</span>
-                    </a>
+                    <!-- Notification Dropdown -->
+                    <div class="dropdown">
+                        <button class="btn btn-secondary position-relative" type="button" id="notificationDropdown" 
+                                data-bs-toggle="dropdown" aria-expanded="false" aria-label="Notifications">
+                            <i class="bi bi-bell" aria-hidden="true"></i>
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" id="notificationBadge">
+                                0
+                            </span>
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end notification-dropdown" aria-labelledby="notificationDropdown" style="width: 350px; max-height: 400px; overflow-y: auto;">
+                            <div class="dropdown-header d-flex justify-content-between align-items-center">
+                                <span class="fw-bold">Notifications</span>
+                                <button class="btn btn-sm btn-link text-decoration-none p-0" onclick="markAllAsRead()">Mark all as read</button>
+                            </div>
+                            <div class="dropdown-divider"></div>
+                            <div id="notificationList">
+                                <div class="text-center text-muted p-3">
+                                    <i class="bi bi-bell-slash fs-4"></i>
+                                    <p class="mb-0 small">No notifications</p>
+                                </div>
+                            </div>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item text-center text-primary" asp-controller="Notification" asp-action="Index">
+                                View all notifications
+                            </a>
+                        </div>
+                    </div>
                     <form asp-controller="Auth" asp-action="Logout" method="post">
                         <button type="submit" class="btn btn-secondary">
                             <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
@@ -130,6 +159,133 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    
+    <script>
+        // Notification functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            loadNotificationBadge();
+            loadNotifications();
+            // Refresh badge every 30 seconds
+            setInterval(loadNotificationBadge, 30000);
+        });
+
+        async function loadNotificationBadge() {
+            try {
+                const response = await fetch('/api/notification/unread-count');
+                if (response.ok) {
+                    const data = await response.json();
+                    const badge = document.getElementById('notificationBadge');
+                    if (data.count > 0) {
+                        badge.textContent = data.count > 99 ? '99+' : data.count;
+                        badge.classList.remove('d-none');
+                    } else {
+                        badge.classList.add('d-none');
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading notification badge:', error);
+            }
+        }
+
+        async function loadNotifications() {
+            try {
+                const response = await fetch('/api/notification/recent');
+                if (response.ok) {
+                    const data = await response.json();
+                    const listContainer = document.getElementById('notificationList');
+                    
+                    if (data.notifications && data.notifications.length > 0) {
+                        listContainer.innerHTML = data.notifications.map(n => `
+                            <a href="#" class="dropdown-item notification-item ${n.isRead ? '' : 'bg-light'}" 
+                               onclick="markAsRead(${n.notificationId}); return false;">
+                                <div class="d-flex align-items-start">
+                                    <div class="notification-icon me-2 ${getNotificationColor(n.notificationType)}">
+                                        <i class="bi ${getNotificationIcon(n.notificationType)}"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="fw-semibold small">${n.title}</div>
+                                        <div class="text-muted small text-truncate" style="max-width: 250px;">${n.message}</div>
+                                        <div class="text-muted small">${formatTimeAgo(n.createdAt)}</div>
+                                    </div>
+                                    ${!n.isRead ? '<span class="badge bg-primary rounded-pill">New</span>' : ''}
+                                </div>
+                            </a>
+                        `).join('');
+                    } else {
+                        listContainer.innerHTML = `
+                            <div class="text-center text-muted p-3">
+                                <i class="bi bi-bell-slash fs-4"></i>
+                                <p class="mb-0 small">No notifications</p>
+                            </div>
+                        `;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading notifications:', error);
+            }
+        }
+
+        function getNotificationIcon(type) {
+            const icons = {
+                'DocumentUploaded': 'bi-file-earmark-plus',
+                'DocumentReviewed': 'bi-check-circle',
+                'DocumentApproved': 'bi-check2-circle',
+                'DocumentRejected': 'bi-x-circle',
+                'ReviewAssigned': 'bi-person-check',
+                'CommentAdded': 'bi-chat-dots',
+                'VersionCreated': 'bi-file-earmark-diff',
+                'SystemAlert': 'bi-exclamation-triangle'
+            };
+            return icons[type] || 'bi-bell';
+        }
+
+        function getNotificationColor(type) {
+            const colors = {
+                'DocumentUploaded': 'text-primary',
+                'DocumentReviewed': 'text-info',
+                'DocumentApproved': 'text-success',
+                'DocumentRejected': 'text-danger',
+                'ReviewAssigned': 'text-warning',
+                'CommentAdded': 'text-secondary',
+                'VersionCreated': 'text-primary',
+                'SystemAlert': 'text-warning'
+            };
+            return colors[type] || 'text-secondary';
+        }
+
+        function formatTimeAgo(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const seconds = Math.floor((now - date) / 1000);
+            
+            if (seconds < 60) return 'Just now';
+            if (seconds < 3600) return Math.floor(seconds / 60) + ' min ago';
+            if (seconds < 86400) return Math.floor(seconds / 3600) + ' hours ago';
+            if (seconds < 604800) return Math.floor(seconds / 86400) + ' days ago';
+            return date.toLocaleDateString();
+        }
+
+        async function markAsRead(notificationId) {
+            try {
+                await fetch(`/api/notification/${notificationId}/read`, { method: 'POST' });
+                loadNotificationBadge();
+                loadNotifications();
+            } catch (error) {
+                console.error('Error marking notification as read:', error);
+            }
+        }
+
+        async function markAllAsRead() {
+            try {
+                await fetch('/api/notification/read-all', { method: 'POST' });
+                loadNotificationBadge();
+                loadNotifications();
+            } catch (error) {
+                console.error('Error marking all as read:', error);
+            }
+        }
+    </script>
+    
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

@@ -28,6 +28,9 @@ public class DocumentReview : BaseEntity
     [MaxLength(50)]
     public string? ReviewerRole { get; set; }
 
+    [MaxLength(50)]
+    public string? ReviewerType { get; set; }
+
     public string? InternalNotes { get; set; }
 
     public bool? IsChecklistComplete { get; set; } = false;

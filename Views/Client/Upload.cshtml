@@ -1,57 +1,474 @@
 @{
-    ViewData["Title"] = "Upload Document";
+    ViewData["Title"] = "Upload Documents";
     Layout = "_ClientLayout";
 }
 
 <div class="mb-4">
-    <h4 class="mb-0">Upload Document</h4>
-    <p class="text-muted mb-0">Upload a new document</p>
+    <h4 class="mb-0">Upload Documents</h4>
+    <p class="text-muted mb-0">Upload one or more documents for review</p>
 </div>
 
-<div class="card">
-    <div class="card-body">
-        <form>
-            <div class="mb-3">
-                <label class="form-label">Document Title</label>
-                <input type="text" class="form-control" placeholder="Enter document title">
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Document Type</label>
+                            <select class="form-select" id="documentType">
+                                <option value="">Auto-detect</option>
+                                <option value="Contract">Contract</option>
+                                <option value="Agreement">Agreement</option>
+                                <option value="Legal Brief">Legal Brief</option>
+                                <option value="Affidavit">Affidavit</option>
+                                <option value="Power of Attorney">Power of Attorney</option>
+                                <option value="Deed">Deed</option>
+                                <option value="Lease Agreement">Lease Agreement</option>
+                                <option value="Invoice">Invoice</option>
+                                <option value="Certificate">Certificate</option>
+                                <option value="Other">Other</option>
+                            </select>
+                            <small class="text-muted">Leave empty for AI auto-detection</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Category</label>
+                            <select class="form-select" id="category">
+                                <option value="">Select category...</option>
+                                <option value="Legal">Legal</option>
+                                <option value="Financial">Financial</option>
+                                <option value="Administrative">Administrative</option>
+                                <option value="Personal">Personal</option>
+                                <option value="Business">Business</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Folder</label>
+                        <select class="form-select" id="folderId">
+                            <option value="">No folder (Root)</option>
+                        </select>
+                        <small class="text-muted">All files will be uploaded to this folder</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" id="description" rows="2" placeholder="Optional description for all documents..." maxlength="1000"></textarea>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label">Files <span class="text-danger">*</span></label>
+                        <div class="border border-2 rounded p-4 text-center" id="dropZone" style="border-style: dashed !important; cursor: pointer;">
+                            <i class="bi bi-cloud-upload fs-1 text-muted" id="uploadIcon"></i>
+                            <p class="text-muted mt-2 mb-1" id="dropText">Drag and drop files here or click to browse</p>
+                            <small class="text-muted">Allowed: PDF, Word, Excel, PowerPoint, Images (Max 50MB each, Max 100MB total)</small>
+                            <input type="file" class="form-control d-none" id="files" 
+                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.gif" multiple required>
+                        </div>
+                        <div class="mt-2" id="fileList">
+                            <!-- Selected files will be displayed here -->
+                        </div>
+                        <div class="mt-2 d-none" id="fileSummary">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <span><strong id="fileCount">0</strong> file(s) selected (<span id="totalSize">0 KB</span>)</span>
+                                <button type="button" class="btn btn-sm btn-outline-danger" id="clearAll">
+                                    <i class="bi bi-x"></i> Clear All
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- AI Processing Info -->
+                    <div class="alert alert-info mb-4">
+                        <i class="bi bi-robot me-2"></i>
+                        <strong>AI Processing:</strong> Your documents will be automatically analyzed for:
+                        <ul class="mb-0 mt-1">
+                            <li>Document type detection</li>
+                            <li>Duplicate detection</li>
+                            <li>Required checklist items</li>
+                        </ul>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary" id="uploadBtn">
+                            <span class="spinner-border spinner-border-sm d-none" id="uploadSpinner"></span>
+                            <i class="bi bi-upload" id="uploadBtnIcon"></i> Upload Documents
+                        </button>
+                        <a href="/Folder" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
             </div>
-            <div class="mb-3">
-                <label class="form-label">Document Type</label>
-                <select class="form-select">
-                    <option value="">Select type...</option>
-                    <option>Contract</option>
-                    <option>Agreement</option>
-                    <option>Legal Brief</option>
-                    <option>Other</option>
-                </select>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Upload Guidelines</h6>
             </div>
-            <div class="mb-3">
-                <label class="form-label">Folder</label>
-                <select class="form-select">
-                    <option value="">Select folder...</option>
-                    <option>General</option>
-                    <option>Contracts</option>
-                </select>
+            <div class="card-body">
+                <ul class="list-unstyled mb-0">
+                    <li class="mb-2">
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        Maximum 50MB per file
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        Maximum 100MB total per upload
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        Supported: PDF, Word, Excel, PowerPoint, Images
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        Documents will be reviewed by staff
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        You'll be notified of status changes
+                    </li>
+                </ul>
             </div>
-            <div class="mb-3">
-                <label class="form-label">Description</label>
-                <textarea class="form-control" rows="3" placeholder="Enter description..."></textarea>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>Review Process</h6>
             </div>
-            <div class="mb-4">
-                <label class="form-label">File</label>
-                <div class="border border-2 border-dashed rounded p-5 text-center">
-                    <i class="bi bi-cloud-upload fs-1 text-muted"></i>
-                    <p class="text-muted mt-2">Drag and drop file here or click to browse</p>
-                    <input type="file" class="form-control" style="display: none;">
-                    <button type="button" class="btn btn-outline-primary">Browse Files</button>
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-2">
+                    <span class="badge bg-warning text-dark me-2">1</span>
+                    <span>Document Uploaded</span>
+                </div>
+                <div class="d-flex align-items-center mb-2">
+                    <span class="badge bg-info me-2">2</span>
+                    <span>Staff Review</span>
+                </div>
+                <div class="d-flex align-items-center mb-2">
+                    <span class="badge bg-primary me-2">3</span>
+                    <span>Admin Approval</span>
+                </div>
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-success me-2">4</span>
+                    <span>Completed</span>
                 </div>
             </div>
-            <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-upload"></i> Upload
-                </button>
-                <a href="#" class="btn btn-outline-secondary">Cancel</a>
-            </div>
-        </form>
+        </div>
     </div>
 </div>
+
+<!-- Upload Progress Modal -->
+<div class="modal fade" id="uploadProgressModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;"></div>
+                <h5>Uploading Documents...</h5>
+                <p class="text-muted mb-0" id="progressText">Preparing upload...</p>
+                <div class="progress mt-3" style="height: 10px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" id="uploadProgress" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success Modal -->
+<div class="modal fade" id="successModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <i class="bi bi-check-circle text-success" style="font-size: 4rem;"></i>
+                <h5 class="mt-3">Document Uploaded Successfully!</h5>
+                <p class="text-muted" id="successMessage">Your document has been uploaded and assigned for review.</p>
+                <div class="d-flex gap-2 justify-content-center mt-3">
+                    <a href="/Document/MyDocuments" class="btn btn-primary">View My Documents</a>
+                    <button type="button" class="btn btn-outline-secondary" onclick="resetForm()">Upload Another</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    const dropZone = document.getElementById('dropZone');
+    const filesInput = document.getElementById('files');
+    const fileList = document.getElementById('fileList');
+    const fileSummary = document.getElementById('fileSummary');
+    const uploadForm = document.getElementById('uploadForm');
+    
+    let selectedFiles = [];
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB per file
+    const MAX_TOTAL_SIZE = 100 * 1024 * 1024; // 100MB total
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadFolders();
+        setupDropZone();
+        setupFormSubmit();
+    });
+
+    async function loadFolders() {
+        try {
+            const response = await fetch('/api/FolderApi/tree');
+            const data = await response.json();
+
+            if (data.success) {
+                const select = document.getElementById('folderId');
+                renderFolderOptions(data.tree, select, 0);
+            }
+        } catch (error) {
+            console.error('Error loading folders:', error);
+        }
+    }
+
+    function renderFolderOptions(folders, select, level) {
+        folders.forEach(folder => {
+            const option = document.createElement('option');
+            option.value = folder.id;
+            option.textContent = '\u00A0'.repeat(level * 4) + (level > 0 ? '└ ' : '') + folder.name;
+            select.appendChild(option);
+
+            if (folder.children && folder.children.length > 0) {
+                renderFolderOptions(folder.children, select, level + 1);
+            }
+        });
+    }
+
+    function setupDropZone() {
+        // Click to browse
+        dropZone.addEventListener('click', () => filesInput.click());
+
+        // Drag and drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-primary', 'bg-light');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('border-primary', 'bg-light');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-primary', 'bg-light');
+            
+            if (e.dataTransfer.files.length > 0) {
+                addFiles(Array.from(e.dataTransfer.files));
+            }
+        });
+
+        // File input change
+        filesInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                addFiles(Array.from(e.target.files));
+            }
+        });
+
+        // Clear all files
+        document.getElementById('clearAll').addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectedFiles = [];
+            renderFileList();
+        });
+    }
+
+    function addFiles(newFiles) {
+        const allowedTypes = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.jpg', '.jpeg', '.png', '.gif'];
+        
+        for (const file of newFiles) {
+            const ext = '.' + file.name.split('.').pop().toLowerCase();
+            
+            if (!allowedTypes.includes(ext)) {
+                alert(`File "${file.name}" type not allowed. Skipping...`);
+                continue;
+            }
+
+            if (file.size > MAX_FILE_SIZE) {
+                alert(`File "${file.name}" exceeds 50MB limit. Skipping...`);
+                continue;
+            }
+
+            // Check for duplicates
+            if (selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+                continue; // Skip duplicates silently
+            }
+
+            selectedFiles.push(file);
+        }
+
+        // Check total size
+        const totalSize = selectedFiles.reduce((sum, f) => sum + f.size, 0);
+        if (totalSize > MAX_TOTAL_SIZE) {
+            alert('Total file size exceeds 100MB limit. Please remove some files.');
+        }
+
+        renderFileList();
+    }
+
+    function renderFileList() {
+        if (selectedFiles.length === 0) {
+            fileList.innerHTML = '';
+            fileSummary.classList.add('d-none');
+            dropZone.classList.remove('d-none');
+            return;
+        }
+
+        dropZone.classList.add('d-none');
+        fileSummary.classList.remove('d-none');
+
+        const totalSize = selectedFiles.reduce((sum, f) => sum + f.size, 0);
+        document.getElementById('fileCount').textContent = selectedFiles.length;
+        document.getElementById('totalSize').textContent = formatFileSize(totalSize);
+
+        fileList.innerHTML = selectedFiles.map((file, index) => {
+            const ext = '.' + file.name.split('.').pop().toLowerCase();
+            return `
+                <div class="d-flex align-items-center justify-content-between bg-light rounded p-2 mb-2" data-index="${index}">
+                    <div class="d-flex align-items-center">
+                        <i class="bi ${getFileIcon(ext)} me-2"></i>
+                        <div>
+                            <div class="small fw-medium text-truncate" style="max-width: 300px;">${file.name}</div>
+                            <small class="text-muted">${formatFileSize(file.size)}</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeFile(${index})">
+                        <i class="bi bi-x"></i>
+                    </button>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function removeFile(index) {
+        selectedFiles.splice(index, 1);
+        renderFileList();
+    }
+
+    function setupFormSubmit() {
+        uploadForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            if (selectedFiles.length === 0) {
+                alert('Please select at least one file to upload.');
+                return;
+            }
+
+            const totalSize = selectedFiles.reduce((sum, f) => sum + f.size, 0);
+            if (totalSize > MAX_TOTAL_SIZE) {
+                alert('Total file size exceeds 100MB limit. Please remove some files.');
+                return;
+            }
+
+            const btn = document.getElementById('uploadBtn');
+            const spinner = document.getElementById('uploadSpinner');
+            const icon = document.getElementById('uploadBtnIcon');
+            const progressModal = new bootstrap.Modal(document.getElementById('uploadProgressModal'));
+            const progressBar = document.getElementById('uploadProgress');
+            const progressText = document.getElementById('progressText');
+
+            btn.disabled = true;
+            spinner.classList.remove('d-none');
+            icon.classList.add('d-none');
+            progressModal.show();
+
+            const results = { success: [], failed: [] };
+            const description = document.getElementById('description').value;
+            const category = document.getElementById('category').value;
+            const documentType = document.getElementById('documentType').value;
+            const folderId = document.getElementById('folderId').value;
+
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const file = selectedFiles[i];
+                const progress = ((i + 1) / selectedFiles.length) * 100;
+                progressBar.style.width = progress + '%';
+                progressText.textContent = `Uploading ${i + 1} of ${selectedFiles.length}: ${file.name}`;
+
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('title', file.name.replace(/\.[^/.]+$/, ''));
+                formData.append('description', description);
+                formData.append('category', category);
+                formData.append('documentType', documentType);
+                if (folderId) {
+                    formData.append('folderId', folderId);
+                }
+
+                try {
+                    const response = await fetch('/api/DocumentApi/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        results.success.push({ name: file.name, documentId: data.documentId });
+                    } else {
+                        results.failed.push({ name: file.name, error: data.message || 'Unknown error' });
+                    }
+                } catch (error) {
+                    results.failed.push({ name: file.name, error: 'Network error' });
+                }
+            }
+
+            setTimeout(() => {
+                progressModal.hide();
+
+                if (results.failed.length === 0) {
+                    document.getElementById('successMessage').innerHTML = 
+                        `Successfully uploaded ${results.success.length} document(s).<br>All documents have been submitted for review.`;
+                    new bootstrap.Modal(document.getElementById('successModal')).show();
+                } else if (results.success.length === 0) {
+                    alert('All uploads failed. Please try again.');
+                } else {
+                    document.getElementById('successMessage').innerHTML = 
+                        `Uploaded ${results.success.length} document(s).<br>` +
+                        `<span class="text-danger">${results.failed.length} failed:</span> ` +
+                        results.failed.map(f => f.name).join(', ');
+                    new bootstrap.Modal(document.getElementById('successModal')).show();
+                }
+            }, 500);
+
+            btn.disabled = false;
+            spinner.classList.add('d-none');
+            icon.classList.remove('d-none');
+        });
+    }
+
+    function resetForm() {
+        bootstrap.Modal.getInstance(document.getElementById('successModal')).hide();
+        uploadForm.reset();
+        selectedFiles = [];
+        renderFileList();
+        document.getElementById('uploadProgress').style.width = '0%';
+        document.getElementById('progressText').textContent = 'Preparing upload...';
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function getFileIcon(ext) {
+        const icons = {
+            '.pdf': 'bi-file-pdf text-danger',
+            '.doc': 'bi-file-word text-primary',
+            '.docx': 'bi-file-word text-primary',
+            '.xls': 'bi-file-excel text-success',
+            '.xlsx': 'bi-file-excel text-success',
+            '.ppt': 'bi-file-ppt text-warning',
+            '.pptx': 'bi-file-ppt text-warning',
+            '.txt': 'bi-file-text text-secondary',
+            '.jpg': 'bi-file-image text-info',
+            '.jpeg': 'bi-file-image text-info',
+            '.png': 'bi-file-image text-info',
+            '.gif': 'bi-file-image text-info'
+        };
+        return icons[ext] || 'bi-file-earmark text-secondary';
+    }
+</script>
+}

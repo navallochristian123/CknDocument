@@ -30,6 +30,9 @@ public class Notification : BaseEntity
     [MaxLength(50)]
     public string NotificationType { get; set; } = string.Empty;
 
+    [MaxLength(100)]
+    public string? Type { get; set; }
+
     [MaxLength(500)]
     public string? ActionUrl { get; set; }
 
