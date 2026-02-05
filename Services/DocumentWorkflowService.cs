@@ -277,6 +277,9 @@ public class DocumentWorkflowService
         document.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
+        // Auto-archive rejected document immediately
+        await AutoArchiveRejectedDocumentAsync(document, staffId, remarks, "Staff");
+
         // Notify client
         if (document.UploadedBy.HasValue)
         {
@@ -665,6 +668,9 @@ public class DocumentWorkflowService
         document.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
+        // Auto-archive rejected document immediately
+        await AutoArchiveRejectedDocumentAsync(document, adminId, remarks, "Admin");
+
         // Notify client
         if (document.UploadedBy.HasValue)
         {
@@ -700,6 +706,62 @@ public class DocumentWorkflowService
             "DocumentReview");
 
         return review;
+    }
+
+    /// <summary>
+    /// Auto-archive rejected document immediately
+    /// </summary>
+    private async Task AutoArchiveRejectedDocumentAsync(Document document, int rejectedBy, string rejectionReason, string rejectorRole)
+    {
+        try
+        {
+            // Check if already archived
+            var existingArchive = await _context.Archives
+                .FirstOrDefaultAsync(a => a.DocumentID == document.DocumentID && a.IsRestored != true);
+
+            if (existingArchive != null)
+            {
+                _logger.LogInformation("Document {DocumentId} already archived, skipping auto-archive", document.DocumentID);
+                return;
+            }
+
+            var archive = new Archive
+            {
+                DocumentID = document.DocumentID,
+                FirmId = document.FirmID,
+                ArchivedDate = DateTime.UtcNow,
+                Reason = $"[{rejectorRole} Rejection] {rejectionReason}",
+                ArchiveType = "Rejected",
+                OriginalStatus = document.Status,
+                OriginalWorkflowStage = document.WorkflowStage,
+                OriginalFolderId = document.FolderId,
+                VersionNumber = document.CurrentVersion ?? 1,
+                ArchivedBy = rejectedBy,
+                IsRestored = false,
+                IsDeleted = false,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.Archives.Add(archive);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Auto-archived rejected document {DocumentId} by {Role}", document.DocumentID, rejectorRole);
+
+            // Audit log
+            await _auditLogService.LogAsync(
+                "AutoArchiveRejected",
+                "Archive",
+                archive.ArchiveID,
+                $"Auto-archived rejected document: {document.Title}. Rejected by: {rejectorRole}",
+                null,
+                $"{{\"rejectionReason\":\"{rejectionReason}\",\"rejectorRole\":\"{rejectorRole}\"}}",
+                "ArchiveManagement");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error auto-archiving rejected document {DocumentId}", document.DocumentID);
+            // Don't throw - rejection should still succeed even if archive fails
+        }
     }
 
     /// <summary>

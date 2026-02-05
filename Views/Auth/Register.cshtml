@@ -137,7 +137,8 @@
         <div class="form-check">
             <input class="form-check-input" type="checkbox" id="terms" required>
             <label class="form-check-label" for="terms">
-                I agree to the <a href="#" style="color: var(--accent-green);">Terms</a> and <a href="#" style="color: var(--accent-green);">Privacy Policy</a>
+                I agree to the <a href="#" style="color: var(--accent-green);">Terms</a> and 
+                <a href="#" onclick="showPrivacyModal(); return false;" style="color: var(--accent-green);">Data Privacy Policy</a>
             </label>
         </div>
     </div>
@@ -147,6 +148,118 @@
         Create Account
     </button>
 </form>
+
+<!-- Data Privacy Modal -->
+<div class="modal fade" id="privacyModal" tabindex="-1" aria-labelledby="privacyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%); color: white;">
+                <h5 class="modal-title" id="privacyModalLabel">
+                    <i class="bi bi-shield-lock me-2"></i>Data Privacy & Document Security Policy
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+                <div class="alert alert-info border-0" style="background: #e7f3ff;">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Republic Act No. 10173 - Data Privacy Act of 2012 (Philippines)</strong>
+                </div>
+
+                <h6 class="text-primary fw-bold mt-4"><i class="bi bi-1-circle me-2"></i>Our Commitment to Data Privacy</h6>
+                <p>In compliance with the <strong>Data Privacy Act of 2012 (RA 10173)</strong> of the Philippines, we are committed to protecting your personal information and ensuring the security of all documents you upload to our system. We recognize the importance of your privacy and take all necessary measures to safeguard your data.</p>
+
+                <h6 class="text-primary fw-bold mt-4"><i class="bi bi-2-circle me-2"></i>Personal Information Collection</h6>
+                <p>We collect and process personal information that you voluntarily provide, including but not limited to:</p>
+                <ul>
+                    <li>Full name, contact details, and address</li>
+                    <li>Email address and phone number</li>
+                    <li>Date of birth and identification documents</li>
+                    <li>Documents uploaded for legal services</li>
+                </ul>
+                <p>This information is collected solely for the purpose of providing legal document management services and will not be used for any other purpose without your explicit consent.</p>
+
+                <h6 class="text-primary fw-bold mt-4"><i class="bi bi-3-circle me-2"></i>Document Security Measures</h6>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <div class="card border-success h-100">
+                            <div class="card-body">
+                                <h6 class="card-title text-success"><i class="bi bi-lock-fill me-2"></i>Encryption</h6>
+                                <p class="card-text small">All documents are encrypted using industry-standard AES-256 encryption both in transit and at rest.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card border-success h-100">
+                            <div class="card-body">
+                                <h6 class="card-title text-success"><i class="bi bi-shield-check me-2"></i>Access Control</h6>
+                                <p class="card-text small">Role-based access control ensures only authorized personnel can view your documents.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card border-success h-100">
+                            <div class="card-body">
+                                <h6 class="card-title text-success"><i class="bi bi-clock-history me-2"></i>Audit Trail</h6>
+                                <p class="card-text small">Complete audit logging tracks all document access and modifications.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card border-success h-100">
+                            <div class="card-body">
+                                <h6 class="card-title text-success"><i class="bi bi-server me-2"></i>Secure Storage</h6>
+                                <p class="card-text small">Documents are stored in secure, redundant data centers with physical security measures.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <h6 class="text-primary fw-bold mt-4"><i class="bi bi-4-circle me-2"></i>Your Rights Under RA 10173</h6>
+                <p>As a data subject, you have the following rights:</p>
+                <ul>
+                    <li><strong>Right to be Informed</strong> - You have the right to know how your data is collected, used, and processed.</li>
+                    <li><strong>Right to Access</strong> - You can request access to your personal data at any time.</li>
+                    <li><strong>Right to Object</strong> - You may object to the processing of your data.</li>
+                    <li><strong>Right to Erasure</strong> - You can request deletion of your personal data (subject to legal retention requirements).</li>
+                    <li><strong>Right to Rectification</strong> - You can request correction of inaccurate personal data.</li>
+                    <li><strong>Right to Data Portability</strong> - You can request a copy of your data in a portable format.</li>
+                </ul>
+
+                <h6 class="text-primary fw-bold mt-4"><i class="bi bi-5-circle me-2"></i>Document Retention Policy</h6>
+                <p>Documents are retained according to our retention policy and applicable legal requirements. After the retention period expires, documents are securely archived and eventually destroyed in compliance with data protection standards.</p>
+
+                <h6 class="text-primary fw-bold mt-4"><i class="bi bi-6-circle me-2"></i>Data Breach Protocol</h6>
+                <p>In the event of a data breach, we will:</p>
+                <ul>
+                    <li>Notify the National Privacy Commission within 72 hours</li>
+                    <li>Inform affected data subjects promptly</li>
+                    <li>Take immediate remediation measures</li>
+                    <li>Document and investigate the incident</li>
+                </ul>
+
+                <h6 class="text-primary fw-bold mt-4"><i class="bi bi-7-circle me-2"></i>Contact Information</h6>
+                <p>For any privacy-related concerns or to exercise your rights, please contact our Data Protection Officer:</p>
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <p class="mb-1"><strong>Data Protection Officer</strong></p>
+                        <p class="mb-1"><i class="bi bi-envelope me-2"></i>privacy@lawfirmdms.com</p>
+                        <p class="mb-0"><i class="bi bi-telephone me-2"></i>Contact your Law Firm</p>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning mt-4">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>Important:</strong> By registering and using this system, you acknowledge that you have read, understood, and agree to our data privacy practices in compliance with the Data Privacy Act of 2012.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">
+                    <i class="bi bi-check-circle me-2"></i>I Understand
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
@@ -163,6 +276,10 @@
                 icon.classList.remove('bi-eye-slash');
                 icon.classList.add('bi-eye');
             }
+        }
+        
+        function showPrivacyModal() {
+            new bootstrap.Modal(document.getElementById('privacyModal')).show();
         }
         
         document.getElementById('password').addEventListener('input', function() {

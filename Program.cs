@@ -104,6 +104,9 @@ builder.Services.AddScoped<DocumentWorkflowService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<DocumentAIService>();
 
+// Background Services
+builder.Services.AddHostedService<RetentionArchiveBackgroundService>();
+
 var app = builder.Build();
 
 // ===========================================

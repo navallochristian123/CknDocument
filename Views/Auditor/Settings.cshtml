@@ -1,0 +1,613 @@
+@{
+    ViewData["Title"] = "Settings";
+    Layout = "_AuditorLayout";
+}
+
+@section Styles {
+<style>
+    .settings-card {
+        border-radius: 12px;
+        border: none;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    .profile-picture-container {
+        position: relative;
+        width: 120px;
+        height: 120px;
+        margin: 0 auto;
+    }
+    .profile-picture {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 4px solid #e9ecef;
+    }
+    .profile-picture-overlay {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        background: #0d6efd;
+        color: white;
+        border-radius: 50%;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border: 3px solid white;
+    }
+    .nav-pills-custom .nav-link {
+        border-radius: 8px;
+        padding: 12px 20px;
+        color: #495057;
+        font-weight: 500;
+        margin-bottom: 8px;
+    }
+    .nav-pills-custom .nav-link:hover {
+        background: #f8f9fa;
+    }
+    .nav-pills-custom .nav-link.active {
+        background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+        color: white;
+    }
+    .form-floating-custom label {
+        font-weight: 500;
+        color: #495057;
+        margin-bottom: 6px;
+    }
+    .btn-save {
+        background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+        border: none;
+        padding: 12px 32px;
+        font-weight: 600;
+    }
+    .password-strength {
+        height: 4px;
+        border-radius: 2px;
+        transition: all 0.3s;
+    }
+</style>
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="mb-0">Settings</h4>
+            <p class="text-muted mb-0">Manage your account settings and preferences</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Sidebar Navigation -->
+        <div class="col-md-3">
+            <div class="card settings-card mb-4">
+                <div class="card-body text-center py-4">
+                    <div class="profile-picture-container mb-3">
+                        <img id="profilePicture" src="/images/default-avatar.png" alt="Profile" class="profile-picture">
+                        <label for="profilePictureInput" class="profile-picture-overlay">
+                            <i class="bi bi-camera"></i>
+                        </label>
+                        <input type="file" id="profilePictureInput" accept="image/*" style="display: none;">
+                    </div>
+                    <h5 id="profileName" class="mb-1">Loading...</h5>
+                    <p id="profileEmail" class="text-muted small mb-0">Loading...</p>
+                    <span class="badge bg-secondary mt-2">Auditor</span>
+                </div>
+            </div>
+
+            <div class="card settings-card">
+                <div class="card-body p-2">
+                    <ul class="nav nav-pills flex-column nav-pills-custom">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-bs-toggle="pill" href="#profileTab">
+                                <i class="bi bi-person me-2"></i>Profile
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="pill" href="#securityTab">
+                                <i class="bi bi-shield-lock me-2"></i>Security
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="pill" href="#appearanceTab">
+                                <i class="bi bi-palette me-2"></i>Appearance
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="pill" href="#privacyTab">
+                                <i class="bi bi-eye me-2"></i>Privacy
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="col-md-9">
+            <div class="tab-content">
+                <!-- Profile Tab -->
+                <div class="tab-pane fade show active" id="profileTab">
+                    <div class="card settings-card">
+                        <div class="card-header bg-white border-bottom">
+                            <h5 class="mb-0"><i class="bi bi-person me-2 text-primary"></i>Profile Information</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="profileForm">
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label">First Name <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control" id="firstName" required>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Middle Name</label>
+                                        <input type="text" class="form-control" id="middleName">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Last Name <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control" id="lastName" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Email <span class="text-danger">*</span></label>
+                                        <input type="email" class="form-control" id="email" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Username <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control" id="username" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Phone Number</label>
+                                        <input type="tel" class="form-control" id="phoneNumber" maxlength="11" placeholder="09XXXXXXXXX">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Date of Birth</label>
+                                        <input type="date" class="form-control" id="dateOfBirth">
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label">Street Address</label>
+                                        <input type="text" class="form-control" id="street" placeholder="House/Unit No., Street, Barangay">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">City</label>
+                                        <input type="text" class="form-control" id="city">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Province</label>
+                                        <input type="text" class="form-control" id="province">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Zip Code</label>
+                                        <input type="text" class="form-control" id="zipCode" maxlength="10">
+                                    </div>
+                                </div>
+                                <div class="mt-4">
+                                    <button type="submit" class="btn btn-primary btn-save">
+                                        <i class="bi bi-check-lg me-2"></i>Save Changes
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Security Tab -->
+                <div class="tab-pane fade" id="securityTab">
+                    <div class="card settings-card">
+                        <div class="card-header bg-white border-bottom">
+                            <h5 class="mb-0"><i class="bi bi-shield-lock me-2 text-primary"></i>Change Password</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="passwordForm">
+                                <div class="row g-3">
+                                    <div class="col-md-12">
+                                        <label class="form-label">Current Password <span class="text-danger">*</span></label>
+                                        <div class="input-group">
+                                            <input type="password" class="form-control" id="currentPassword" required>
+                                            <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordField('currentPassword')">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">New Password <span class="text-danger">*</span></label>
+                                        <div class="input-group">
+                                            <input type="password" class="form-control" id="newPassword" required minlength="12">
+                                            <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordField('newPassword')">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        </div>
+                                        <div class="mt-2">
+                                            <div class="password-strength bg-secondary" id="passwordStrength"></div>
+                                        </div>
+                                        <small class="text-muted">Min 12 characters with uppercase, lowercase, number, and special character</small>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Confirm New Password <span class="text-danger">*</span></label>
+                                        <div class="input-group">
+                                            <input type="password" class="form-control" id="confirmPassword" required>
+                                            <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordField('confirmPassword')">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        </div>
+                                        <small id="passwordMatch" class="text-muted"></small>
+                                    </div>
+                                </div>
+                                <div class="mt-4">
+                                    <button type="submit" class="btn btn-primary btn-save">
+                                        <i class="bi bi-key me-2"></i>Update Password
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="card settings-card mt-4">
+                        <div class="card-header bg-white border-bottom">
+                            <h5 class="mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>Login Activity</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted mb-2">Last Login</p>
+                            <p id="lastLogin" class="fw-bold">-</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Appearance Tab -->
+                <div class="tab-pane fade" id="appearanceTab">
+                    <div class="card settings-card">
+                        <div class="card-header bg-white border-bottom">
+                            <h5 class="mb-0"><i class="bi bi-palette me-2 text-primary"></i>Appearance Settings</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-4">
+                                <h6 class="fw-bold mb-3">Theme Mode</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <div class="card theme-card" onclick="setTheme('light')" id="lightThemeCard">
+                                            <div class="card-body text-center py-4">
+                                                <div class="bg-light rounded p-3 mb-3 mx-auto" style="width: 80px;">
+                                                    <i class="bi bi-sun fs-2 text-warning"></i>
+                                                </div>
+                                                <h6 class="mb-1">Light Mode</h6>
+                                                <small class="text-muted">Default bright theme</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card theme-card" onclick="setTheme('dark')" id="darkThemeCard">
+                                            <div class="card-body text-center py-4">
+                                                <div class="bg-dark rounded p-3 mb-3 mx-auto" style="width: 80px;">
+                                                    <i class="bi bi-moon-stars fs-2 text-light"></i>
+                                                </div>
+                                                <h6 class="mb-1">Dark Mode</h6>
+                                                <small class="text-muted">Easy on the eyes</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card theme-card" onclick="setTheme('auto')" id="autoThemeCard">
+                                            <div class="card-body text-center py-4">
+                                                <div class="bg-secondary-subtle rounded p-3 mb-3 mx-auto" style="width: 80px;">
+                                                    <i class="bi bi-circle-half fs-2 text-primary"></i>
+                                                </div>
+                                                <h6 class="mb-1">Auto</h6>
+                                                <small class="text-muted">Follow system</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Privacy Tab -->
+                <div class="tab-pane fade" id="privacyTab">
+                    <div class="card settings-card">
+                        <div class="card-header bg-white border-bottom">
+                            <h5 class="mb-0"><i class="bi bi-shield-check me-2 text-primary"></i>Data Privacy</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle me-2"></i>
+                                Your data is protected under the <strong>Data Privacy Act of 2012 (RA 10173)</strong>
+                            </div>
+
+                            <h6 class="fw-bold mt-4">Your Rights</h6>
+                            <ul>
+                                <li>Right to be Informed about data processing</li>
+                                <li>Right to Access your personal data</li>
+                                <li>Right to Object to data processing</li>
+                                <li>Right to Erasure (subject to legal retention)</li>
+                                <li>Right to Rectification of inaccurate data</li>
+                                <li>Right to Data Portability</li>
+                            </ul>
+
+                            <h6 class="fw-bold mt-4">Data We Collect</h6>
+                            <ul>
+                                <li>Personal information (name, contact, address)</li>
+                                <li>Audit activities and reports</li>
+                                <li>Activity logs for security and compliance</li>
+                            </ul>
+
+                            <div class="mt-4">
+                                <button class="btn btn-outline-primary" onclick="requestDataExport()">
+                                    <i class="bi bi-download me-2"></i>Request Data Export
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let currentProfile = null;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadProfile();
+        initTheme();
+        
+        document.getElementById('profileForm').addEventListener('submit', saveProfile);
+        document.getElementById('passwordForm').addEventListener('submit', changePassword);
+        document.getElementById('profilePictureInput').addEventListener('change', uploadProfilePicture);
+        document.getElementById('newPassword').addEventListener('input', checkPasswordStrength);
+        document.getElementById('confirmPassword').addEventListener('input', checkPasswordMatch);
+    });
+
+    async function loadProfile() {
+        try {
+            const response = await fetch('/api/SettingsApi/profile');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    currentProfile = data.profile;
+                    populateForm(data.profile);
+                }
+            }
+        } catch (e) {
+            console.error('Error loading profile:', e);
+        }
+    }
+
+    function populateForm(profile) {
+        document.getElementById('profileName').textContent = profile.fullName || 'User';
+        document.getElementById('profileEmail').textContent = profile.email || '';
+        
+        if (profile.profilePicture) {
+            document.getElementById('profilePicture').src = profile.profilePicture;
+        }
+        
+        document.getElementById('firstName').value = profile.firstName || '';
+        document.getElementById('middleName').value = profile.middleName || '';
+        document.getElementById('lastName').value = profile.lastName || '';
+        document.getElementById('email').value = profile.email || '';
+        document.getElementById('username').value = profile.username || '';
+        document.getElementById('phoneNumber').value = profile.phoneNumber || '';
+        document.getElementById('street').value = profile.street || '';
+        document.getElementById('city').value = profile.city || '';
+        document.getElementById('province').value = profile.province || '';
+        document.getElementById('zipCode').value = profile.zipCode || '';
+        
+        if (profile.dateOfBirth) {
+            document.getElementById('dateOfBirth').value = profile.dateOfBirth.split('T')[0];
+        }
+        
+        if (profile.lastLoginAt) {
+            document.getElementById('lastLogin').textContent = new Date(profile.lastLoginAt).toLocaleString();
+        }
+    }
+
+    async function saveProfile(e) {
+        e.preventDefault();
+        
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+
+        try {
+            const response = await fetch('/api/SettingsApi/profile', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    firstName: document.getElementById('firstName').value,
+                    middleName: document.getElementById('middleName').value,
+                    lastName: document.getElementById('lastName').value,
+                    email: document.getElementById('email').value,
+                    username: document.getElementById('username').value,
+                    phoneNumber: document.getElementById('phoneNumber').value,
+                    dateOfBirth: document.getElementById('dateOfBirth').value || null,
+                    street: document.getElementById('street').value,
+                    city: document.getElementById('city').value,
+                    province: document.getElementById('province').value,
+                    zipCode: document.getElementById('zipCode').value
+                })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                alert('Profile updated successfully!');
+                loadProfile();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        } catch (e) {
+            console.error('Error saving profile:', e);
+            alert('Error saving profile');
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check-lg me-2"></i>Save Changes';
+    }
+
+    async function changePassword(e) {
+        e.preventDefault();
+
+        const newPassword = document.getElementById('newPassword').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+
+        if (newPassword !== confirmPassword) {
+            alert('Passwords do not match');
+            return;
+        }
+
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Updating...';
+
+        try {
+            const response = await fetch('/api/SettingsApi/change-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    currentPassword: document.getElementById('currentPassword').value,
+                    newPassword: newPassword,
+                    confirmPassword: confirmPassword
+                })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                alert('Password changed successfully!');
+                document.getElementById('passwordForm').reset();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        } catch (e) {
+            console.error('Error changing password:', e);
+            alert('Error changing password');
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-key me-2"></i>Update Password';
+    }
+
+    async function uploadProfilePicture(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch('/api/SettingsApi/profile-picture', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                document.getElementById('profilePicture').src = data.profilePicture + '?t=' + Date.now();
+                alert('Profile picture updated!');
+            } else {
+                alert('Error: ' + data.message);
+            }
+        } catch (e) {
+            console.error('Error uploading picture:', e);
+            alert('Error uploading picture');
+        }
+    }
+
+    function togglePasswordField(fieldId) {
+        const field = document.getElementById(fieldId);
+        const btn = field.nextElementSibling;
+        const icon = btn.querySelector('i');
+        
+        if (field.type === 'password') {
+            field.type = 'text';
+            icon.classList.remove('bi-eye');
+            icon.classList.add('bi-eye-slash');
+        } else {
+            field.type = 'password';
+            icon.classList.remove('bi-eye-slash');
+            icon.classList.add('bi-eye');
+        }
+    }
+
+    function checkPasswordStrength() {
+        const password = document.getElementById('newPassword').value;
+        const strengthBar = document.getElementById('passwordStrength');
+        
+        let strength = 0;
+        if (password.length >= 12) strength++;
+        if (/[A-Z]/.test(password)) strength++;
+        if (/[a-z]/.test(password)) strength++;
+        if (/[0-9]/.test(password)) strength++;
+        if (/[^A-Za-z0-9]/.test(password)) strength++;
+
+        const colors = ['bg-danger', 'bg-danger', 'bg-warning', 'bg-info', 'bg-success', 'bg-success'];
+        const widths = ['20%', '40%', '60%', '80%', '100%', '100%'];
+        
+        strengthBar.className = 'password-strength ' + colors[strength];
+        strengthBar.style.width = widths[strength];
+        
+        checkPasswordMatch();
+    }
+
+    function checkPasswordMatch() {
+        const newPassword = document.getElementById('newPassword').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+        const matchSpan = document.getElementById('passwordMatch');
+        
+        if (!confirmPassword) {
+            matchSpan.textContent = '';
+            return;
+        }
+        
+        if (newPassword === confirmPassword) {
+            matchSpan.innerHTML = '<span class="text-success">✓ Passwords match</span>';
+        } else {
+            matchSpan.innerHTML = '<span class="text-danger">✗ Passwords do not match</span>';
+        }
+    }
+
+    // Theme Management
+    function initTheme() {
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        setTheme(savedTheme, false);
+    }
+
+    function setTheme(theme, save = true) {
+        // Remove all theme classes
+        document.querySelectorAll('.theme-card').forEach(card => {
+            card.classList.remove('border-primary', 'border-2');
+        });
+        
+        // Add active indicator
+        const themeCard = document.getElementById(theme + 'ThemeCard');
+        if (themeCard) {
+            themeCard.classList.add('border-primary', 'border-2');
+        }
+
+        // Apply theme
+        if (theme === 'dark') {
+            document.documentElement.setAttribute('data-bs-theme', 'dark');
+            document.body.classList.add('dark-mode');
+        } else if (theme === 'auto') {
+            if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.documentElement.setAttribute('data-bs-theme', 'dark');
+                document.body.classList.add('dark-mode');
+            } else {
+                document.documentElement.removeAttribute('data-bs-theme');
+                document.body.classList.remove('dark-mode');
+            }
+        } else {
+            document.documentElement.removeAttribute('data-bs-theme');
+            document.body.classList.remove('dark-mode');
+        }
+
+        if (save) {
+            localStorage.setItem('theme', theme);
+        }
+    }
+
+    function requestDataExport() {
+        alert('Your data export request has been submitted. You will receive an email with your data within 30 days as per RA 10173.');
+    }
+</script>
+}

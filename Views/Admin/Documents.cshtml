@@ -354,6 +354,33 @@
     </div>
 </div>
 
+<!-- Archive Document Modal -->
+<div class="modal fade" id="archiveDocumentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title"><i class="bi bi-archive me-2 text-warning"></i>Archive Document</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Are you sure you want to archive this document?
+                </div>
+                <p>Document: <strong id="archiveDocTitle">-</strong></p>
+                <p class="text-muted small">The document will be moved to the archive and removed from the active documents list. You can restore it later from the Archive section.</p>
+                <input type="hidden" id="archiveDocId">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" id="confirmArchiveBtn">
+                    <i class="bi bi-archive me-1"></i>Archive Document
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
 <script>
     const REFRESH_INTERVAL = 10000;
@@ -370,6 +397,9 @@
         document.getElementById('typeFilter').addEventListener('change', filterDocuments);
         document.getElementById('statusFilter').addEventListener('change', filterDocuments);
         document.getElementById('folderFilter').addEventListener('change', filterDocuments);
+        
+        // Archive button handler
+        document.getElementById('confirmArchiveBtn').addEventListener('click', archiveDocument);
     });
 
     async function loadStats() {
@@ -493,6 +523,10 @@
                                 <li><a class="dropdown-item" href="#" onclick="viewDocumentDetails(${doc.id}); return false;"><i class="bi bi-info-circle me-2"></i>View Details</a></li>
                                 <li><a class="dropdown-item" href="#" onclick="previewDocument(${doc.id}, '${escapeHtml(doc.fileExtension || '')}', '${escapeHtml(doc.originalFileName || doc.title)}'); return false;"><i class="bi bi-file-earmark me-2"></i>Preview</a></li>
                                 <li><a class="dropdown-item" href="/api/DocumentApi/${doc.id}/download"><i class="bi bi-download me-2"></i>Download</a></li>
+                                ${(doc.status === 'Completed' || doc.status === 'Rejected') ? `
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item text-danger" href="#" onclick="showArchiveModal(${doc.id}, '${escapeHtml(doc.title || doc.originalFileName)}'); return false;"><i class="bi bi-archive me-2"></i>Move to Archive</a></li>
+                                ` : ''}
                             </ul>
                         </div>
                     </div>
@@ -766,7 +800,7 @@
 
             if (data.success) {
                 bootstrap.Modal.getInstance(document.getElementById('rejectDocumentModal')).hide();
-                alert('Document rejected.');
+                alert('Document rejected and archived.');
                 loadDocuments();
             } else {
                 alert('Error: ' + (data.message || 'Failed to reject'));
@@ -798,6 +832,45 @@
         document.getElementById('retentionInfoModal').addEventListener('hidden.bs.modal', function() {
             loadDocuments();
         }, { once: true });
+    }
+
+    // Archive Functions
+    function showArchiveModal(docId, docTitle) {
+        document.getElementById('archiveDocId').value = docId;
+        document.getElementById('archiveDocTitle').textContent = docTitle;
+        new bootstrap.Modal(document.getElementById('archiveDocumentModal')).show();
+    }
+
+    async function archiveDocument() {
+        const btn = document.getElementById('confirmArchiveBtn');
+        const docId = document.getElementById('archiveDocId').value;
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Archiving...';
+
+        try {
+            const response = await fetch(`/api/ArchiveApi/archive-document/${docId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: 'Manually archived by admin' })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('archiveDocumentModal')).hide();
+                alert('Document archived successfully!');
+                loadDocuments();
+            } else {
+                alert('Error: ' + (data.message || 'Failed to archive'));
+            }
+        } catch (error) {
+            console.error('Error archiving:', error);
+            alert('Error archiving document');
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-archive me-1"></i>Archive Document';
     }
 </script>
 }

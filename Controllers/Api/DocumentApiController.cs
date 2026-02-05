@@ -406,7 +406,7 @@ public class DocumentApiController : ControllerBase
     /// Archive document (Client can archive their own)
     /// </summary>
     [HttpPost("{id}/archive")]
-    public async Task<IActionResult> ArchiveDocument(int id, [FromBody] ArchiveDocumentDto? dto = null)
+    public async Task<IActionResult> ArchiveDocument(int id, [FromBody] DocumentArchiveDto? dto = null)
     {
         try
         {
@@ -644,7 +644,7 @@ public class DocumentUpdateDto
     public string? Category { get; set; }
 }
 
-public class ArchiveDocumentDto
+public class DocumentArchiveDto
 {
     public string? Reason { get; set; }
 }

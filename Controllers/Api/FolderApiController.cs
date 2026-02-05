@@ -409,6 +409,166 @@ public class FolderApiController : ControllerBase
         return Ok(new { success = true, tree });
     }
 
+    /// <summary>
+    /// Get all clients with their folders (Admin only)
+    /// </summary>
+    [HttpGet("clients")]
+    [Authorize(Policy = "AdminOrStaff")]
+    public async Task<IActionResult> GetClientsWithFolders()
+    {
+        var firmId = GetFirmId();
+
+        var clients = await _context.Users
+            .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+            .Where(u => u.FirmID == firmId && 
+                        u.Status == "Active" &&
+                        u.UserRoles.Any(ur => ur.Role != null && ur.Role.RoleName == "Client"))
+            .OrderBy(u => u.LastName)
+            .ThenBy(u => u.FirstName)
+            .Select(u => new
+            {
+                id = u.UserID,
+                fullName = u.FullName,
+                email = u.Email,
+                folderCount = _context.ClientFolders.Count(f => f.ClientId == u.UserID && f.FirmId == firmId),
+                documentCount = _context.Documents.Count(d => d.UploadedBy == u.UserID && d.FirmID == firmId)
+            })
+            .ToListAsync();
+
+        return Ok(new { success = true, clients });
+    }
+
+    /// <summary>
+    /// Search approved documents uploaded by a specific client (Admin only)
+    /// </summary>
+    [HttpGet("client/{clientId}/approved-documents")]
+    [Authorize(Policy = "AdminOrStaff")]
+    public async Task<IActionResult> GetClientApprovedDocuments(int clientId, [FromQuery] string? search = null)
+    {
+        var firmId = GetFirmId();
+
+        // Verify client exists and belongs to the firm
+        var client = await _context.Users
+            .FirstOrDefaultAsync(u => u.UserID == clientId && u.FirmID == firmId);
+
+        if (client == null)
+            return NotFound(new { success = false, message = "Client not found" });
+
+        var query = _context.Documents
+            .Include(d => d.Folder)
+            .Include(d => d.Uploader)
+            .Where(d => d.FirmID == firmId && 
+                        d.UploadedBy == clientId && 
+                        d.Status == "Completed" &&
+                        d.WorkflowStage != "Archived");
+
+        // Apply search filter
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            search = search.ToLower();
+            query = query.Where(d => 
+                (d.Title != null && d.Title.ToLower().Contains(search)) ||
+                (d.OriginalFileName != null && d.OriginalFileName.ToLower().Contains(search)) ||
+                (d.DocumentType != null && d.DocumentType.ToLower().Contains(search)));
+        }
+
+        var documents = await query
+            .OrderByDescending(d => d.ApprovedAt ?? d.CreatedAt)
+            .Select(d => new
+            {
+                id = d.DocumentID,
+                title = d.Title,
+                originalFileName = d.OriginalFileName,
+                documentType = d.DocumentType,
+                fileExtension = d.FileExtension,
+                totalFileSize = d.TotalFileSize,
+                status = d.Status,
+                workflowStage = d.WorkflowStage,
+                folderName = d.Folder != null ? d.Folder.FolderName : null,
+                folderId = d.FolderId,
+                uploadedAt = d.CreatedAt,
+                approvedAt = d.ApprovedAt,
+                currentVersion = d.CurrentVersion
+            })
+            .ToListAsync();
+
+        return Ok(new
+        {
+            success = true,
+            client = new
+            {
+                id = client.UserID,
+                fullName = client.FullName,
+                email = client.Email
+            },
+            documents,
+            totalCount = documents.Count
+        });
+    }
+
+    /// <summary>
+    /// Get all approved documents with client info (Admin only)
+    /// </summary>
+    [HttpGet("all-approved")]
+    [Authorize(Policy = "AdminOrStaff")]
+    public async Task<IActionResult> GetAllApprovedDocuments([FromQuery] string? search = null, [FromQuery] int? clientId = null)
+    {
+        var firmId = GetFirmId();
+
+        var query = _context.Documents
+            .Include(d => d.Folder)
+            .Include(d => d.Uploader)
+            .Where(d => d.FirmID == firmId && 
+                        d.Status == "Completed" &&
+                        d.WorkflowStage != "Archived");
+
+        // Filter by client
+        if (clientId.HasValue)
+        {
+            query = query.Where(d => d.UploadedBy == clientId);
+        }
+
+        // Apply search filter
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            search = search.ToLower();
+            query = query.Where(d => 
+                (d.Title != null && d.Title.ToLower().Contains(search)) ||
+                (d.OriginalFileName != null && d.OriginalFileName.ToLower().Contains(search)) ||
+                (d.DocumentType != null && d.DocumentType.ToLower().Contains(search)) ||
+                (d.Uploader != null && (
+                    (d.Uploader.FirstName != null && d.Uploader.FirstName.ToLower().Contains(search)) ||
+                    (d.Uploader.LastName != null && d.Uploader.LastName.ToLower().Contains(search)) ||
+                    (d.Uploader.Email != null && d.Uploader.Email.ToLower().Contains(search))
+                )));
+        }
+
+        var documents = await query
+            .OrderByDescending(d => d.ApprovedAt ?? d.CreatedAt)
+            .Take(200)
+            .Select(d => new
+            {
+                id = d.DocumentID,
+                title = d.Title,
+                originalFileName = d.OriginalFileName,
+                documentType = d.DocumentType,
+                fileExtension = d.FileExtension,
+                totalFileSize = d.TotalFileSize,
+                status = d.Status,
+                folderName = d.Folder != null ? d.Folder.FolderName : null,
+                folderId = d.FolderId,
+                clientId = d.UploadedBy,
+                clientName = d.Uploader != null ? d.Uploader.FullName : null,
+                clientEmail = d.Uploader != null ? d.Uploader.Email : null,
+                uploadedAt = d.CreatedAt,
+                approvedAt = d.ApprovedAt
+            })
+            .ToListAsync();
+
+        return Ok(new { success = true, documents, totalCount = documents.Count });
+    }
+
     private List<object> BuildFolderTree(List<ClientFolder> folders, int? parentId)
     {
         return folders
