@@ -92,6 +92,83 @@ public class ReviewApiController : ControllerBase
     }
 
     /// <summary>
+    /// Get checklist items for review
+    /// </summary>
+    [HttpGet("checklist-items")]
+    public async Task<IActionResult> GetChecklistItems([FromQuery] string? documentType = null)
+    {
+        var firmId = GetFirmId();
+
+        var query = _context.DocumentChecklistItems
+            .Where(c => c.FirmId == firmId && c.IsActive == true);
+
+        // Filter by document type if specified
+        if (!string.IsNullOrEmpty(documentType))
+        {
+            query = query.Where(c => c.DocumentType == null || c.DocumentType == "" || c.DocumentType == documentType);
+        }
+
+        var items = await query
+            .OrderBy(c => c.DisplayOrder)
+            .Select(c => new
+            {
+                checklistItemId = c.ChecklistItemId,
+                itemName = c.ItemName,
+                description = c.Description,
+                documentType = c.DocumentType,
+                isRequired = c.IsRequired ?? true,
+                displayOrder = c.DisplayOrder
+            })
+            .ToListAsync();
+
+        return Ok(new { success = true, items });
+    }
+
+    /// <summary>
+    /// Get review history for a document
+    /// </summary>
+    [HttpGet("{documentId}/history")]
+    public async Task<IActionResult> GetReviewHistory(int documentId)
+    {
+        var firmId = GetFirmId();
+
+        var document = await _context.Documents
+            .FirstOrDefaultAsync(d => d.DocumentID == documentId && d.FirmID == firmId);
+
+        if (document == null)
+            return NotFound(new { success = false, message = "Document not found" });
+
+        var reviews = await _context.DocumentReviews
+            .Include(r => r.Reviewer)
+            .Include(r => r.ChecklistResults)
+                .ThenInclude(cr => cr.ChecklistItem)
+            .Where(r => r.DocumentId == documentId)
+            .OrderByDescending(r => r.ReviewedAt)
+            .Select(r => new
+            {
+                reviewId = r.ReviewId,
+                reviewStatus = r.ReviewStatus,
+                remarks = r.Remarks,
+                internalNotes = r.InternalNotes,
+                reviewerRole = r.ReviewerRole,
+                reviewerName = r.Reviewer != null ? r.Reviewer.FullName : null,
+                reviewedAt = r.ReviewedAt,
+                isChecklistComplete = r.IsChecklistComplete,
+                checklistScore = r.ChecklistScore,
+                checklistResults = r.ChecklistResults.Select(cr => new
+                {
+                    itemId = cr.ChecklistItemId,
+                    itemName = cr.ChecklistItem != null ? cr.ChecklistItem.ItemName : null,
+                    isPassed = cr.IsPassed,
+                    remarks = cr.Remarks
+                }).ToList()
+            })
+            .ToListAsync();
+
+        return Ok(new { success = true, reviews });
+    }
+
+    /// <summary>
     /// Get completed reviews
     /// </summary>
     [HttpGet("completed")]
@@ -410,25 +487,151 @@ public class ReviewApiController : ControllerBase
             if (document == null)
                 return NotFound(new { success = false, message = "Document not found" });
 
-            // Verify document is in correct stage
-            if (document.WorkflowStage != DocumentWorkflowService.STAGE_PENDING_ADMIN_REVIEW &&
-                document.WorkflowStage != DocumentWorkflowService.STAGE_ADMIN_REVIEW)
-                return BadRequest(new { success = false, message = "Document is not pending admin review" });
+            // Verify document is in correct stage - allow multiple valid stages
+            var validStages = new[] { 
+                DocumentWorkflowService.STAGE_PENDING_ADMIN_REVIEW, 
+                DocumentWorkflowService.STAGE_ADMIN_REVIEW,
+                DocumentWorkflowService.STAGE_STAFF_REVIEW,
+                "StaffApproved" // In case status is used instead of stage
+            };
+            
+            if (!validStages.Contains(document.WorkflowStage) && document.Status != "StaffApproved")
+            {
+                _logger.LogWarning("Document {DocumentId} has invalid stage {Stage} for admin approval", documentId, document.WorkflowStage);
+                return BadRequest(new { success = false, message = $"Document is not ready for admin review. Current stage: {document.WorkflowStage}" });
+            }
 
-            var review = await _workflowService.AdminApproveAsync(documentId, userId, dto.Remarks);
+            DocumentReview review;
+            DocumentRetention? retention = null;
+
+            // If retention info is provided, use custom retention
+            if (dto.RetentionYears.HasValue || dto.RetentionMonths.HasValue || dto.RetentionDays.HasValue || dto.PolicyId.HasValue)
+            {
+                var result = await _workflowService.AdminApproveWithRetentionAsync(
+                    documentId, userId, dto.Remarks, 
+                    dto.PolicyId, dto.RetentionYears, dto.RetentionMonths, dto.RetentionDays);
+                review = result.review;
+                retention = result.retention;
+            }
+            else
+            {
+                review = await _workflowService.AdminApproveAsync(documentId, userId, dto.Remarks);
+                
+                // Fetch the auto-created retention
+                retention = await _context.DocumentRetentions
+                    .FirstOrDefaultAsync(r => r.DocumentID == documentId);
+            }
+
+            // Save checklist results if provided
+            if (dto.ChecklistResults != null && dto.ChecklistResults.Any())
+            {
+                foreach (var checklistResult in dto.ChecklistResults)
+                {
+                    // Only save valid checklist item IDs (positive numbers)
+                    if (checklistResult.ChecklistItemId > 0)
+                    {
+                        var result = new DocumentChecklistResult
+                        {
+                            ReviewId = review.ReviewId,
+                            ChecklistItemId = checklistResult.ChecklistItemId,
+                            IsPassed = checklistResult.IsPassed,
+                            Remarks = checklistResult.Remarks,
+                            CheckedAt = DateTime.UtcNow
+                        };
+                        _context.DocumentChecklistResults.Add(result);
+                    }
+                }
+                
+                // Update review checklist status
+                review.IsChecklistComplete = true;
+                review.ChecklistScore = dto.ChecklistResults.Count(r => r.IsPassed);
+                await _context.SaveChangesAsync();
+            }
 
             return Ok(new
             {
                 success = true,
                 message = "Document approved and completed",
-                reviewId = review.ReviewId
+                reviewId = review.ReviewId,
+                retention = retention != null ? new
+                {
+                    retentionId = retention.RetentionID,
+                    startDate = retention.RetentionStartDate,
+                    expiryDate = retention.ExpiryDate,
+                    retentionYears = retention.RetentionYears,
+                    retentionMonths = retention.RetentionMonths,
+                    retentionDays = retention.RetentionDays
+                } : null
             });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error admin approving document {DocumentId}", documentId);
-            return StatusCode(500, new { success = false, message = "An error occurred while approving the document" });
+            _logger.LogError(ex, "Error admin approving document {DocumentId}: {Message}", documentId, ex.Message);
+            return StatusCode(500, new { success = false, message = $"An error occurred while approving the document: {ex.Message}" });
         }
+    }
+
+    /// <summary>
+    /// Get default retention policy for document type
+    /// </summary>
+    [HttpGet("{documentId}/default-retention")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> GetDefaultRetention(int documentId)
+    {
+        var firmId = GetFirmId();
+
+        var document = await _context.Documents
+            .FirstOrDefaultAsync(d => d.DocumentID == documentId && d.FirmID == firmId);
+
+        if (document == null)
+            return NotFound(new { success = false, message = "Document not found" });
+
+        // Find default policy for this document type
+        var policy = await _context.RetentionPolicies
+            .FirstOrDefaultAsync(p => p.FirmId == firmId && 
+                                      p.DocumentType == document.DocumentType && 
+                                      p.IsDefault == true && 
+                                      p.IsActive == true);
+
+        // Get all available policies for the firm
+        var policies = await _context.RetentionPolicies
+            .Where(p => p.FirmId == firmId && p.IsActive == true)
+            .OrderBy(p => p.DocumentType)
+            .ThenBy(p => p.PolicyName)
+            .Select(p => new
+            {
+                policyId = p.PolicyID,
+                policyName = p.PolicyName,
+                documentType = p.DocumentType,
+                retentionYears = p.RetentionYears ?? 0,
+                retentionMonths = p.RetentionMonths ?? 0,
+                retentionDays = p.RetentionDays ?? 0,
+                isDefault = p.IsDefault
+            })
+            .ToListAsync();
+
+        return Ok(new
+        {
+            success = true,
+            documentType = document.DocumentType,
+            hasDefaultPolicy = policy != null,
+            defaultPolicy = policy != null ? new
+            {
+                policyId = (int?)policy.PolicyID,
+                policyName = policy.PolicyName ?? "Default",
+                retentionYears = policy.RetentionYears ?? 7,
+                retentionMonths = policy.RetentionMonths ?? 0,
+                retentionDays = policy.RetentionDays ?? 0
+            } : new
+            {
+                policyId = (int?)null,
+                policyName = "Default (7 years)",
+                retentionYears = 7,
+                retentionMonths = 0,
+                retentionDays = 0
+            },
+            availablePolicies = policies
+        });
     }
 
     /// <summary>
@@ -540,4 +743,9 @@ public class StaffEditDocumentDto
 public class AdminReviewDto
 {
     public string? Remarks { get; set; }
+    public int? PolicyId { get; set; }
+    public int? RetentionYears { get; set; }
+    public int? RetentionMonths { get; set; }
+    public int? RetentionDays { get; set; }
+    public List<ChecklistResultDto>? ChecklistResults { get; set; }
 }

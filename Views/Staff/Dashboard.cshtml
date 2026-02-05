@@ -9,8 +9,10 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="mb-1">My Documents</h6>
-                        <h2 class="mb-0">48</h2>
+                        <h6 class="mb-1">Total Documents</h6>
+                        <h2 class="mb-0" id="statTotalDocs">
+                            <span class="spinner-border spinner-border-sm"></span>
+                        </h2>
                     </div>
                     <i class="bi bi-file-earmark fs-1 opacity-50"></i>
                 </div>
@@ -23,7 +25,9 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="mb-1">Assigned to Me</h6>
-                        <h2 class="mb-0">12</h2>
+                        <h2 class="mb-0" id="statAssigned">
+                            <span class="spinner-border spinner-border-sm"></span>
+                        </h2>
                     </div>
                     <i class="bi bi-file-check fs-1 opacity-50"></i>
                 </div>
@@ -36,7 +40,9 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="mb-1">Pending Reviews</h6>
-                        <h2 class="mb-0">5</h2>
+                        <h2 class="mb-0" id="statPending">
+                            <span class="spinner-border spinner-border-sm"></span>
+                        </h2>
                     </div>
                     <i class="bi bi-hourglass-split fs-1 opacity-50"></i>
                 </div>
@@ -49,7 +55,9 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="mb-1">Completed Today</h6>
-                        <h2 class="mb-0">3</h2>
+                        <h2 class="mb-0" id="statCompletedToday">
+                            <span class="spinner-border spinner-border-sm"></span>
+                        </h2>
                     </div>
                     <i class="bi bi-check-circle fs-1 opacity-50"></i>
                 </div>
@@ -58,61 +66,288 @@
     </div>
 </div>
 
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" id="dashboardTabs">
+    <li class="nav-item">
+        <a class="nav-link active" href="#" data-tab="recent">
+            <i class="bi bi-clock-history me-2"></i>Recent Documents
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="#" data-tab="completed">
+            <i class="bi bi-check-circle me-2"></i>My Completed Reviews
+        </a>
+    </li>
+</ul>
+
 <div class="row">
     <div class="col-md-8">
-        <div class="card mb-4">
+        <!-- Recent Documents Tab -->
+        <div class="card mb-4" id="recentDocsCard">
             <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Assigned Documents</h5>
-                <a href="#" class="btn btn-sm btn-outline-primary">View All</a>
+                <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Documents</h5>
+                <a href="/Review/PendingReviews" class="btn btn-sm btn-outline-primary">View All Pending</a>
             </div>
             <div class="card-body p-0">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Document</th>
-                            <th>Client</th>
-                            <th>Due Date</th>
-                            <th>Priority</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><i class="bi bi-file-pdf text-danger"></i> Contract_Review.pdf</td>
-                            <td>Smith & Co</td>
-                            <td>Today</td>
-                            <td><span class="badge bg-danger">High</span></td>
-                            <td><a href="#" class="btn btn-sm btn-primary">Review</a></td>
-                        </tr>
-                        <tr>
-                            <td><i class="bi bi-file-word text-primary"></i> Legal_Brief.docx</td>
-                            <td>Johnson LLC</td>
-                            <td>Tomorrow</td>
-                            <td><span class="badge bg-warning">Medium</span></td>
-                            <td><a href="#" class="btn btn-sm btn-primary">Review</a></td>
-                        </tr>
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Document</th>
+                                <th>Client</th>
+                                <th>Type</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentDocumentsTable">
+                            <tr>
+                                <td colspan="6" class="text-center py-4">
+                                    <div class="spinner-border text-primary"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Completed Reviews Tab (Hidden by default) -->
+        <div class="card mb-4 d-none" id="completedReviewsCard">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-check-circle me-2"></i>My Completed Reviews</h5>
+                <span class="badge bg-success" id="completedCount">0</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Document</th>
+                                <th>Client</th>
+                                <th>Action Taken</th>
+                                <th>Date Completed</th>
+                                <th>Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody id="completedReviewsTable">
+                            <tr>
+                                <td colspan="5" class="text-center py-4">
+                                    <div class="spinner-border text-primary"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
+    
     <div class="col-md-4">
         <div class="card mb-4">
             <div class="card-header bg-white">
-                <h5 class="mb-0">Recent Activity</h5>
+                <h5 class="mb-0"><i class="bi bi-lightning me-2"></i>Quick Actions</h5>
             </div>
             <div class="card-body">
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item px-0">
-                        <small class="text-muted">2 hours ago</small>
-                        <p class="mb-0">You uploaded Contract_Draft.pdf</p>
-                    </li>
-                    <li class="list-group-item px-0">
-                        <small class="text-muted">5 hours ago</small>
-                        <p class="mb-0">Review approved for Brief_001.docx</p>
-                    </li>
-                </ul>
+                <a href="/Review/PendingReviews" class="btn btn-primary w-100 mb-2">
+                    <i class="bi bi-file-check"></i> Review Pending Documents
+                </a>
+                <a href="/Document/Index" class="btn btn-outline-primary w-100 mb-2">
+                    <i class="bi bi-file-earmark-text"></i> Browse All Documents
+                </a>
+                <a href="/Archive/Index" class="btn btn-outline-secondary w-100">
+                    <i class="bi bi-archive"></i> View Archives
+                </a>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-activity me-2"></i>Today's Summary</h5>
+                <small class="text-muted">Auto-updates</small>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span>Approved Today</span>
+                    <span class="badge bg-success" id="approvedToday">0</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span>Rejected Today</span>
+                    <span class="badge bg-danger" id="rejectedToday">0</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span>Total Processed</span>
+                    <span class="badge bg-primary" id="totalProcessed">0</span>
+                </div>
             </div>
         </div>
     </div>
 </div>
+
+@section Scripts {
+<script>
+    const REFRESH_INTERVAL = 10000;
+    let currentTab = 'recent';
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        loadDashboardData();
+        setInterval(loadDashboardData, REFRESH_INTERVAL);
+        
+        // Tab navigation
+        document.querySelectorAll('#dashboardTabs .nav-link').forEach(tab => {
+            tab.addEventListener('click', function(e) {
+                e.preventDefault();
+                document.querySelectorAll('#dashboardTabs .nav-link').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                currentTab = this.dataset.tab;
+                switchTab(currentTab);
+            });
+        });
+    });
+    
+    function switchTab(tab) {
+        const recentCard = document.getElementById('recentDocsCard');
+        const completedCard = document.getElementById('completedReviewsCard');
+        
+        if (tab === 'recent') {
+            recentCard.classList.remove('d-none');
+            completedCard.classList.add('d-none');
+        } else {
+            recentCard.classList.add('d-none');
+            completedCard.classList.remove('d-none');
+            loadCompletedReviews();
+        }
+    }
+    
+    async function loadDashboardData() {
+        await Promise.all([
+            loadStats(),
+            loadRecentDocuments()
+        ]);
+        
+        if (currentTab === 'completed') {
+            await loadCompletedReviews();
+        }
+    }
+    
+    async function loadStats() {
+        try {
+            const response = await fetch('/api/DashboardApi/staff-stats');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('statTotalDocs').textContent = data.stats.totalDocuments;
+                    document.getElementById('statAssigned').textContent = data.stats.assignedToMe;
+                    document.getElementById('statPending').textContent = data.stats.pendingReviews;
+                    document.getElementById('statCompletedToday').textContent = data.stats.completedToday;
+                    
+                    // Update today's summary
+                    document.getElementById('approvedToday').textContent = data.stats.completedToday;
+                    document.getElementById('totalProcessed').textContent = data.stats.completedToday;
+                }
+            }
+        } catch (e) { console.error('Error loading stats:', e); }
+    }
+    
+    async function loadRecentDocuments() {
+        const tbody = document.getElementById('recentDocumentsTable');
+        try {
+            const response = await fetch('/api/DashboardApi/staff-recent?take=8');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.documents.length > 0) {
+                    tbody.innerHTML = data.documents.map(doc => `
+                        <tr>
+                            <td>
+                                <i class="bi ${getFileIcon(doc.fileExtension)}"></i>
+                                <span class="ms-2">${escapeHtml(doc.originalFileName || doc.title)}</span>
+                            </td>
+                            <td>${escapeHtml(doc.clientName || '-')}</td>
+                            <td>${escapeHtml(doc.documentType || '-')}</td>
+                            <td>${formatDate(doc.createdAt)}</td>
+                            <td>${getStatusBadge(doc.status, doc.workflowStage)}</td>
+                            <td>
+                                ${doc.workflowStage === 'StaffReview' ? 
+                                    `<a href="/Review/PendingReviews" class="btn btn-sm btn-primary">Review</a>` :
+                                    `<a href="/Document/Details/${doc.id}" class="btn btn-sm btn-outline-primary">View</a>`
+                                }
+                            </td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No recent documents</td></tr>';
+                }
+            }
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">Error loading documents</td></tr>';
+        }
+    }
+    
+    async function loadCompletedReviews() {
+        const tbody = document.getElementById('completedReviewsTable');
+        try {
+            const response = await fetch('/api/DashboardApi/staff-completed?take=20');
+            if (response.ok) {
+                const data = await response.json();
+                document.getElementById('completedCount').textContent = data.completed?.length || 0;
+                
+                if (data.success && data.completed.length > 0) {
+                    tbody.innerHTML = data.completed.map(r => `
+                        <tr>
+                            <td>
+                                <a href="/Document/Details/${r.documentId}" class="text-decoration-none">
+                                    ${escapeHtml(r.documentTitle || r.originalFileName)}
+                                </a>
+                            </td>
+                            <td>${escapeHtml(r.clientName || '-')}</td>
+                            <td>${getActionBadge(r.reviewStatus)}</td>
+                            <td>${formatDate(r.reviewedAt)}</td>
+                            <td><small class="text-muted">${escapeHtml(r.remarks || '-')}</small></td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No completed reviews yet</td></tr>';
+                }
+            }
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">Error loading completed reviews</td></tr>';
+        }
+    }
+    
+    function getFileIcon(ext) {
+        const icons = {
+            '.pdf': 'bi-file-pdf text-danger',
+            '.doc': 'bi-file-word text-primary',
+            '.docx': 'bi-file-word text-primary'
+        };
+        return icons[ext?.toLowerCase()] || 'bi-file-earmark text-secondary';
+    }
+    
+    function getStatusBadge(status, workflowStage) {
+        if (status === 'Completed') return '<span class="badge bg-success">Approved</span>';
+        if (status === 'Rejected') return '<span class="badge bg-danger">Rejected</span>';
+        if (workflowStage === 'StaffReview') return '<span class="badge bg-warning">Needs Review</span>';
+        if (workflowStage === 'AdminReview') return '<span class="badge bg-info">Admin Review</span>';
+        return '<span class="badge bg-secondary">Pending</span>';
+    }
+    
+    function getActionBadge(status) {
+        if (status === 'Approved') return '<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Approved</span>';
+        if (status === 'Rejected') return '<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Rejected</span>';
+        return '<span class="badge bg-secondary">' + status + '</span>';
+    }
+    
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+    
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+}

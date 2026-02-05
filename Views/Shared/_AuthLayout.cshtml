@@ -1,427 +1,518 @@
+@{
+    Layout = null;
+    var isLoginPage = ViewData["Title"]?.ToString()?.Contains("Login") == true || 
+                      ViewData["Title"]?.ToString()?.Contains("Sign In") == true ||
+                      ViewContext.RouteData.Values["action"]?.ToString() == "Login";
+}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - CKN Document</title>
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" />
-    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <style>
-        /* WCAG 2.1 AA Compliant - High Contrast Design */
         :root {
-            --primary-blue: #1d4ed8;
-            --primary-blue-dark: #1e40af;
-            --primary-blue-light: #2563eb;
-            --bg-white: #ffffff;
-            --bg-light: #f1f5f9;
-            --text-dark: #0f172a;
-            --text-body: #1e293b;
-            --text-muted: #475569;
-            --border-color: #cbd5e1;
-            --focus-ring: 0 0 0 3px rgba(29, 78, 216, 0.5);
-            --success: #047857;
-            --error: #b91c1c;
+            --primary-blue: #1976D2;
+            --dark-blue: #1565C0;
+            --white: #FFFFFF;
+            --light-gray: #F8FAFC;
+            --text-gray: #64748B;
+            --dark-text: #1E293B;
+            --border-color: #E2E8F0;
+            --accent-green: #43A047;
         }
-        
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
-            background: var(--bg-light);
-            min-height: 100vh;
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            font-size: 1rem;
-            line-height: 1.5;
-            color: var(--text-body);
-        }
-        
-        /* Skip Link for Keyboard Users */
-        .skip-link {
-            position: absolute;
-            top: -100px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--primary-blue);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 0 0 8px 8px;
-            z-index: 10000;
-            font-weight: 600;
-            text-decoration: none;
-        }
-        
-        .skip-link:focus {
-            top: 0;
-            outline: none;
-            box-shadow: var(--focus-ring);
-        }
-        
-        .auth-container {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             min-height: 100vh;
             display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
+            margin: 0;
         }
-        
-        .auth-wrapper {
+
+        /* Split Layout - Blue Left, White Right */
+        .auth-container {
             display: flex;
             width: 100%;
-            max-width: 1000px;
-            background: var(--bg-white);
-            border-radius: 16px;
-            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
-            overflow: hidden;
+            min-height: 100vh;
         }
-        
+
+        /* Left Panel - Blue Branding */
         .auth-branding {
-            flex: 1;
-            background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-blue-dark) 100%);
-            padding: 60px 40px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            color: white;
-        }
-        
-        .auth-branding h2 {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 16px;
-        }
-        
-        .auth-branding p {
-            font-size: 1rem;
-            line-height: 1.6;
-        }
-        
-        .auth-branding-icon {
-            font-size: 4rem;
-            margin-bottom: 24px;
-        }
-        
-        .auth-features {
-            margin-top: 32px;
-        }
-        
-        .auth-features li {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 12px;
-            font-size: 1rem;
-        }
-        
-        .auth-features li i {
-            color: #bfdbfe;
-        }
-        
-        .auth-card {
-            flex: 1;
-            background: var(--bg-white);
+            flex: 0 0 45%;
+            background: linear-gradient(135deg, var(--primary-blue) 0%, var(--dark-blue) 100%);
             padding: 60px 50px;
             display: flex;
             flex-direction: column;
             justify-content: center;
-        }
-        
-        .auth-logo {
-            text-align: center;
-            margin-bottom: 32px;
-        }
-        
-        .auth-logo h1 {
-            font-weight: 700;
-            color: var(--text-dark);
-            font-size: 1.75rem;
-            margin-top: 12px;
-        }
-        
-        .auth-logo i {
-            font-size: 2.5rem;
-            color: var(--primary-blue);
-        }
-        
-        .auth-logo p {
-            color: var(--text-muted);
-            font-size: 1rem;
-            margin-top: 4px;
-        }
-        
-        /* Accessible Form Controls */
-        .form-label {
-            font-weight: 600;
-            color: var(--text-dark);
-            font-size: 0.9375rem;
-            margin-bottom: 8px;
-            display: block;
-        }
-        
-        .form-control {
-            border: 2px solid var(--border-color);
-            border-radius: 8px;
-            padding: 12px 16px;
-            font-size: 1rem;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease;
-            background: var(--bg-white);
-            color: var(--text-body);
-            min-height: 48px; /* Touch target size */
-        }
-        
-        .form-control:focus {
-            border-color: var(--primary-blue);
-            box-shadow: var(--focus-ring);
-            outline: none;
-        }
-        
-        .form-control::placeholder {
-            color: var(--text-muted);
-        }
-        
-        /* Accessible Buttons */
-        .btn-primary {
-            background: var(--primary-blue);
-            border: 2px solid var(--primary-blue);
-            border-radius: 8px;
-            padding: 12px 24px;
-            font-weight: 600;
-            font-size: 1rem;
-            min-height: 48px;
-            transition: background-color 0.2s ease, box-shadow 0.2s ease;
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            background: var(--primary-blue-dark);
-            border-color: var(--primary-blue-dark);
-        }
-        
-        .btn-primary:focus {
-            outline: none;
-            box-shadow: var(--focus-ring);
-        }
-        
-        .btn-outline-secondary {
-            border: 2px solid var(--border-color);
-            color: var(--text-body);
-            border-radius: 8px;
-            padding: 10px 20px;
-            font-weight: 600;
-            font-size: 0.9375rem;
-            min-height: 44px;
-            transition: all 0.2s ease;
-            background: var(--bg-white);
-        }
-        
-        .btn-outline-secondary:hover {
-            background: var(--bg-light);
-            border-color: var(--primary-blue);
-            color: var(--primary-blue);
-        }
-        
-        .btn-outline-secondary:focus {
-            outline: none;
-            box-shadow: var(--focus-ring);
-        }
-        
-        .form-check-input {
-            width: 20px;
-            height: 20px;
-            border: 2px solid var(--border-color);
-        }
-        
-        .form-check-input:checked {
-            background-color: var(--primary-blue);
-            border-color: var(--primary-blue);
-        }
-        
-        .form-check-input:focus {
-            box-shadow: var(--focus-ring);
-        }
-        
-        .form-check-label {
-            color: var(--text-body);
-            font-size: 0.9375rem;
-            padding-left: 4px;
-        }
-        
-        /* Links with proper contrast */
-        a {
-            color: var(--primary-blue);
-            text-decoration: underline;
-            font-weight: 600;
-        }
-        
-        a:hover {
-            color: var(--primary-blue-dark);
-        }
-        
-        a:focus {
-            outline: none;
-            box-shadow: var(--focus-ring);
-            border-radius: 4px;
-        }
-        
-        .divider {
-            display: flex;
             align-items: center;
-            text-align: center;
-            margin: 24px 0;
-            color: var(--text-muted);
-            font-size: 0.9375rem;
+            position: relative;
+            overflow: hidden;
         }
-        
-        .divider::before,
-        .divider::after {
+
+        /* Subtle decorative circles */
+        .auth-branding::before {
             content: '';
-            flex: 1;
-            border-bottom: 1px solid var(--border-color);
+            position: absolute;
+            top: -100px;
+            right: -100px;
+            width: 300px;
+            height: 300px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 50%;
         }
-        
-        .divider span {
-            padding: 0 16px;
+
+        .auth-branding::after {
+            content: '';
+            position: absolute;
+            bottom: -60px;
+            left: -60px;
+            width: 200px;
+            height: 200px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 50%;
         }
-        
-        /* Demo Accounts Section - Accessible */
-        .demo-accounts {
-            background: var(--bg-light);
-            border: 2px solid var(--border-color);
-            border-radius: 8px;
-            padding: 20px;
-            margin-top: 16px;
+
+        .branding-content {
+            text-align: center;
+            z-index: 2;
+            position: relative;
+            max-width: 320px;
         }
-        
-        .demo-accounts h6 {
-            color: var(--text-dark);
-            font-size: 1rem;
+
+        /* Large Logo - No background, just the icon */
+        .brand-logo {
+            width: 120px;
+            height: 120px;
+            object-fit: contain;
+            margin-bottom: 24px;
+            filter: drop-shadow(0 4px 12px rgba(0,0,0,0.2));
+        }
+
+        .brand-title {
+            font-size: 2rem;
             font-weight: 700;
-            margin-bottom: 16px;
+            color: var(--white);
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
         }
-        
-        .demo-btn {
+
+        .brand-tagline {
+            font-size: 1rem;
+            color: rgba(255, 255, 255, 0.85);
+            line-height: 1.6;
+            margin-bottom: 40px;
+        }
+
+        /* Feature List */
+        .feature-list {
+            text-align: left;
+            width: 100%;
+        }
+
+        .feature-item {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 16px;
+            padding: 16px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .feature-item:last-child {
+            border-bottom: none;
+        }
+
+        .feature-icon {
+            width: 44px;
+            height: 44px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--white);
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+
+        .feature-text {
+            font-size: 0.95rem;
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 500;
+        }
+
+        /* Right Panel - White Form Area */
+        .auth-form-panel {
+            flex: 1;
+            padding: 60px 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background: var(--white);
+            overflow-y: auto;
+        }
+
+        .form-container {
             width: 100%;
-            padding: 12px 16px;
-            margin-bottom: 10px;
-            background: var(--bg-white);
+            max-width: 420px;
+            margin: 0 auto;
+        }
+
+        .form-header {
+            margin-bottom: 36px;
+        }
+
+        .form-header h1 {
+            font-size: 1.875rem;
+            font-weight: 700;
+            color: var(--dark-text);
+            margin-bottom: 8px;
+        }
+
+        .form-header p {
+            color: var(--text-gray);
+            font-size: 1rem;
+        }
+
+        /* Input Styling */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--dark-text);
+            margin-bottom: 8px;
+        }
+
+        .form-input,
+        .form-select {
+            width: 100%;
+            padding: 14px 16px;
+            font-size: 0.95rem;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            background: var(--white);
+            transition: all 0.2s ease;
+            outline: none;
+            color: var(--dark-text);
+        }
+
+        .form-input:focus,
+        .form-select:focus {
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
+        }
+
+        .form-input::placeholder {
+            color: #94A3B8;
+        }
+
+        .form-input.is-invalid {
+            border-color: #EF4444;
+        }
+
+        /* Password Input */
+        .password-wrapper {
+            position: relative;
+        }
+
+        .password-wrapper .form-input {
+            padding-right: 50px;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-gray);
+            cursor: pointer;
+            padding: 4px;
+            font-size: 1.1rem;
+            transition: color 0.2s;
+        }
+
+        .password-toggle:hover {
+            color: var(--primary-blue);
+        }
+
+        /* Remember & Forgot */
+        .form-options {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .form-check {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-check-input {
+            width: 18px;
+            height: 18px;
             border: 2px solid var(--border-color);
-            border-radius: 8px;
+            border-radius: 5px;
+            cursor: pointer;
+            accent-color: var(--primary-blue);
+        }
+
+        .form-check-label {
+            font-size: 0.875rem;
+            color: var(--text-gray);
+            cursor: pointer;
+        }
+
+        .forgot-link {
+            font-size: 0.875rem;
+            color: var(--primary-blue);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .forgot-link:hover {
+            color: var(--dark-blue);
+            text-decoration: underline;
+        }
+
+        /* Submit Button */
+        .btn-submit {
+            width: 100%;
+            padding: 16px;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--white);
+            background: var(--primary-blue);
+            border: none;
+            border-radius: 10px;
             cursor: pointer;
             transition: all 0.2s ease;
-            font-size: 0.9375rem;
-            color: var(--text-body);
-            min-height: 48px;
-            text-align: left;
         }
-        
-        .demo-btn:last-child {
-            margin-bottom: 0;
+
+        .btn-submit:hover {
+            background: var(--dark-blue);
+            transform: translateY(-1px);
         }
-        
-        .demo-btn:hover {
-            border-color: var(--primary-blue);
-            background: rgba(29, 78, 216, 0.05);
+
+        .btn-submit:active {
+            transform: translateY(0);
         }
-        
-        .demo-btn:focus {
-            outline: none;
-            box-shadow: var(--focus-ring);
-            border-color: var(--primary-blue);
+
+        /* Form Footer */
+        .form-footer {
+            text-align: center;
+            margin-top: 28px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border-color);
         }
-        
-        .demo-btn i[aria-hidden] {
+
+        .form-footer span {
+            font-size: 0.9rem;
+            color: var(--text-gray);
+        }
+
+        .form-footer a {
             color: var(--primary-blue);
-            font-size: 1.125rem;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.2s;
         }
-        
-        .demo-btn .role {
-            font-weight: 700;
-            color: var(--text-dark);
+
+        .form-footer a:hover {
+            color: var(--dark-blue);
+            text-decoration: underline;
         }
-        
-        .demo-btn .email {
-            color: var(--text-muted);
-            font-size: 0.875rem;
-            margin-left: auto;
+
+        /* Validation */
+        .field-validation-error,
+        .invalid-feedback {
+            display: block;
+            color: #EF4444;
+            font-size: 0.8rem;
+            margin-top: 6px;
         }
-        
-        /* Error messages - accessible */
+
+        /* Alert */
+        .alert {
+            border: none;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+
         .alert-danger {
-            background-color: #fef2f2;
-            border: 2px solid var(--error);
-            color: var(--error);
-            padding: 12px 16px;
-            border-radius: 8px;
-            font-weight: 500;
+            background: #FEF2F2;
+            color: #DC2626;
         }
-        
-        .text-danger {
-            color: var(--error) !important;
-            font-weight: 500;
+
+        .alert-success {
+            background: #F0FDF4;
+            color: #16A34A;
         }
-        
-        /* Reduced motion preference */
-        @@media (prefers-reduced-motion: reduce) {
-            * {
-                transition: none !important;
-                animation: none !important;
-            }
+
+        /* Registration - Row Fields */
+        .field-row {
+            display: flex;
+            gap: 16px;
         }
-        
-        @@media (max-width: 768px) {
-            .auth-wrapper {
+
+        .field-row .form-group {
+            flex: 1;
+        }
+
+        .field-help {
+            font-size: 0.75rem;
+            color: var(--text-gray);
+            margin-top: 4px;
+        }
+
+        .password-requirements {
+            font-size: 0.7rem;
+            color: var(--text-gray);
+            padding: 0;
+            margin: 8px 0 0 0;
+            list-style: none;
+        }
+
+        .password-requirements li {
+            margin-bottom: 2px;
+        }
+
+        .password-requirements li.valid {
+            color: var(--accent-green);
+        }
+
+        .password-requirements li.invalid {
+            color: #EF4444;
+        }
+
+        /* Responsive */
+        @@media (max-width: 992px) {
+            .auth-container {
                 flex-direction: column;
             }
-            
+
             .auth-branding {
-                padding: 40px 30px;
+                flex: 0 0 auto;
+                padding: 50px 30px;
             }
-            
-            .auth-card {
-                padding: 40px 30px;
+
+            .feature-list {
+                display: none;
+            }
+
+            .brand-tagline {
+                margin-bottom: 0;
+            }
+
+            .auth-form-panel {
+                padding: 50px 30px;
+            }
+        }
+
+        @@media (max-width: 576px) {
+            .auth-form-panel {
+                padding: 40px 24px;
+            }
+
+            .form-header h1 {
+                font-size: 1.5rem;
+            }
+
+            .field-row {
+                flex-direction: column;
+                gap: 0;
+            }
+
+            .brand-logo {
+                width: 80px;
+                height: 80px;
             }
         }
     </style>
-    @RenderSection("Styles", required: false)
 </head>
 <body>
-    <!-- Skip Link for Screen Readers and Keyboard Navigation -->
-    <a href="#main-content" class="skip-link">Skip to main content</a>
-    
     <div class="auth-container">
-        <div class="auth-wrapper" role="main">
-            <aside class="auth-branding d-none d-md-flex" aria-label="Product information">
-                <i class="bi bi-building auth-branding-icon" aria-hidden="true"></i>
-                <h2>CKN Document</h2>
-                <p>A comprehensive ERP & Document Management System designed specifically for law firms.</p>
-                <ul class="auth-features list-unstyled" aria-label="Key features">
-                    <li><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Secure Document Management</li>
-                    <li><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Multi-tenant Architecture</li>
-                    <li><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Role-based Access Control</li>
-                    <li><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Audit Trail & Compliance</li>
-                    <li><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Client Portal Access</li>
-                </ul>
-            </aside>
-            <section class="auth-card" id="main-content" aria-labelledby="auth-heading">
-                <div class="auth-logo">
-                    <i class="bi bi-file-earmark-lock" aria-hidden="true"></i>
-                    <h1 id="auth-heading">Welcome Back</h1>
-                    <p>Sign in to your account</p>
+        <!-- Left Panel - Blue Branding -->
+        <div class="auth-branding">
+            <div class="branding-content">
+                <img src="/images/document_logo.png" alt="CKN Document" class="brand-logo" />
+                <h1 class="brand-title">CKN Document</h1>
+                <p class="brand-tagline">Secure document management for modern law firms</p>
+                
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <i class="bi bi-shield-check"></i>
+                        </div>
+                        <span class="feature-text">Enterprise-grade security</span>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <i class="bi bi-cloud-upload"></i>
+                        </div>
+                        <span class="feature-text">Seamless cloud storage</span>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <i class="bi bi-people"></i>
+                        </div>
+                        <span class="feature-text">Team collaboration</span>
+                    </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Right Panel - White Form Area -->
+        <div class="auth-form-panel">
+            <div class="form-container">
+                <div class="form-header">
+                    @if (isLoginPage)
+                    {
+                        <h1>Welcome Back</h1>
+                        <p>Sign in to access your documents</p>
+                    }
+                    else
+                    {
+                        <h1>Create Account</h1>
+                        <p>Get started with CKN Document</p>
+                    }
+                </div>
+
                 @RenderBody()
-            </section>
+
+                <div class="form-footer">
+                    @if (isLoginPage)
+                    {
+                        <span>Don't have an account? <a href="/Auth/Register">Sign up</a></span>
+                    }
+                    else
+                    {
+                        <span>Already have an account? <a href="/Auth/Login">Sign in</a></span>
+                    }
+                </div>
+            </div>
         </div>
     </div>
 
-    <script src="~/lib/jquery/dist/jquery.min.js"></script>
-    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

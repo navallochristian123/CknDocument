@@ -8,304 +8,152 @@
 
 @await Html.PartialAsync("_Toast")
 
-<style>
-    .auth-card {
-        max-width: 600px;
-        padding: 40px;
-    }
-    .auth-wrapper {
-        max-width: 1200px;
-    }
-    .password-requirements {
-        font-size: 0.85rem;
-        color: var(--text-muted);
-    }
-    .password-requirements li {
-        margin-bottom: 4px;
-    }
-    .password-requirements li.valid {
-        color: var(--success, #047857);
-    }
-    .password-requirements li.valid::before {
-        content: "✓ ";
-    }
-    .password-requirements li.invalid {
-        color: var(--error, #b91c1c);
-    }
-    .password-requirements li.invalid::before {
-        content: "✗ ";
-    }
-</style>
-
-<div class="auth-logo mb-4">
-    <i class="bi bi-person-plus" aria-hidden="true"></i>
-    <h1 id="auth-heading">Client Registration</h1>
-    <p>Create your account to access the document portal</p>
-</div>
-
 <form method="post" asp-controller="Auth" asp-action="Register" id="registerForm" novalidate>
     @Html.AntiForgeryToken()
     
-    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert" aria-live="polite"></div>
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
     
-    <!-- Law Firm Selection -->
-    <div class="mb-3">
-        <label for="firmId" class="form-label">Law Firm <span class="text-danger" aria-hidden="true">*</span></label>
+    <!-- Law Firm -->
+    <div class="form-group">
+        <label class="form-label">Law Firm <span style="color:#EF4444">*</span></label>
         <select class="form-select @(ViewData.ModelState["FirmId"]?.Errors.Any() == true ? "is-invalid" : "")" 
-                name="FirmId" 
-                id="firmId" 
-                required
-                aria-required="true">
-            <option value="">-- Select your Law Firm --</option>
+                name="FirmId" id="firmId" required>
+            <option value="">Select your Law Firm</option>
             @foreach (var firm in firms)
             {
                 <option value="@firm.FirmId" selected="@(Model?.FirmId == firm.FirmId)">@firm.FirmName</option>
             }
         </select>
-        <span asp-validation-for="FirmId" class="invalid-feedback"></span>
+        <span asp-validation-for="FirmId" class="field-validation-error"></span>
     </div>
     
     <!-- Name Fields -->
-    <div class="row">
-        <div class="col-md-4 mb-3">
-            <label for="firstName" class="form-label">First Name <span class="text-danger" aria-hidden="true">*</span></label>
-            <input type="text" 
-                   class="form-control @(ViewData.ModelState["FirstName"]?.Errors.Any() == true ? "is-invalid" : "")" 
-                   name="FirstName" 
-                   id="firstName"
-                   value="@Model?.FirstName"
-                   placeholder="First name" 
-                   required
-                   maxlength="100"
-                   aria-required="true" />
-            <span asp-validation-for="FirstName" class="invalid-feedback"></span>
+    <div class="field-row">
+        <div class="form-group">
+            <label class="form-label">First Name <span style="color:#EF4444">*</span></label>
+            <input type="text" class="form-input" name="FirstName" id="firstName" value="@Model?.FirstName" placeholder="First name" required maxlength="100" />
+            <span asp-validation-for="FirstName" class="field-validation-error"></span>
         </div>
-        <div class="col-md-4 mb-3">
-            <label for="middleName" class="form-label">Middle Name <span class="text-danger" aria-hidden="true">*</span></label>
-            <input type="text" 
-                   class="form-control @(ViewData.ModelState["MiddleName"]?.Errors.Any() == true ? "is-invalid" : "")" 
-                   name="MiddleName" 
-                   id="middleName"
-                   value="@Model?.MiddleName"
-                   placeholder="Middle name" 
-                   required
-                   maxlength="100"
-                   aria-required="true" />
-            <span asp-validation-for="MiddleName" class="invalid-feedback"></span>
+        <div class="form-group">
+            <label class="form-label">Middle Name <span style="color:#EF4444">*</span></label>
+            <input type="text" class="form-input" name="MiddleName" id="middleName" value="@Model?.MiddleName" placeholder="Middle name" required maxlength="100" />
+            <span asp-validation-for="MiddleName" class="field-validation-error"></span>
         </div>
-        <div class="col-md-4 mb-3">
-            <label for="lastName" class="form-label">Last Name <span class="text-danger" aria-hidden="true">*</span></label>
-            <input type="text" 
-                   class="form-control @(ViewData.ModelState["LastName"]?.Errors.Any() == true ? "is-invalid" : "")" 
-                   name="LastName" 
-                   id="lastName"
-                   value="@Model?.LastName"
-                   placeholder="Last name" 
-                   required
-                   maxlength="100"
-                   aria-required="true" />
-            <span asp-validation-for="LastName" class="invalid-feedback"></span>
+        <div class="form-group">
+            <label class="form-label">Last Name <span style="color:#EF4444">*</span></label>
+            <input type="text" class="form-input" name="LastName" id="lastName" value="@Model?.LastName" placeholder="Last name" required maxlength="100" />
+            <span asp-validation-for="LastName" class="field-validation-error"></span>
         </div>
     </div>
     
-    <!-- Account Credentials -->
-    <div class="row">
-        <div class="col-md-6 mb-3">
-            <label for="email" class="form-label">Email <span class="text-danger" aria-hidden="true">*</span></label>
-            <input type="email" 
-                   class="form-control @(ViewData.ModelState["Email"]?.Errors.Any() == true ? "is-invalid" : "")" 
-                   name="Email" 
-                   id="email"
-                   value="@Model?.Email"
-                   placeholder="name@example.com" 
-                   required
-                   maxlength="100"
-                   aria-required="true"
-                   aria-describedby="emailFeedback" />
-            <span asp-validation-for="Email" class="invalid-feedback" id="emailFeedback"></span>
-            <div id="emailCheck" class="form-text"></div>
+    <!-- Email & Username -->
+    <div class="field-row">
+        <div class="form-group">
+            <label class="form-label">Email <span style="color:#EF4444">*</span></label>
+            <input type="email" class="form-input" name="Email" id="email" value="@Model?.Email" placeholder="name@example.com" required maxlength="100" />
+            <span asp-validation-for="Email" class="field-validation-error"></span>
+            <div id="emailCheck" class="field-help"></div>
         </div>
-        <div class="col-md-6 mb-3">
-            <label for="username" class="form-label">Username <span class="text-danger" aria-hidden="true">*</span></label>
-            <input type="text" 
-                   class="form-control @(ViewData.ModelState["Username"]?.Errors.Any() == true ? "is-invalid" : "")" 
-                   name="Username" 
-                   id="username"
-                   value="@Model?.Username"
-                   placeholder="Choose a username" 
-                   required
-                   minlength="4"
-                   maxlength="100"
-                   pattern="^[a-zA-Z0-9_]+$"
-                   aria-required="true"
-                   aria-describedby="usernameHelp usernameFeedback" />
-            <div id="usernameHelp" class="form-text">Letters, numbers, and underscores only</div>
-            <span asp-validation-for="Username" class="invalid-feedback" id="usernameFeedback"></span>
-            <div id="usernameCheck" class="form-text"></div>
+        <div class="form-group">
+            <label class="form-label">Username <span style="color:#EF4444">*</span></label>
+            <input type="text" class="form-input" name="Username" id="username" value="@Model?.Username" placeholder="Choose username" required minlength="4" maxlength="100" pattern="^[a-zA-Z0-9_]+$" />
+            <span asp-validation-for="Username" class="field-validation-error"></span>
+            <div id="usernameCheck" class="field-help"></div>
         </div>
     </div>
     
     <!-- Password Fields -->
-    <div class="row">
-        <div class="col-md-6 mb-3">
-            <label for="password" class="form-label">Password <span class="text-danger" aria-hidden="true">*</span></label>
-            <div class="input-group">
-                <input type="password" 
-                       class="form-control @(ViewData.ModelState["Password"]?.Errors.Any() == true ? "is-invalid" : "")" 
-                       name="Password" 
-                       id="password"
-                       placeholder="Create a strong password" 
-                       required
-                       minlength="12"
-                       aria-required="true"
-                       aria-describedby="passwordHelp" />
-                <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('password', 'togglePwdIcon1')" aria-label="Toggle password visibility">
-                    <i class="bi bi-eye" id="togglePwdIcon1" aria-hidden="true"></i>
+    <div class="field-row">
+        <div class="form-group">
+            <label class="form-label">Password <span style="color:#EF4444">*</span></label>
+            <div class="password-wrapper">
+                <input type="password" class="form-input" name="Password" id="password" placeholder="Create password" required minlength="12" />
+                <button class="password-toggle" type="button" onclick="togglePassword('password', 'togglePwdIcon1')">
+                    <i class="bi bi-eye" id="togglePwdIcon1"></i>
                 </button>
             </div>
-            <span asp-validation-for="Password" class="invalid-feedback"></span>
-            <ul class="password-requirements list-unstyled mt-2" id="passwordHelp" aria-live="polite">
-                <li id="req-length">At least 12 characters</li>
-                <li id="req-upper">At least one uppercase letter</li>
-                <li id="req-lower">At least one lowercase letter</li>
-                <li id="req-number">At least one number</li>
-                <li id="req-special">At least one special character (!@@#$%^&*)</li>
+            <span asp-validation-for="Password" class="field-validation-error"></span>
+            <ul class="password-requirements" id="passwordHelp">
+                <li id="req-length">12+ characters</li>
+                <li id="req-upper">Uppercase</li>
+                <li id="req-lower">Lowercase</li>
+                <li id="req-number">Number</li>
+                <li id="req-special">Special (!@@#$%^&*)</li>
             </ul>
         </div>
-        <div class="col-md-6 mb-3">
-            <label for="confirmPassword" class="form-label">Confirm Password <span class="text-danger" aria-hidden="true">*</span></label>
-            <div class="input-group">
-                <input type="password" 
-                       class="form-control @(ViewData.ModelState["ConfirmPassword"]?.Errors.Any() == true ? "is-invalid" : "")" 
-                       name="ConfirmPassword" 
-                       id="confirmPassword"
-                       placeholder="Re-enter password" 
-                       required
-                       aria-required="true" />
-                <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('confirmPassword', 'togglePwdIcon2')" aria-label="Toggle password visibility">
-                    <i class="bi bi-eye" id="togglePwdIcon2" aria-hidden="true"></i>
+        <div class="form-group">
+            <label class="form-label">Confirm Password <span style="color:#EF4444">*</span></label>
+            <div class="password-wrapper">
+                <input type="password" class="form-input" name="ConfirmPassword" id="confirmPassword" placeholder="Re-enter password" required />
+                <button class="password-toggle" type="button" onclick="togglePassword('confirmPassword', 'togglePwdIcon2')">
+                    <i class="bi bi-eye" id="togglePwdIcon2"></i>
                 </button>
             </div>
-            <span asp-validation-for="ConfirmPassword" class="invalid-feedback"></span>
-            <div id="passwordMatch" class="form-text"></div>
+            <span asp-validation-for="ConfirmPassword" class="field-validation-error"></span>
+            <div id="passwordMatch" class="field-help"></div>
         </div>
     </div>
     
-    <!-- Contact Information -->
-    <div class="row">
-        <div class="col-md-6 mb-3">
-            <label for="phoneNumber" class="form-label">Phone Number <span class="text-danger" aria-hidden="true">*</span></label>
-            <input type="tel" 
-                   class="form-control @(ViewData.ModelState["PhoneNumber"]?.Errors.Any() == true ? "is-invalid" : "")" 
-                   name="PhoneNumber" 
-                   id="phoneNumber"
-                   value="@Model?.PhoneNumber"
-                   placeholder="09XXXXXXXXX" 
-                   required
-                   minlength="10"
-                   maxlength="11"
-                   pattern="[0-9]{10,11}"
-                   aria-required="true"
-                   aria-describedby="phoneHelp" />
-            <div id="phoneHelp" class="form-text">10-11 digit phone number</div>
-            <span asp-validation-for="PhoneNumber" class="invalid-feedback"></span>
+    <!-- Contact Info -->
+    <div class="field-row">
+        <div class="form-group">
+            <label class="form-label">Phone Number <span style="color:#EF4444">*</span></label>
+            <input type="tel" class="form-input" name="PhoneNumber" id="phoneNumber" value="@Model?.PhoneNumber" placeholder="09XXXXXXXXX" required minlength="10" maxlength="11" pattern="[0-9]{10,11}" />
+            <span asp-validation-for="PhoneNumber" class="field-validation-error"></span>
         </div>
-        <div class="col-md-6 mb-3">
-            <label for="dateOfBirth" class="form-label">Date of Birth <span class="text-danger" aria-hidden="true">*</span></label>
-            <input type="date" 
-                   class="form-control @(ViewData.ModelState["DateOfBirth"]?.Errors.Any() == true ? "is-invalid" : "")" 
-                   name="DateOfBirth" 
-                   id="dateOfBirth"
-                   value="@Model?.DateOfBirth.ToString("yyyy-MM-dd")"
-                   required
-                   max="@DateTime.Today.AddYears(-18).ToString("yyyy-MM-dd")"
-                   aria-required="true"
-                   aria-describedby="dobHelp" />
-            <div id="dobHelp" class="form-text">You must be at least 18 years old</div>
-            <span asp-validation-for="DateOfBirth" class="invalid-feedback"></span>
+        <div class="form-group">
+            <label class="form-label">Date of Birth <span style="color:#EF4444">*</span></label>
+            <input type="date" class="form-input" name="DateOfBirth" id="dateOfBirth" value="@Model?.DateOfBirth.ToString("yyyy-MM-dd")" required max="@DateTime.Today.AddYears(-18).ToString("yyyy-MM-dd")" />
+            <span asp-validation-for="DateOfBirth" class="field-validation-error"></span>
         </div>
     </div>
     
-    <!-- Address Fields -->
-    <div class="mb-3">
-        <label for="street" class="form-label">Street Address <span class="text-danger" aria-hidden="true">*</span></label>
-        <input type="text" 
-               class="form-control @(ViewData.ModelState["Street"]?.Errors.Any() == true ? "is-invalid" : "")" 
-               name="Street" 
-               id="street"
-               value="@Model?.Street"
-               placeholder="House/Unit No., Street, Barangay" 
-               required
-               maxlength="255"
-               aria-required="true" />
-        <span asp-validation-for="Street" class="invalid-feedback"></span>
+    <!-- Address -->
+    <div class="form-group">
+        <label class="form-label">Street Address <span style="color:#EF4444">*</span></label>
+        <input type="text" class="form-input" name="Street" id="street" value="@Model?.Street" placeholder="House/Unit No., Street, Barangay" required maxlength="255" />
+        <span asp-validation-for="Street" class="field-validation-error"></span>
     </div>
     
-    <div class="row">
-        <div class="col-md-4 mb-3">
-            <label for="city" class="form-label">City <span class="text-danger" aria-hidden="true">*</span></label>
-            <input type="text" 
-                   class="form-control @(ViewData.ModelState["City"]?.Errors.Any() == true ? "is-invalid" : "")" 
-                   name="City" 
-                   id="city"
-                   value="@Model?.City"
-                   placeholder="City/Municipality" 
-                   required
-                   maxlength="100"
-                   aria-required="true" />
-            <span asp-validation-for="City" class="invalid-feedback"></span>
+    <div class="field-row">
+        <div class="form-group">
+            <label class="form-label">City <span style="color:#EF4444">*</span></label>
+            <input type="text" class="form-input" name="City" id="city" value="@Model?.City" placeholder="City" required maxlength="100" />
+            <span asp-validation-for="City" class="field-validation-error"></span>
         </div>
-        <div class="col-md-4 mb-3">
-            <label for="province" class="form-label">Province <span class="text-danger" aria-hidden="true">*</span></label>
-            <input type="text" 
-                   class="form-control @(ViewData.ModelState["Province"]?.Errors.Any() == true ? "is-invalid" : "")" 
-                   name="Province" 
-                   id="province"
-                   value="@Model?.Province"
-                   placeholder="Province" 
-                   required
-                   maxlength="100"
-                   aria-required="true" />
-            <span asp-validation-for="Province" class="invalid-feedback"></span>
+        <div class="form-group">
+            <label class="form-label">Province <span style="color:#EF4444">*</span></label>
+            <input type="text" class="form-input" name="Province" id="province" value="@Model?.Province" placeholder="Province" required maxlength="100" />
+            <span asp-validation-for="Province" class="field-validation-error"></span>
         </div>
-        <div class="col-md-4 mb-3">
-            <label for="zipCode" class="form-label">Zip Code</label>
-            <input type="text" 
-                   class="form-control" 
-                   name="ZipCode" 
-                   id="zipCode"
-                   value="@Model?.ZipCode"
-                   placeholder="Zip Code" 
-                   maxlength="10" />
+        <div class="form-group">
+            <label class="form-label">Zip Code</label>
+            <input type="text" class="form-input" name="ZipCode" id="zipCode" value="@Model?.ZipCode" placeholder="Zip" maxlength="10" />
         </div>
     </div>
     
     <!-- Terms -->
-    <div class="mb-4 form-check">
-        <input class="form-check-input" type="checkbox" id="terms" required aria-required="true">
-        <label class="form-check-label" for="terms">
-            I agree to the <a href="#" target="_blank">Terms of Service</a> and <a href="#" target="_blank">Privacy Policy</a>
-        </label>
+    <div class="form-group">
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="terms" required>
+            <label class="form-check-label" for="terms">
+                I agree to the <a href="#" style="color: var(--accent-green);">Terms</a> and <a href="#" style="color: var(--accent-green);">Privacy Policy</a>
+            </label>
+        </div>
     </div>
     
-    <button type="submit" class="btn btn-primary w-100 mb-3" id="submitBtn">
-        <i class="bi bi-person-plus me-2" aria-hidden="true"></i>Create Account
+    <!-- Submit -->
+    <button type="submit" class="btn-submit" id="submitBtn">
+        Create Account
     </button>
-    
-    <div class="text-center">
-        <span class="text-muted">Already have an account?</span>
-        <a asp-controller="Auth" asp-action="Login">Sign in here</a>
-    </div>
 </form>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script>
-        // Toggle password visibility
         function togglePassword(inputId, iconId) {
             var input = document.getElementById(inputId);
             var icon = document.getElementById(iconId);
-            
             if (input.type === 'password') {
                 input.type = 'text';
                 icon.classList.remove('bi-eye');
@@ -317,109 +165,70 @@
             }
         }
         
-        // Real-time password validation
         document.getElementById('password').addEventListener('input', function() {
             var password = this.value;
-            
-            // Check each requirement
             updateRequirement('req-length', password.length >= 12);
             updateRequirement('req-upper', /[A-Z]/.test(password));
             updateRequirement('req-lower', /[a-z]/.test(password));
             updateRequirement('req-number', /[0-9]/.test(password));
             updateRequirement('req-special', /[!@@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password));
-            
-            // Check password match
             checkPasswordMatch();
         });
         
         function updateRequirement(id, isValid) {
-            var element = document.getElementById(id);
-            if (isValid) {
-                element.classList.add('valid');
-                element.classList.remove('invalid');
-            } else {
-                element.classList.remove('valid');
-                element.classList.add('invalid');
-            }
+            var el = document.getElementById(id);
+            el.classList.toggle('valid', isValid);
+            el.classList.toggle('invalid', !isValid);
         }
         
-        // Password match check
         document.getElementById('confirmPassword').addEventListener('input', checkPasswordMatch);
         
         function checkPasswordMatch() {
             var password = document.getElementById('password').value;
             var confirm = document.getElementById('confirmPassword').value;
             var matchDiv = document.getElementById('passwordMatch');
-            
-            if (confirm.length === 0) {
-                matchDiv.textContent = '';
-                return;
-            }
-            
+            if (confirm.length === 0) { matchDiv.textContent = ''; return; }
             if (password === confirm) {
-                matchDiv.textContent = '✓ Passwords match';
-                matchDiv.className = 'form-text text-success';
+                matchDiv.innerHTML = '<span style="color:#6DB33F">✓ Passwords match</span>';
             } else {
-                matchDiv.textContent = '✗ Passwords do not match';
-                matchDiv.className = 'form-text text-danger';
+                matchDiv.innerHTML = '<span style="color:#dc2626">✗ Passwords do not match</span>';
             }
         }
         
-        // Email availability check (debounced)
         var emailTimeout;
         document.getElementById('email').addEventListener('input', function() {
             clearTimeout(emailTimeout);
             var email = this.value;
             var checkDiv = document.getElementById('emailCheck');
-            
-            if (email.length < 5 || !email.includes('@@')) {
-                checkDiv.textContent = '';
-                return;
-            }
-            
+            if (email.length < 5 || !email.includes('@@')) { checkDiv.textContent = ''; return; }
             emailTimeout = setTimeout(function() {
                 fetch('/Auth/CheckEmail?email=' + encodeURIComponent(email))
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.exists) {
-                            checkDiv.textContent = '✗ This email is already registered';
-                            checkDiv.className = 'form-text text-danger';
-                        } else {
-                            checkDiv.textContent = '✓ Email available';
-                            checkDiv.className = 'form-text text-success';
-                        }
+                    .then(r => r.json())
+                    .then(d => {
+                        checkDiv.innerHTML = d.exists 
+                            ? '<span style="color:#dc2626">✗ Email already registered</span>'
+                            : '<span style="color:#6DB33F">✓ Email available</span>';
                     });
             }, 500);
         });
         
-        // Username availability check (debounced)
         var usernameTimeout;
         document.getElementById('username').addEventListener('input', function() {
             clearTimeout(usernameTimeout);
             var username = this.value;
             var checkDiv = document.getElementById('usernameCheck');
-            
-            if (username.length < 4) {
-                checkDiv.textContent = '';
-                return;
-            }
-            
+            if (username.length < 4) { checkDiv.textContent = ''; return; }
             usernameTimeout = setTimeout(function() {
                 fetch('/Auth/CheckUsername?username=' + encodeURIComponent(username))
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.exists) {
-                            checkDiv.textContent = '✗ This username is already taken';
-                            checkDiv.className = 'form-text text-danger';
-                        } else {
-                            checkDiv.textContent = '✓ Username available';
-                            checkDiv.className = 'form-text text-success';
-                        }
+                    .then(r => r.json())
+                    .then(d => {
+                        checkDiv.innerHTML = d.exists 
+                            ? '<span style="color:#dc2626">✗ Username taken</span>'
+                            : '<span style="color:#6DB33F">✓ Username available</span>';
                     });
             }, 500);
         });
         
-        // Phone number validation
         document.getElementById('phoneNumber').addEventListener('input', function() {
             this.value = this.value.replace(/[^0-9]/g, '').substring(0, 11);
         });

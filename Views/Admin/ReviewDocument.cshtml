@@ -1,0 +1,636 @@
+@{
+    ViewData["Title"] = "Review Document";
+    Layout = "_AdminLayout";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/Review">Reviews</a></li>
+                <li class="breadcrumb-item active">Review Document</li>
+            </ol>
+        </nav>
+        <h4 class="mb-0 mt-2">Admin Document Review</h4>
+    </div>
+    <a href="/Review" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Reviews
+    </a>
+</div>
+
+<div class="row">
+    <!-- Left Column - Document Info & Preview -->
+    <div class="col-lg-5">
+        <!-- Document Information -->
+        <div class="card border mb-3">
+            <div class="card-header bg-white border-bottom">
+                <h6 class="mb-0"><i class="bi bi-file-earmark-text me-2 text-primary"></i>Document Information</h6>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-3" id="loadingDoc">
+                    <div class="spinner-border text-primary"></div>
+                </div>
+                <div id="documentInfo" style="display: none;">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Title:</dt>
+                        <dd class="col-sm-8" id="docTitle">-</dd>
+                        <dt class="col-sm-4">Type:</dt>
+                        <dd class="col-sm-8"><span class="badge bg-secondary" id="docType">-</span></dd>
+                        <dt class="col-sm-4">Category:</dt>
+                        <dd class="col-sm-8" id="docCategory">-</dd>
+                        <dt class="col-sm-4">File:</dt>
+                        <dd class="col-sm-8" id="docFileName">-</dd>
+                        <dt class="col-sm-4">Size:</dt>
+                        <dd class="col-sm-8" id="docFileSize">-</dd>
+                        <dt class="col-sm-4">Status:</dt>
+                        <dd class="col-sm-8"><span class="badge" id="docStatus">-</span></dd>
+                        <dt class="col-sm-4">Submitted:</dt>
+                        <dd class="col-sm-8" id="docSubmittedDate">-</dd>
+                        <dt class="col-sm-4">By:</dt>
+                        <dd class="col-sm-8" id="docSubmitter">-</dd>
+                        <dt class="col-sm-4">Client:</dt>
+                        <dd class="col-sm-8" id="docClient">-</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <!-- Document Actions -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <a href="#" class="btn btn-outline-primary w-100 mb-2" id="btnViewDoc" target="_blank">
+                    <i class="bi bi-eye"></i> View / Preview Document
+                </a>
+                <a href="#" class="btn btn-outline-secondary w-100" id="btnDownloadDoc">
+                    <i class="bi bi-download"></i> Download Document
+                </a>
+            </div>
+        </div>
+
+        <!-- Version History -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>Version History</h6>
+            </div>
+            <div class="card-body p-0" style="max-height: 250px; overflow-y: auto;">
+                <ul class="list-group list-group-flush" id="versionsList">
+                    <li class="list-group-item text-center text-muted">Loading...</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Staff Review Summary -->
+        <div class="card border">
+            <div class="card-header bg-white border-bottom">
+                <h6 class="mb-0"><i class="bi bi-person-check me-2 text-info"></i>Staff Review Summary</h6>
+            </div>
+            <div class="card-body" id="staffReviewSection">
+                <p class="text-muted mb-0">Loading staff review...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column - Admin Checklist & Decision -->
+    <div class="col-lg-7">
+        <!-- Admin Checklist -->
+        <div class="card border mb-3">
+            <div class="card-header bg-white border-bottom">
+                <h6 class="mb-0"><i class="bi bi-list-check me-2 text-warning"></i>Admin Review Checklist</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Complete the checklist items below before making your decision. Required items must be checked.
+                </p>
+                <div id="checklistContainer">
+                    <div class="text-center py-3">
+                        <div class="spinner-border text-primary"></div>
+                        <p class="text-muted mt-2">Loading checklist...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Decision -->
+        <div class="card border">
+            <div class="card-header bg-white border-bottom">
+                <h6 class="mb-0"><i class="bi bi-shield-check me-2 text-primary"></i>Admin Final Decision</h6>
+            </div>
+            <div class="card-body">
+                <input type="hidden" id="documentId">
+                
+                <!-- Checklist Summary -->
+                <div class="alert alert-light mb-3" id="checklistSummary">
+                    <div class="d-flex justify-content-between">
+                        <span>Checklist Progress:</span>
+                        <span id="checklistProgress">0 / 0 completed</span>
+                    </div>
+                    <div class="progress mt-2" style="height: 10px;">
+                        <div class="progress-bar" id="checklistProgressBar" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- Admin Remarks -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Admin Remarks <span class="text-muted">(Required for Rejection)</span></label>
+                    <textarea class="form-control" id="adminRemarks" rows="3" placeholder="Enter your remarks or notes about this document..."></textarea>
+                </div>
+
+                <!-- Decision Buttons -->
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <button type="button" class="btn btn-success btn-lg w-100" id="btnApprove" disabled>
+                            <i class="bi bi-check-circle me-2"></i>Approve Document
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <button type="button" class="btn btn-danger btn-lg w-100" id="btnReject">
+                            <i class="bi bi-x-circle me-2"></i>Reject Document
+                        </button>
+                    </div>
+                </div>
+
+                <div class="alert alert-info mt-3 mb-0 small">
+                    <i class="bi bi-lightbulb me-1"></i>
+                    <strong>Tip:</strong> Approving will set retention period based on document type. Rejection requires remarks explaining the reason.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Approval Success Modal with Retention Info -->
+<div class="modal fade" id="approvalSuccessModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title"><i class="bi bi-check-circle me-2 text-success"></i>Document Approved</h5>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4">
+                    <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem;"></i>
+                </div>
+                <h5 class="text-center mb-3" id="approvedDocTitle">Document</h5>
+                
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6 class="card-title"><i class="bi bi-clock-history me-2"></i>Retention Information</h6>
+                        <dl class="row mb-0">
+                            <dt class="col-sm-5">Retention Period:</dt>
+                            <dd class="col-sm-7" id="retentionPeriod">-</dd>
+                            <dt class="col-sm-5">Start Date:</dt>
+                            <dd class="col-sm-7" id="retentionStart">-</dd>
+                            <dt class="col-sm-5">Expiry Date:</dt>
+                            <dd class="col-sm-7" id="retentionExpiry">-</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a href="/Review" class="btn btn-secondary">Back to Reviews</a>
+                <button type="button" class="btn btn-primary" onclick="location.reload()">Review Another</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Rejection Confirmation Modal -->
+<div class="modal fade" id="rejectConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title"><i class="bi bi-x-circle me-2 text-danger"></i>Confirm Rejection</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to reject this document?</p>
+                <div class="alert alert-warning">
+                    <strong>Reason:</strong>
+                    <p class="mb-0" id="rejectReasonPreview">-</p>
+                </div>
+                <p class="text-muted small">The document will be archived and the submitter will be notified.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmRejectBtn">
+                    <i class="bi bi-x-circle me-1"></i>Confirm Rejection
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let documentData = null;
+    let checklistItems = [];
+    let checklistResults = {};
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const docId = urlParams.get('documentId') || getDocIdFromPath();
+        
+        if (docId) {
+            document.getElementById('documentId').value = docId;
+            loadDocument(docId);
+            loadChecklist(docId);
+        } else {
+            showError('No document ID provided');
+        }
+
+        document.getElementById('btnApprove').addEventListener('click', approveDocument);
+        document.getElementById('btnReject').addEventListener('click', showRejectConfirm);
+        document.getElementById('confirmRejectBtn').addEventListener('click', rejectDocument);
+    });
+
+    function getDocIdFromPath() {
+        const pathParts = window.location.pathname.split('/');
+        const reviewIndex = pathParts.findIndex(p => p.toLowerCase() === 'review');
+        if (reviewIndex !== -1 && pathParts.length > reviewIndex + 1) {
+            return pathParts[reviewIndex + 1];
+        }
+        return null;
+    }
+
+    async function loadDocument(docId) {
+        try {
+            const response = await fetch(`/api/DocumentApi/${docId}`);
+            const data = await response.json();
+
+            if (data.success) {
+                documentData = data.document;
+                displayDocumentInfo(documentData);
+                loadVersions(docId);
+                loadStaffReview(docId);
+            } else {
+                showError(data.message || 'Failed to load document');
+            }
+        } catch (error) {
+            console.error('Error loading document:', error);
+            showError('Error loading document');
+        }
+    }
+
+    function displayDocumentInfo(doc) {
+        document.getElementById('loadingDoc').style.display = 'none';
+        document.getElementById('documentInfo').style.display = 'block';
+
+        document.getElementById('docTitle').textContent = doc.title || doc.originalFileName || '-';
+        document.getElementById('docType').textContent = doc.documentType || 'General';
+        document.getElementById('docCategory').textContent = doc.category || '-';
+        document.getElementById('docFileName').textContent = doc.originalFileName || '-';
+        document.getElementById('docFileSize').textContent = formatFileSize(doc.totalFileSize || doc.fileSize);
+        
+        const statusBadge = document.getElementById('docStatus');
+        statusBadge.textContent = doc.status || 'Unknown';
+        statusBadge.className = 'badge ' + getStatusBadgeClass(doc.status);
+
+        document.getElementById('docSubmittedDate').textContent = formatDate(doc.createdAt);
+        document.getElementById('docSubmitter').textContent = doc.uploader?.name || doc.uploaderName || '-';
+        document.getElementById('docClient').textContent = doc.clientName || doc.folder?.clientName || doc.uploader?.name || '-';
+
+        // Set action buttons
+        document.getElementById('btnViewDoc').href = `/api/DocumentApi/${doc.id}/view`;
+        document.getElementById('btnDownloadDoc').href = `/api/DocumentApi/${doc.id}/download`;
+    }
+
+    async function loadVersions(docId) {
+        try {
+            const response = await fetch(`/api/DocumentApi/${docId}/versions`);
+            const data = await response.json();
+
+            const list = document.getElementById('versionsList');
+            if (data.success && data.versions?.length > 0) {
+                list.innerHTML = data.versions.map((v, i) => `
+                    <li class="list-group-item ${i === 0 ? 'bg-light' : ''}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>v${v.versionNumber}</strong>
+                                ${i === 0 ? '<span class="badge bg-primary ms-2">Current</span>' : ''}
+                                <br>
+                                <small class="text-muted">${formatDate(v.createdAt)}</small>
+                            </div>
+                            <a href="/api/DocumentApi/${docId}/download?versionId=${v.versionId}" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-download"></i>
+                            </a>
+                        </div>
+                        ${v.changeDescription ? `<small class="text-muted d-block mt-1">${escapeHtml(v.changeDescription)}</small>` : ''}
+                    </li>
+                `).join('');
+            } else {
+                list.innerHTML = '<li class="list-group-item text-muted">No versions found</li>';
+            }
+        } catch (error) {
+            console.error('Error loading versions:', error);
+        }
+    }
+
+    async function loadStaffReview(docId) {
+        try {
+            const response = await fetch(`/api/ReviewApi/${docId}/history`);
+            const data = await response.json();
+
+            const section = document.getElementById('staffReviewSection');
+            
+            if (data.success && data.reviews?.length > 0) {
+                const staffReview = data.reviews.find(r => r.reviewerRole === 'Staff') || data.reviews[0];
+                
+                let checklistHtml = '';
+                if (staffReview.checklistResults && staffReview.checklistResults.length > 0) {
+                    checklistHtml = `
+                        <hr>
+                        <h6 class="mb-2"><i class="bi bi-list-check me-2"></i>Staff Checklist Results</h6>
+                        <div class="border rounded p-2">
+                            ${staffReview.checklistResults.map(cr => `
+                                <div class="d-flex align-items-start mb-2 pb-2 border-bottom">
+                                    <i class="bi ${cr.isPassed ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger'} me-2 mt-1"></i>
+                                    <div>
+                                        <strong>${escapeHtml(cr.itemName || 'Checklist Item')}</strong>
+                                        ${cr.remarks ? `<br><small class="text-muted">Remarks: ${escapeHtml(cr.remarks)}</small>` : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Passed: ${staffReview.checklistResults.filter(c => c.isPassed).length} / ${staffReview.checklistResults.length}
+                            </small>
+                        </div>
+                    `;
+                }
+                
+                section.innerHTML = `
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Reviewed By:</dt>
+                        <dd class="col-sm-8">${escapeHtml(staffReview.reviewerName || '-')}</dd>
+                        <dt class="col-sm-4">Review Date:</dt>
+                        <dd class="col-sm-8">${formatDate(staffReview.reviewedAt)}</dd>
+                        <dt class="col-sm-4">Decision:</dt>
+                        <dd class="col-sm-8">
+                            <span class="badge ${staffReview.reviewStatus === 'Approved' ? 'bg-success' : staffReview.reviewStatus === 'Rejected' ? 'bg-danger' : 'bg-warning'}">
+                                ${staffReview.reviewStatus || 'Pending'}
+                            </span>
+                        </dd>
+                        <dt class="col-sm-4">Remarks:</dt>
+                        <dd class="col-sm-8">${escapeHtml(staffReview.remarks || 'No remarks')}</dd>
+                        ${staffReview.internalNotes ? `
+                            <dt class="col-sm-4">Internal Notes:</dt>
+                            <dd class="col-sm-8"><em>${escapeHtml(staffReview.internalNotes)}</em></dd>
+                        ` : ''}
+                    </dl>
+                    ${checklistHtml}
+                `;
+            } else {
+                section.innerHTML = '<p class="text-muted mb-0">No staff review found. This document may be pending staff review.</p>';
+            }
+        } catch (error) {
+            console.error('Error loading staff review:', error);
+            document.getElementById('staffReviewSection').innerHTML = '<p class="text-danger mb-0">Error loading staff review</p>';
+        }
+    }
+
+    async function loadChecklist(docId) {
+        try {
+            // Get document type first
+            const docResponse = await fetch(`/api/DocumentApi/${docId}`);
+            const docData = await docResponse.json();
+            const docType = docData.document?.documentType || '';
+
+            // Load checklist items for this document type
+            const response = await fetch(`/api/ReviewApi/checklist-items?documentType=${encodeURIComponent(docType)}`);
+            const data = await response.json();
+
+            const container = document.getElementById('checklistContainer');
+
+            if (data.success && data.items?.length > 0) {
+                checklistItems = data.items;
+                renderChecklist();
+            } else {
+                // Create default checklist items
+                checklistItems = [
+                    { checklistItemId: -1, itemName: 'Document is complete and readable', isRequired: true },
+                    { checklistItemId: -2, itemName: 'Information is accurate and verified', isRequired: true },
+                    { checklistItemId: -3, itemName: 'Document format is acceptable', isRequired: false },
+                    { checklistItemId: -4, itemName: 'All required signatures/approvals present', isRequired: true },
+                    { checklistItemId: -5, itemName: 'No confidential information issues', isRequired: true }
+                ];
+                renderChecklist();
+            }
+        } catch (error) {
+            console.error('Error loading checklist:', error);
+            document.getElementById('checklistContainer').innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Could not load checklist. You can still approve/reject the document.
+                </div>
+            `;
+            document.getElementById('btnApprove').disabled = false;
+        }
+    }
+
+    function renderChecklist() {
+        const container = document.getElementById('checklistContainer');
+        
+        container.innerHTML = checklistItems.map((item, index) => `
+            <div class="form-check mb-3 p-3 border rounded ${item.isRequired ? 'border-warning' : ''}">
+                <input class="form-check-input" type="checkbox" id="checklist_${item.checklistItemId}" 
+                       onchange="updateChecklistResult(${item.checklistItemId}, this.checked)"
+                       style="transform: scale(1.3);">
+                <label class="form-check-label ms-2" for="checklist_${item.checklistItemId}">
+                    <strong>${escapeHtml(item.itemName)}</strong>
+                    ${item.isRequired ? '<span class="badge bg-warning text-dark ms-2">Required</span>' : ''}
+                    ${item.description ? `<br><small class="text-muted">${escapeHtml(item.description)}</small>` : ''}
+                </label>
+                <div class="mt-2">
+                    <input type="text" class="form-control form-control-sm" 
+                           id="checklist_remarks_${item.checklistItemId}"
+                           placeholder="Optional remarks for this item..."
+                           onchange="updateChecklistRemarks(${item.checklistItemId}, this.value)">
+                </div>
+            </div>
+        `).join('');
+
+        updateChecklistProgress();
+    }
+
+    function updateChecklistResult(itemId, isPassed) {
+        checklistResults[itemId] = {
+            ...checklistResults[itemId],
+            isPassed: isPassed
+        };
+        updateChecklistProgress();
+    }
+
+    function updateChecklistRemarks(itemId, remarks) {
+        checklistResults[itemId] = {
+            ...checklistResults[itemId],
+            remarks: remarks
+        };
+    }
+
+    function updateChecklistProgress() {
+        const totalRequired = checklistItems.filter(i => i.isRequired).length;
+        const completedRequired = checklistItems.filter(i => i.isRequired && checklistResults[i.checklistItemId]?.isPassed).length;
+        const totalChecked = Object.values(checklistResults).filter(r => r.isPassed).length;
+        const total = checklistItems.length;
+
+        const progress = total > 0 ? Math.round((totalChecked / total) * 100) : 0;
+        
+        document.getElementById('checklistProgress').textContent = `${totalChecked} / ${total} completed`;
+        document.getElementById('checklistProgressBar').style.width = `${progress}%`;
+        document.getElementById('checklistProgressBar').className = `progress-bar ${completedRequired >= totalRequired ? 'bg-success' : 'bg-warning'}`;
+
+        // Enable approve button only if all required items are checked
+        document.getElementById('btnApprove').disabled = completedRequired < totalRequired;
+    }
+
+    async function approveDocument() {
+        const docId = document.getElementById('documentId').value;
+        const remarks = document.getElementById('adminRemarks').value;
+
+        // Prepare checklist results
+        const checklistData = checklistItems.map(item => ({
+            checklistItemId: item.checklistItemId,
+            isPassed: checklistResults[item.checklistItemId]?.isPassed || false,
+            remarks: checklistResults[item.checklistItemId]?.remarks || ''
+        }));
+
+        try {
+            document.getElementById('btnApprove').disabled = true;
+            document.getElementById('btnApprove').innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+
+            const response = await fetch(`/api/ReviewApi/${docId}/admin-approve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    remarks: remarks,
+                    checklistResults: checklistData
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Show success modal with retention info
+                document.getElementById('approvedDocTitle').textContent = documentData?.title || 'Document';
+                
+                if (data.retention) {
+                    const years = data.retention.retentionYears || 0;
+                    const months = data.retention.retentionMonths || 0;
+                    const days = data.retention.retentionDays || 0;
+                    let period = [];
+                    if (years > 0) period.push(`${years} year${years > 1 ? 's' : ''}`);
+                    if (months > 0) period.push(`${months} month${months > 1 ? 's' : ''}`);
+                    if (days > 0) period.push(`${days} day${days > 1 ? 's' : ''}`);
+                    
+                    document.getElementById('retentionPeriod').textContent = period.join(', ') || '7 years (default)';
+                    document.getElementById('retentionStart').textContent = formatDate(data.retention.startDate);
+                    document.getElementById('retentionExpiry').textContent = formatDate(data.retention.expiryDate);
+                } else {
+                    document.getElementById('retentionPeriod').textContent = '7 years (default)';
+                    document.getElementById('retentionStart').textContent = formatDate(new Date());
+                    document.getElementById('retentionExpiry').textContent = 'Calculated based on policy';
+                }
+
+                new bootstrap.Modal(document.getElementById('approvalSuccessModal')).show();
+            } else {
+                alert('Error: ' + (data.message || 'Failed to approve document'));
+                document.getElementById('btnApprove').disabled = false;
+                document.getElementById('btnApprove').innerHTML = '<i class="bi bi-check-circle me-2"></i>Approve Document';
+            }
+        } catch (error) {
+            console.error('Error approving document:', error);
+            alert('Error approving document');
+            document.getElementById('btnApprove').disabled = false;
+            document.getElementById('btnApprove').innerHTML = '<i class="bi bi-check-circle me-2"></i>Approve Document';
+        }
+    }
+
+    function showRejectConfirm() {
+        const remarks = document.getElementById('adminRemarks').value;
+        if (!remarks.trim()) {
+            alert('Please provide remarks explaining the rejection reason.');
+            document.getElementById('adminRemarks').focus();
+            return;
+        }
+        document.getElementById('rejectReasonPreview').textContent = remarks;
+        new bootstrap.Modal(document.getElementById('rejectConfirmModal')).show();
+    }
+
+    async function rejectDocument() {
+        const docId = document.getElementById('documentId').value;
+        const remarks = document.getElementById('adminRemarks').value;
+
+        try {
+            document.getElementById('confirmRejectBtn').disabled = true;
+            document.getElementById('confirmRejectBtn').innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+
+            const response = await fetch(`/api/ReviewApi/${docId}/admin-reject`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ remarks: remarks })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                alert('Document rejected successfully.');
+                window.location.href = '/Review';
+            } else {
+                alert('Error: ' + (data.message || 'Failed to reject document'));
+                document.getElementById('confirmRejectBtn').disabled = false;
+                document.getElementById('confirmRejectBtn').innerHTML = '<i class="bi bi-x-circle me-1"></i>Confirm Rejection';
+            }
+        } catch (error) {
+            console.error('Error rejecting document:', error);
+            alert('Error rejecting document');
+            document.getElementById('confirmRejectBtn').disabled = false;
+            document.getElementById('confirmRejectBtn').innerHTML = '<i class="bi bi-x-circle me-1"></i>Confirm Rejection';
+        }
+    }
+
+    function showError(message) {
+        document.getElementById('loadingDoc').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle me-2"></i>${escapeHtml(message)}
+            </div>
+        `;
+    }
+
+    function getStatusBadgeClass(status) {
+        const classes = {
+            'Pending': 'bg-warning text-dark',
+            'PendingReview': 'bg-warning text-dark',
+            'UnderReview': 'bg-info',
+            'StaffApproved': 'bg-primary',
+            'Approved': 'bg-success',
+            'Rejected': 'bg-danger',
+            'Archived': 'bg-secondary'
+        };
+        return classes[status] || 'bg-secondary';
+    }
+
+    function formatFileSize(bytes) {
+        if (!bytes) return '-';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        return new Date(dateStr).toLocaleDateString('en-US', { 
+            year: 'numeric', month: 'short', day: 'numeric', 
+            hour: '2-digit', minute: '2-digit' 
+        });
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+}

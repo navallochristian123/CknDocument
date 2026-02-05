@@ -8,7 +8,7 @@
         <h4 class="mb-0">My Documents</h4>
         <p class="text-muted mb-0">All your uploaded and shared documents</p>
     </div>
-    <a href="#" class="btn btn-primary">
+    <a href="/Document/Upload" class="btn btn-primary">
         <i class="bi bi-cloud-upload"></i> Upload Document
     </a>
 </div>
@@ -16,57 +16,349 @@
 <div class="card">
     <div class="card-header bg-white">
         <div class="row align-items-center">
-            <div class="col-md-6">
-                <input type="text" class="form-control" placeholder="Search documents...">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" id="searchInput" placeholder="Search documents...">
+                </div>
             </div>
             <div class="col-md-3">
-                <select class="form-select">
+                <select class="form-select" id="statusFilter">
                     <option value="">All Status</option>
-                    <option>Approved</option>
-                    <option>Pending</option>
+                    <option value="Completed">Approved</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Rejected">Rejected</option>
                 </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="sortBy">
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="name">Name A-Z</option>
+                </select>
+            </div>
+            <div class="col-md-2 text-end">
+                <button class="btn btn-outline-secondary" onclick="loadDocuments()" title="Refresh">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
             </div>
         </div>
     </div>
     <div class="card-body p-0">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Document Name</th>
-                    <th>Type</th>
-                    <th>Folder</th>
-                    <th>Date</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><i class="bi bi-file-pdf text-danger"></i> My_Contract.pdf</td>
-                    <td>Contract</td>
-                    <td>General</td>
-                    <td>Jan 20, 2024</td>
-                    <td><span class="badge bg-success">Approved</span></td>
-                    <td>
-                        <div class="btn-group btn-group-sm">
-                            <a href="#" class="btn btn-outline-primary"><i class="bi bi-eye"></i></a>
-                            <a href="#" class="btn btn-outline-secondary"><i class="bi bi-download"></i></a>
-                        </div>
-                    </td>
-                </tr>
-                <tr>
-                    <td><i class="bi bi-file-pdf text-danger"></i> Agreement.pdf</td>
-                    <td>Agreement</td>
-                    <td>General</td>
-                    <td>Jan 18, 2024</td>
-                    <td><span class="badge bg-warning">Pending</span></td>
-                    <td>
-                        <div class="btn-group btn-group-sm">
-                            <a href="#" class="btn btn-outline-primary"><i class="bi bi-eye"></i></a>
-                        </div>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Document Name</th>
+                        <th>Type</th>
+                        <th>Folder</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="documentsTable">
+                    <tr>
+                        <td colspan="6" class="text-center py-5">
+                            <div class="spinner-border text-primary"></div>
+                            <p class="text-muted mt-2 mb-0">Loading documents...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+        <small class="text-muted" id="documentCount">Loading...</small>
+        <small class="text-muted">
+            <i class="bi bi-arrow-repeat text-success"></i> Auto-refreshes every 10 seconds
+        </small>
     </div>
 </div>
+
+<!-- Document Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="previewModalTitle">
+                    <i class="bi bi-file-earmark me-2"></i>Document Preview
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0 bg-dark">
+                <div id="pdfViewer" class="w-100 h-100" style="display: none;">
+                    <iframe id="previewFrame" class="w-100 h-100" style="border: none;"></iframe>
+                </div>
+                <div id="imageViewer" class="w-100 h-100 d-flex align-items-center justify-content-center" style="display: none;">
+                    <img id="previewImage" class="img-fluid" style="max-height: 90vh;" />
+                </div>
+                <div id="unsupportedViewer" class="w-100 h-100 d-flex align-items-center justify-content-center text-white" style="display: none;">
+                    <div class="text-center">
+                        <i class="bi bi-file-earmark display-1 mb-3"></i>
+                        <h5 id="unsupportedFileName">document.docx</h5>
+                        <p class="text-muted">Preview not available for this file type</p>
+                        <a id="downloadLink" href="#" class="btn btn-primary">
+                            <i class="bi bi-download me-2"></i>Download File
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Archive Confirmation Modal -->
+<div class="modal fade" id="archiveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-archive me-2"></i>Archive Document</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to archive <strong id="archiveDocName"></strong>?</p>
+                <p class="text-muted small">Archived documents can be restored from the Archive section.</p>
+                <input type="hidden" id="archiveDocId" />
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" onclick="confirmArchive()">
+                    <i class="bi bi-archive me-2"></i>Archive
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    const REFRESH_INTERVAL = 10000;
+    let allDocuments = [];
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        loadDocuments();
+        setInterval(loadDocuments, REFRESH_INTERVAL);
+        
+        // Filter and search listeners
+        document.getElementById('searchInput').addEventListener('input', filterDocuments);
+        document.getElementById('statusFilter').addEventListener('change', filterDocuments);
+        document.getElementById('sortBy').addEventListener('change', filterDocuments);
+    });
+    
+    async function loadDocuments() {
+        try {
+            const response = await fetch('/api/DocumentApi/my-documents');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    allDocuments = data.documents || [];
+                    filterDocuments();
+                }
+            }
+        } catch (e) {
+            console.error('Error loading documents:', e);
+            document.getElementById('documentsTable').innerHTML = `
+                <tr><td colspan="6" class="text-center text-danger py-4">Error loading documents</td></tr>
+            `;
+        }
+    }
+    
+    function filterDocuments() {
+        const search = document.getElementById('searchInput').value.toLowerCase();
+        const status = document.getElementById('statusFilter').value;
+        const sortBy = document.getElementById('sortBy').value;
+        
+        let filtered = allDocuments.filter(doc => {
+            const matchesSearch = !search || 
+                doc.title?.toLowerCase().includes(search) || 
+                doc.originalFileName?.toLowerCase().includes(search) ||
+                doc.documentType?.toLowerCase().includes(search);
+            const matchesStatus = !status || doc.status === status || 
+                (status === 'Pending' && !['Completed', 'Rejected'].includes(doc.status));
+            return matchesSearch && matchesStatus;
+        });
+        
+        // Sort
+        if (sortBy === 'newest') {
+            filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        } else if (sortBy === 'oldest') {
+            filtered.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        } else if (sortBy === 'name') {
+            filtered.sort((a, b) => (a.title || a.originalFileName || '').localeCompare(b.title || b.originalFileName || ''));
+        }
+        
+        renderDocuments(filtered);
+    }
+    
+    function renderDocuments(documents) {
+        const tbody = document.getElementById('documentsTable');
+        const countEl = document.getElementById('documentCount');
+        
+        countEl.textContent = `${documents.length} document${documents.length !== 1 ? 's' : ''}`;
+        
+        if (documents.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center py-5">
+                        <i class="bi bi-file-earmark-x display-4 text-muted"></i>
+                        <p class="text-muted mt-2">No documents found</p>
+                        <a href="/Document/Upload" class="btn btn-primary btn-sm">
+                            <i class="bi bi-cloud-upload"></i> Upload Document
+                        </a>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = documents.map(doc => `
+            <tr>
+                <td>
+                    <i class="bi ${getFileIcon(doc.fileExtension)}"></i>
+                    <span class="ms-2">${escapeHtml(doc.originalFileName || doc.title)}</span>
+                </td>
+                <td>${escapeHtml(doc.documentType || doc.category || '-')}</td>
+                <td>${escapeHtml(doc.folderName || 'General')}</td>
+                <td>${formatDate(doc.createdAt)}</td>
+                <td>${getStatusBadge(doc.status, doc.workflowStage)}</td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary" onclick="previewDocument(${doc.id}, '${escapeHtml(doc.fileExtension || '')}', '${escapeHtml(doc.originalFileName || doc.title)}')" title="Preview">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        ${doc.status === 'Completed' ? `
+                        <a href="/api/DocumentApi/${doc.id}/download" class="btn btn-outline-secondary" title="Download">
+                            <i class="bi bi-download"></i>
+                        </a>
+                        <button class="btn btn-outline-warning" onclick="showArchiveModal(${doc.id}, '${escapeHtml(doc.title || doc.originalFileName)}')" title="Archive">
+                            <i class="bi bi-archive"></i>
+                        </button>
+                        ` : ''}
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+    
+    function previewDocument(docId, fileExt, fileName) {
+        const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+        const pdfViewer = document.getElementById('pdfViewer');
+        const imageViewer = document.getElementById('imageViewer');
+        const unsupportedViewer = document.getElementById('unsupportedViewer');
+        
+        document.getElementById('previewModalTitle').innerHTML = `<i class="bi bi-file-earmark me-2"></i>${escapeHtml(fileName)}`;
+        
+        // Hide all viewers
+        pdfViewer.style.display = 'none';
+        imageViewer.style.display = 'none';
+        unsupportedViewer.style.display = 'none';
+        
+        const ext = (fileExt || '').toLowerCase();
+        
+        if (ext === '.pdf') {
+            pdfViewer.style.display = 'block';
+            document.getElementById('previewFrame').src = `/api/DocumentApi/${docId}/view#toolbar=0&navpanes=0`;
+        } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
+            imageViewer.style.display = 'flex';
+            document.getElementById('previewImage').src = `/api/DocumentApi/${docId}/view`;
+        } else {
+            unsupportedViewer.style.display = 'flex';
+            document.getElementById('unsupportedFileName').textContent = fileName;
+            document.getElementById('downloadLink').href = `/api/DocumentApi/${docId}/download`;
+        }
+        
+        modal.show();
+    }
+    
+    function showArchiveModal(docId, docName) {
+        document.getElementById('archiveDocId').value = docId;
+        document.getElementById('archiveDocName').textContent = docName;
+        new bootstrap.Modal(document.getElementById('archiveModal')).show();
+    }
+    
+    async function confirmArchive() {
+        const docId = document.getElementById('archiveDocId').value;
+        
+        try {
+            const response = await fetch(`/api/DocumentApi/${docId}/archive`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: 'Archived by client' })
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('archiveModal')).hide();
+                    loadDocuments();
+                    showToast('Document archived successfully', 'success');
+                } else {
+                    showToast(data.message || 'Failed to archive', 'danger');
+                }
+            } else {
+                showToast('Failed to archive document', 'danger');
+            }
+        } catch (e) {
+            console.error('Error archiving:', e);
+            showToast('Error archiving document', 'danger');
+        }
+    }
+    
+    function showToast(message, type) {
+        const toastHtml = `
+            <div class="toast align-items-center text-white bg-${type} border-0 show" role="alert">
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        `;
+        
+        let container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+            document.body.appendChild(container);
+        }
+        
+        container.innerHTML = toastHtml;
+        setTimeout(() => { container.innerHTML = ''; }, 3000);
+    }
+    
+    function getFileIcon(ext) {
+        const icons = {
+            '.pdf': 'bi-file-pdf text-danger',
+            '.doc': 'bi-file-word text-primary',
+            '.docx': 'bi-file-word text-primary',
+            '.xls': 'bi-file-excel text-success',
+            '.xlsx': 'bi-file-excel text-success',
+            '.jpg': 'bi-file-image text-info',
+            '.jpeg': 'bi-file-image text-info',
+            '.png': 'bi-file-image text-info'
+        };
+        return icons[ext?.toLowerCase()] || 'bi-file-earmark text-secondary';
+    }
+    
+    function getStatusBadge(status, workflowStage) {
+        if (status === 'Completed') return '<span class="badge bg-success">Approved</span>';
+        if (status === 'Rejected') return '<span class="badge bg-danger">Rejected</span>';
+        if (workflowStage === 'StaffReview') return '<span class="badge bg-info">Staff Review</span>';
+        if (workflowStage === 'AdminReview') return '<span class="badge bg-warning">Admin Review</span>';
+        return '<span class="badge bg-secondary">Pending</span>';
+    }
+    
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+}

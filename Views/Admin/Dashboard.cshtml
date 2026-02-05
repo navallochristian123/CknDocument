@@ -3,137 +3,434 @@
     Layout = "_AdminLayout";
 }
 
-<div class="row mb-4">
+@section Styles {
+<style>
+    .stat-icon-circle {
+        width: 52px;
+        height: 52px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+    .status-badge {
+        padding: 0.35em 0.75em;
+        border-radius: 50px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .status-badge.pending { background: #fff3cd; color: #856404; }
+    .status-badge.approved { background: #d4edda; color: #155724; }
+    .status-badge.rejected { background: #f8d7da; color: #721c24; }
+</style>
+}
+
+<div class="row mb-4 g-3">
     <div class="col-md-3">
-        <div class="card bg-primary text-white">
+        <div class="card border h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="mb-1">Total Documents</h6>
-                        <h2 class="mb-0">1,248</h2>
+                        <p class="text-muted mb-1 small">Total Documents</p>
+                        <h2 class="mb-0 fw-bold" id="statTotalDocs">
+                            <span class="spinner-border spinner-border-sm"></span>
+                        </h2>
                     </div>
-                    <i class="bi bi-file-earmark fs-1 opacity-50"></i>
+                    <div class="stat-icon-circle bg-primary-subtle">
+                        <i class="bi bi-file-earmark text-primary"></i>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-success text-white">
+        <div class="card border h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="mb-1">Active Users</h6>
-                        <h2 class="mb-0">35</h2>
+                        <p class="text-muted mb-1 small">Active Users</p>
+                        <h2 class="mb-0 fw-bold" id="statActiveUsers">
+                            <span class="spinner-border spinner-border-sm"></span>
+                        </h2>
                     </div>
-                    <i class="bi bi-people fs-1 opacity-50"></i>
+                    <div class="stat-icon-circle bg-success-subtle">
+                        <i class="bi bi-people text-success"></i>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-warning text-dark">
+        <div class="card border h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="mb-1">Pending Reviews</h6>
-                        <h2 class="mb-0">12</h2>
+                        <p class="text-muted mb-1 small">Pending Reviews</p>
+                        <h2 class="mb-0 fw-bold" id="statPending">
+                            <span class="spinner-border spinner-border-sm"></span>
+                        </h2>
                     </div>
-                    <i class="bi bi-hourglass-split fs-1 opacity-50"></i>
+                    <div class="stat-icon-circle bg-warning-subtle">
+                        <i class="bi bi-hourglass-split text-warning"></i>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-info text-white">
+        <div class="card border h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="mb-1">Expiring Soon</h6>
-                        <h2 class="mb-0">5</h2>
+                        <p class="text-muted mb-1 small">Expiring Soon</p>
+                        <h2 class="mb-0 fw-bold" id="statExpiring">
+                            <span class="spinner-border spinner-border-sm"></span>
+                        </h2>
                     </div>
-                    <i class="bi bi-clock fs-1 opacity-50"></i>
+                    <div class="stat-icon-circle bg-info-subtle">
+                        <i class="bi bi-clock text-info"></i>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" id="dashboardTabs">
+    <li class="nav-item">
+        <a class="nav-link active" href="#" data-tab="recent">
+            <i class="bi bi-clock-history me-2"></i>Recent Documents
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="#" data-tab="completed">
+            <i class="bi bi-check-circle me-2"></i>My Completed Reviews
+        </a>
+    </li>
+</ul>
+
 <div class="row">
     <div class="col-md-8">
-        <div class="card mb-4">
+        <!-- Recent Documents Tab -->
+        <div class="card mb-4" id="recentDocsCard">
             <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Recent Documents</h5>
-                <a href="#" class="btn btn-sm btn-outline-primary">View All</a>
+                <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Documents</h5>
+                <a href="/Document/Index" class="btn btn-sm btn-outline-primary">View All</a>
             </div>
             <div class="card-body p-0">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Document</th>
-                            <th>Type</th>
-                            <th>Uploaded By</th>
-                            <th>Date</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><i class="bi bi-file-pdf text-danger"></i> Contract_Smith.pdf</td>
-                            <td>Contract</td>
-                            <td>John Doe</td>
-                            <td>Today</td>
-                            <td><span class="badge bg-success">Approved</span></td>
-                        </tr>
-                        <tr>
-                            <td><i class="bi bi-file-word text-primary"></i> Brief_Case123.docx</td>
-                            <td>Legal Brief</td>
-                            <td>Jane Smith</td>
-                            <td>Yesterday</td>
-                            <td><span class="badge bg-warning">Pending</span></td>
-                        </tr>
-                        <tr>
-                            <td><i class="bi bi-file-pdf text-danger"></i> Affidavit_Wilson.pdf</td>
-                            <td>Affidavit</td>
-                            <td>Mike Johnson</td>
-                            <td>2 days ago</td>
-                            <td><span class="badge bg-info">In Review</span></td>
-                        </tr>
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Document</th>
+                                <th>Type</th>
+                                <th>Uploaded By</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentDocumentsTable">
+                            <tr>
+                                <td colspan="6" class="text-center py-4">
+                                    <div class="spinner-border text-primary"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Completed Reviews Tab (Hidden by default) -->
+        <div class="card mb-4 d-none" id="completedReviewsCard">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-check-circle me-2"></i>My Completed Reviews</h5>
+                <span class="badge bg-success" id="completedCount">0</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Document Title</th>
+                                <th>Client Name</th>
+                                <th>Date Completed</th>
+                                <th>Action Taken</th>
+                                <th>Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody id="completedReviewsTable">
+                            <tr>
+                                <td colspan="5" class="text-center py-4">
+                                    <div class="spinner-border text-primary"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
+    
     <div class="col-md-4">
         <div class="card mb-4">
             <div class="card-header bg-white">
-                <h5 class="mb-0">User Activity</h5>
+                <h5 class="mb-0"><i class="bi bi-lightning me-2"></i>Quick Actions</h5>
             </div>
             <div class="card-body">
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item px-0">
-                        <div class="d-flex align-items-center">
-                            <div class="bg-primary text-white rounded-circle p-2 me-3">
-                                <i class="bi bi-person"></i>
-                            </div>
-                            <div>
-                                <strong>John Doe</strong>
-                                <small class="d-block text-muted">Uploaded 3 documents</small>
-                            </div>
-                        </div>
-                    </li>
-                    <li class="list-group-item px-0">
-                        <div class="d-flex align-items-center">
-                            <div class="bg-success text-white rounded-circle p-2 me-3">
-                                <i class="bi bi-person"></i>
-                            </div>
-                            <div>
-                                <strong>Jane Smith</strong>
-                                <small class="d-block text-muted">Approved 5 reviews</small>
-                            </div>
-                        </div>
+                <a href="/Review/PendingReviews" class="btn btn-primary w-100 mb-2">
+                    <i class="bi bi-file-check"></i> Review Pending Documents
+                </a>
+                <a href="/Document/Index" class="btn btn-outline-primary w-100 mb-2">
+                    <i class="bi bi-file-earmark-text"></i> Browse All Documents
+                </a>
+                <a href="/User/Index" class="btn btn-outline-info w-100 mb-2">
+                    <i class="bi bi-people"></i> Manage Users
+                </a>
+                <a href="/Archive/Index" class="btn btn-outline-secondary w-100">
+                    <i class="bi bi-archive"></i> View Archives
+                </a>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-activity me-2"></i>Recent Activity</h5>
+                <small class="text-muted">Auto-updates</small>
+            </div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush" id="activityList">
+                    <li class="list-group-item text-center py-4">
+                        <div class="spinner-border spinner-border-sm text-primary"></div>
                     </li>
                 </ul>
             </div>
         </div>
     </div>
 </div>
+
+@section Scripts {
+<script>
+    const REFRESH_INTERVAL = 10000;
+    let currentTab = 'recent';
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        loadDashboardData();
+        setInterval(loadDashboardData, REFRESH_INTERVAL);
+        
+        // Tab navigation
+        document.querySelectorAll('#dashboardTabs .nav-link').forEach(tab => {
+            tab.addEventListener('click', function(e) {
+                e.preventDefault();
+                document.querySelectorAll('#dashboardTabs .nav-link').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                currentTab = this.dataset.tab;
+                switchTab(currentTab);
+            });
+        });
+    });
+    
+    function switchTab(tab) {
+        const recentCard = document.getElementById('recentDocsCard');
+        const completedCard = document.getElementById('completedReviewsCard');
+        
+        if (tab === 'recent') {
+            recentCard.classList.remove('d-none');
+            completedCard.classList.add('d-none');
+        } else {
+            recentCard.classList.add('d-none');
+            completedCard.classList.remove('d-none');
+            loadCompletedReviews();
+        }
+    }
+    
+    async function loadDashboardData() {
+        await Promise.all([
+            loadStats(),
+            loadRecentDocuments(),
+            loadActivity()
+        ]);
+        
+        if (currentTab === 'completed') {
+            await loadCompletedReviews();
+        }
+    }
+    
+    async function loadStats() {
+        try {
+            const response = await fetch('/api/DashboardApi/admin-stats');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('statTotalDocs').textContent = data.stats.totalDocuments;
+                    document.getElementById('statActiveUsers').textContent = data.stats.activeUsers;
+                    document.getElementById('statPending').textContent = data.stats.pendingReviews;
+                    document.getElementById('statExpiring').textContent = data.stats.expiringSoon;
+                }
+            }
+        } catch (e) { console.error('Error loading stats:', e); }
+    }
+    
+    async function loadRecentDocuments() {
+        const tbody = document.getElementById('recentDocumentsTable');
+        try {
+            const response = await fetch('/api/DashboardApi/admin-recent?take=8');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.documents.length > 0) {
+                    tbody.innerHTML = data.documents.map(doc => `
+                        <tr>
+                            <td>
+                                <i class="bi ${getFileIcon(doc.fileExtension)}"></i>
+                                <span class="ms-2">${escapeHtml(doc.originalFileName || doc.title)}</span>
+                            </td>
+                            <td>${escapeHtml(doc.documentType || '-')}</td>
+                            <td>${escapeHtml(doc.uploaderName || doc.clientName || '-')}</td>
+                            <td>${formatDate(doc.createdAt)}</td>
+                            <td>${getStatusBadge(doc.status, doc.workflowStage)}</td>
+                            <td>
+                                ${doc.workflowStage === 'AdminReview' ? 
+                                    `<a href="/Review/PendingReviews" class="btn btn-sm btn-primary">Review</a>` :
+                                    `<a href="/Document/Details/${doc.id}" class="btn btn-sm btn-outline-primary">View</a>`
+                                }
+                            </td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No recent documents</td></tr>';
+                }
+            }
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">Error loading documents</td></tr>';
+        }
+    }
+    
+    async function loadCompletedReviews() {
+        const tbody = document.getElementById('completedReviewsTable');
+        try {
+            const response = await fetch('/api/DashboardApi/admin-completed?take=20');
+            if (response.ok) {
+                const data = await response.json();
+                document.getElementById('completedCount').textContent = data.completed?.length || 0;
+                
+                if (data.success && data.completed.length > 0) {
+                    tbody.innerHTML = data.completed.map(r => `
+                        <tr>
+                            <td>
+                                <a href="/Document/Details/${r.documentId}" class="text-decoration-none">
+                                    ${escapeHtml(r.documentTitle || r.originalFileName)}
+                                </a>
+                            </td>
+                            <td>${escapeHtml(r.clientName || '-')}</td>
+                            <td>${formatDate(r.reviewedAt)}</td>
+                            <td>${getActionBadge(r.reviewStatus)}</td>
+                            <td><small class="text-muted">${escapeHtml(r.remarks || '-')}</small></td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No completed reviews yet</td></tr>';
+                }
+            }
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">Error loading completed reviews</td></tr>';
+        }
+    }
+    
+    async function loadActivity() {
+        const list = document.getElementById('activityList');
+        try {
+            const response = await fetch('/api/DashboardApi/admin-activity?take=5');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.activity.length > 0) {
+                    list.innerHTML = data.activity.map(a => `
+                        <li class="list-group-item px-3">
+                            <div class="d-flex align-items-center">
+                                <div class="${getActivityBg(a.action)} text-white rounded-circle p-2 me-3">
+                                    <i class="bi ${getActivityIcon(a.action)}"></i>
+                                </div>
+                                <div>
+                                    <strong>${escapeHtml(a.userName)}</strong>
+                                    <small class="d-block text-muted">${escapeHtml(a.action)} - ${formatTimeAgo(a.timestamp)}</small>
+                                </div>
+                            </div>
+                        </li>
+                    `).join('');
+                } else {
+                    list.innerHTML = '<li class="list-group-item text-center text-muted py-4">No recent activity</li>';
+                }
+            }
+        } catch (e) {
+            list.innerHTML = '<li class="list-group-item text-center text-danger py-4">Error loading activity</li>';
+        }
+    }
+    
+    function getFileIcon(ext) {
+        const icons = {
+            '.pdf': 'bi-file-pdf text-danger',
+            '.doc': 'bi-file-word text-primary',
+            '.docx': 'bi-file-word text-primary',
+            '.png': 'bi-file-image text-success',
+            '.jpg': 'bi-file-image text-success',
+            '.jpeg': 'bi-file-image text-success'
+        };
+        return icons[ext?.toLowerCase()] || 'bi-file-earmark text-secondary';
+    }
+    
+    function getStatusBadge(status, workflowStage) {
+        if (status === 'Completed') return '<span class="status-badge approved">Approved</span>';
+        if (status === 'Rejected') return '<span class="status-badge rejected">Rejected</span>';
+        if (workflowStage === 'AdminReview') return '<span class="status-badge pending">Needs Review</span>';
+        if (workflowStage === 'StaffReview') return '<span class="status-badge pending">Staff Review</span>';
+        return '<span class="status-badge pending">Pending</span>';
+    }
+    
+    function getActionBadge(status) {
+        if (status === 'Approved') return '<span class="status-badge approved"><i class="bi bi-check-circle me-1"></i>Approved</span>';
+        if (status === 'Rejected') return '<span class="status-badge rejected"><i class="bi bi-x-circle me-1"></i>Rejected</span>';
+        return '<span class="status-badge pending">' + (status || 'Unknown') + '</span>';
+    }
+    
+    function getActivityBg(action) {
+        if (action?.includes('Upload')) return 'bg-primary';
+        if (action?.includes('Approv')) return 'bg-success';
+        if (action?.includes('Reject')) return 'bg-danger';
+        return 'bg-info';
+    }
+    
+    function getActivityIcon(action) {
+        if (action?.includes('Upload')) return 'bi-upload';
+        if (action?.includes('Approv')) return 'bi-check';
+        if (action?.includes('Reject')) return 'bi-x';
+        return 'bi-activity';
+    }
+    
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+    
+    function formatTimeAgo(dateStr) {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        if (diffMins < 1) return 'Just now';
+        if (diffMins < 60) return diffMins + ' min ago';
+        const diffHours = Math.floor(diffMins / 60);
+        if (diffHours < 24) return diffHours + ' hour(s) ago';
+        return formatDate(dateStr);
+    }
+    
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+}

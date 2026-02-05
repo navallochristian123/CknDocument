@@ -1,86 +1,719 @@
 @{
-    ViewData["Title"] = "Retention Policies";
+    ViewData["Title"] = "Retention Management";
     Layout = "_AdminLayout";
+}
+
+@section Styles {
+<style>
+    .stat-icon-circle {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+    .status-badge {
+        padding: 0.35em 0.75em;
+        border-radius: 50px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .status-badge.active { background: #d4edda; color: #155724; }
+    .status-badge.expiring { background: #fff3cd; color: #856404; }
+    .status-badge.expired { background: #f8d7da; color: #721c24; }
+</style>
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h4 class="mb-0">Retention Policies</h4>
-        <p class="text-muted mb-0">Manage document retention and expiry</p>
+        <h4 class="mb-0">Retention Management</h4>
+        <p class="text-muted mb-0 small">Manage document retention policies and track document lifecycles</p>
     </div>
-    <a href="#" class="btn btn-primary">
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createPolicyModal">
         <i class="bi bi-plus-circle"></i> Create Policy
-    </a>
+    </button>
 </div>
 
-<div class="row mb-4">
-    <div class="col-md-4">
-        <div class="card bg-danger text-white">
+<!-- Stats Cards - Clean White Design -->
+<div class="row mb-4 g-3">
+    <div class="col-md-3">
+        <div class="card border">
             <div class="card-body">
-                <h6>Expiring This Month</h6>
-                <h2>5</h2>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Total Policies</p>
+                        <h3 class="mb-0 fw-bold" id="totalPolicies">-</h3>
+                    </div>
+                    <div class="stat-icon-circle bg-primary-subtle">
+                        <i class="bi bi-file-ruled text-primary"></i>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card bg-warning text-dark">
+    <div class="col-md-3">
+        <div class="card border">
             <div class="card-body">
-                <h6>Expiring in 90 Days</h6>
-                <h2>12</h2>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Under Retention</p>
+                        <h3 class="mb-0 fw-bold" id="totalRetention">-</h3>
+                    </div>
+                    <div class="stat-icon-circle bg-success-subtle">
+                        <i class="bi bi-clock-history text-success"></i>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card bg-info text-white">
+    <div class="col-md-3">
+        <div class="card border">
             <div class="card-body">
-                <h6>Active Policies</h6>
-                <h2>4</h2>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Expiring This Month</p>
+                        <h3 class="mb-0 fw-bold" id="expiringMonth">-</h3>
+                    </div>
+                    <div class="stat-icon-circle bg-warning-subtle">
+                        <i class="bi bi-exclamation-triangle text-warning"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Expired</p>
+                        <h3 class="mb-0 fw-bold" id="expiredCount">-</h3>
+                    </div>
+                    <div class="stat-icon-circle bg-danger-subtle">
+                        <i class="bi bi-archive text-danger"></i>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="card">
-    <div class="card-header bg-white">
-        <h5 class="mb-0">Retention Policies</h5>
+<!-- Retention Tabs -->
+<ul class="nav nav-tabs mb-4" id="retentionTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="years-tab" data-bs-toggle="tab" data-bs-target="#yearsTab" type="button" role="tab">
+            <i class="bi bi-calendar3 me-1"></i> Years to Retention
+            <span class="badge bg-success" id="yearsCount">0</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="months-tab" data-bs-toggle="tab" data-bs-target="#monthsTab" type="button" role="tab">
+            <i class="bi bi-calendar-month me-1"></i> Months to Retention
+            <span class="badge bg-warning text-dark" id="monthsCount">0</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="days-tab" data-bs-toggle="tab" data-bs-target="#daysTab" type="button" role="tab">
+            <i class="bi bi-calendar-day me-1"></i> Days Remaining
+            <span class="badge bg-danger" id="daysCount">0</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="policies-tab" data-bs-toggle="tab" data-bs-target="#policiesTab" type="button" role="tab">
+            <i class="bi bi-file-ruled me-1"></i> Policies
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="retentionTabContent">
+    <!-- Years Tab -->
+    <div class="tab-pane fade show active" id="yearsTab" role="tabpanel">
+        <div class="card border">
+            <div class="card-header bg-white border-bottom">
+                <i class="bi bi-calendar3 me-2 text-success"></i>Documents with More Than 1 Year Retention Remaining
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Document</th>
+                                <th>Type</th>
+                                <th>Client</th>
+                                <th>Start Date</th>
+                                <th>Expiry Date</th>
+                                <th>Time Remaining</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="yearsTableBody">
+                            <tr><td colspan="7" class="text-center py-4"><div class="spinner-border text-primary"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
-    <div class="card-body p-0">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Policy Name</th>
-                    <th>Retention Period</th>
-                    <th>Document Types</th>
-                    <th>Documents</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>Standard Contracts</td>
-                    <td>7 years</td>
-                    <td>Contracts, Agreements</td>
-                    <td>156</td>
-                    <td>
-                        <div class="btn-group btn-group-sm">
-                            <a href="#" class="btn btn-outline-primary"><i class="bi bi-eye"></i></a>
-                            <a href="#" class="btn btn-outline-secondary"><i class="bi bi-pencil"></i></a>
-                        </div>
-                    </td>
-                </tr>
-                <tr>
-                    <td>Legal Briefs</td>
-                    <td>10 years</td>
-                    <td>Briefs, Motions</td>
-                    <td>89</td>
-                    <td>
-                        <div class="btn-group btn-group-sm">
-                            <a href="#" class="btn btn-outline-primary"><i class="bi bi-eye"></i></a>
-                            <a href="#" class="btn btn-outline-secondary"><i class="bi bi-pencil"></i></a>
-                        </div>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+
+    <!-- Months Tab -->
+    <div class="tab-pane fade" id="monthsTab" role="tabpanel">
+        <div class="card border">
+            <div class="card-header bg-white border-bottom">
+                <i class="bi bi-calendar-month me-2 text-warning"></i>Documents with 1-12 Months Retention Remaining
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Document</th>
+                                <th>Type</th>
+                                <th>Client</th>
+                                <th>Start Date</th>
+                                <th>Expiry Date</th>
+                                <th>Time Remaining</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="monthsTableBody">
+                            <tr><td colspan="7" class="text-center py-4"><div class="spinner-border text-primary"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Days Tab -->
+    <div class="tab-pane fade" id="daysTab" role="tabpanel">
+        <div class="alert alert-light border-danger border-start border-4">
+            <i class="bi bi-exclamation-triangle me-2 text-danger"></i>
+            <strong>Attention Required!</strong> These documents have less than 365 days remaining before automatic archival.
+        </div>
+        <div class="card border">
+            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-calendar-day me-2 text-danger"></i>Documents with Less Than 365 Days Remaining</span>
+                <button class="btn btn-sm btn-outline-danger" onclick="processExpired()">
+                    <i class="bi bi-archive me-1"></i>Process Expired
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Document</th>
+                                <th>Type</th>
+                                <th>Client</th>
+                                <th>Start Date</th>
+                                <th>Expiry Date</th>
+                                <th>Days Left</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="daysTableBody">
+                            <tr><td colspan="7" class="text-center py-4"><div class="spinner-border text-primary"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Policies Tab -->
+    <div class="tab-pane fade" id="policiesTab" role="tabpanel">
+        <div class="card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-file-ruled me-2"></i>Retention Policies</span>
+                <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createPolicyModal">
+                    <i class="bi bi-plus me-1"></i>Add Policy
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Policy Name</th>
+                                <th>Document Type</th>
+                                <th>Retention Period</th>
+                                <th>Documents</th>
+                                <th>Default</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="policiesTableBody">
+                            <tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
+
+<!-- Create/Edit Policy Modal -->
+<div class="modal fade" id="createPolicyModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="policyModalTitle">Create Retention Policy</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="policyForm">
+                    <input type="hidden" id="policyId" value="">
+                    <div class="mb-3">
+                        <label class="form-label">Policy Name</label>
+                        <input type="text" class="form-control" id="policyName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Document Type</label>
+                        <select class="form-select" id="policyDocType">
+                            <option value="">All Types</option>
+                            <option value="Contract">Contract</option>
+                            <option value="Agreement">Agreement</option>
+                            <option value="Legal Brief">Legal Brief</option>
+                            <option value="Affidavit">Affidavit</option>
+                            <option value="Invoice">Invoice</option>
+                            <option value="Receipt">Receipt</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-4 mb-3">
+                            <label class="form-label">Years</label>
+                            <input type="number" class="form-control" id="policyYears" min="0" value="7">
+                        </div>
+                        <div class="col-4 mb-3">
+                            <label class="form-label">Months</label>
+                            <input type="number" class="form-control" id="policyMonths" min="0" max="11" value="0">
+                        </div>
+                        <div class="col-4 mb-3">
+                            <label class="form-label">Days</label>
+                            <input type="number" class="form-control" id="policyDays" min="0" max="30" value="0">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" id="policyDescription" rows="2"></textarea>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="policyIsDefault">
+                        <label class="form-check-label" for="policyIsDefault">
+                            Set as default for this document type
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="savePolicy()">Save Policy</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modify Retention Modal -->
+<div class="modal fade" id="modifyRetentionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Modify Retention Period</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="modifyRetentionForm">
+                    <input type="hidden" id="modifyDocId" value="">
+                    <div class="alert alert-info">
+                        <strong>Document:</strong> <span id="modifyDocTitle">-</span>
+                    </div>
+                    <div class="row">
+                        <div class="col-4 mb-3">
+                            <label class="form-label">Years</label>
+                            <input type="number" class="form-control" id="modifyYears" min="0">
+                        </div>
+                        <div class="col-4 mb-3">
+                            <label class="form-label">Months</label>
+                            <input type="number" class="form-control" id="modifyMonths" min="0" max="11">
+                        </div>
+                        <div class="col-4 mb-3">
+                            <label class="form-label">Days</label>
+                            <input type="number" class="form-control" id="modifyDays" min="0" max="30">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Reason for Modification</label>
+                        <textarea class="form-control" id="modifyReason" rows="2" required></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveModifiedRetention()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let yearsData = [], monthsData = [], daysData = [], policiesData = [];
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadStats();
+        loadRetentionDocuments();
+        loadPolicies();
+    });
+
+    async function loadStats() {
+        try {
+            const response = await fetch('/api/RetentionApi/stats');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('totalPolicies').textContent = data.stats.totalPolicies;
+                    document.getElementById('totalRetention').textContent = data.stats.totalDocumentsUnderRetention;
+                    document.getElementById('expiringMonth').textContent = data.stats.expiringThisMonth;
+                    document.getElementById('expiredCount').textContent = data.stats.expiredCount;
+                    
+                    document.getElementById('yearsCount').textContent = data.stats.yearsRemaining;
+                    document.getElementById('monthsCount').textContent = data.stats.monthsRemaining;
+                    document.getElementById('daysCount').textContent = data.stats.daysRemaining;
+                }
+            }
+        } catch (e) { console.error('Error loading stats:', e); }
+    }
+
+    async function loadRetentionDocuments() {
+        try {
+            const [yearsRes, monthsRes, daysRes] = await Promise.all([
+                fetch('/api/RetentionApi/documents?category=years'),
+                fetch('/api/RetentionApi/documents?category=months'),
+                fetch('/api/RetentionApi/documents?category=days')
+            ]);
+
+            if (yearsRes.ok) {
+                const data = await yearsRes.json();
+                yearsData = data.retentions || [];
+                renderYearsTable();
+            }
+            if (monthsRes.ok) {
+                const data = await monthsRes.json();
+                monthsData = data.retentions || [];
+                renderMonthsTable();
+            }
+            if (daysRes.ok) {
+                const data = await daysRes.json();
+                daysData = data.retentions || [];
+                renderDaysTable();
+            }
+        } catch (e) { console.error('Error loading retention documents:', e); }
+    }
+
+    async function loadPolicies() {
+        try {
+            const response = await fetch('/api/RetentionApi/policies');
+            if (response.ok) {
+                const data = await response.json();
+                policiesData = data.policies || [];
+                renderPoliciesTable();
+            }
+        } catch (e) { console.error('Error loading policies:', e); }
+    }
+
+    function renderYearsTable() {
+        const tbody = document.getElementById('yearsTableBody');
+        if (yearsData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No documents with more than 1 year remaining</td></tr>';
+            return;
+        }
+        tbody.innerHTML = yearsData.map(r => `
+            <tr>
+                <td>
+                    <i class="bi ${getFileIcon(r.fileExtension)} me-2"></i>
+                    <strong>${escapeHtml(r.documentTitle)}</strong>
+                    <br><small class="text-muted">${escapeHtml(r.originalFileName || '')}</small>
+                </td>
+                <td><span class="badge bg-secondary">${escapeHtml(r.documentType || 'Unknown')}</span></td>
+                <td>${escapeHtml(r.clientName || '-')}</td>
+                <td>${formatDate(r.retentionStartDate)}</td>
+                <td>${formatDate(r.expiryDate)}</td>
+                <td>
+                    <span class="text-success fw-bold">${Math.floor(r.daysRemaining / 365)} years</span>
+                    <br><small class="text-muted">${r.daysRemaining} days</small>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewDocument(${r.documentId})">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="showModifyModal(${r.documentId}, '${escapeHtml(r.documentTitle)}', ${r.retentionYears || 0}, ${r.retentionMonths || 0}, ${r.retentionDays || 0})">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function renderMonthsTable() {
+        const tbody = document.getElementById('monthsTableBody');
+        if (monthsData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No documents with 1-12 months remaining</td></tr>';
+            return;
+        }
+        tbody.innerHTML = monthsData.map(r => `
+            <tr>
+                <td>
+                    <i class="bi ${getFileIcon(r.fileExtension)} me-2"></i>
+                    <strong>${escapeHtml(r.documentTitle)}</strong>
+                </td>
+                <td><span class="badge bg-secondary">${escapeHtml(r.documentType || 'Unknown')}</span></td>
+                <td>${escapeHtml(r.clientName || '-')}</td>
+                <td>${formatDate(r.retentionStartDate)}</td>
+                <td>${formatDate(r.expiryDate)}</td>
+                <td>
+                    <span class="text-warning fw-bold">${Math.floor(r.daysRemaining / 30)} months</span>
+                    <br><small class="text-muted">${r.daysRemaining} days</small>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewDocument(${r.documentId})">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="showModifyModal(${r.documentId}, '${escapeHtml(r.documentTitle)}', ${r.retentionYears || 0}, ${r.retentionMonths || 0}, ${r.retentionDays || 0})">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function renderDaysTable() {
+        const tbody = document.getElementById('daysTableBody');
+        if (daysData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No documents with less than 365 days remaining</td></tr>';
+            return;
+        }
+        tbody.innerHTML = daysData.map(r => {
+            const urgencyClass = r.daysRemaining <= 30 ? 'text-danger' : r.daysRemaining <= 90 ? 'text-warning' : 'text-info';
+            return `
+                <tr class="${r.daysRemaining <= 0 ? 'table-danger' : ''}">
+                    <td>
+                        <i class="bi ${getFileIcon(r.fileExtension)} me-2"></i>
+                        <strong>${escapeHtml(r.documentTitle)}</strong>
+                    </td>
+                    <td><span class="badge bg-secondary">${escapeHtml(r.documentType || 'Unknown')}</span></td>
+                    <td>${escapeHtml(r.clientName || '-')}</td>
+                    <td>${formatDate(r.retentionStartDate)}</td>
+                    <td>${formatDate(r.expiryDate)}</td>
+                    <td>
+                        <span class="${urgencyClass} fw-bold">${r.daysRemaining <= 0 ? 'EXPIRED' : r.daysRemaining + ' days'}</span>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewDocument(${r.documentId})">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="showModifyModal(${r.documentId}, '${escapeHtml(r.documentTitle)}', ${r.retentionYears || 0}, ${r.retentionMonths || 0}, ${r.retentionDays || 0})">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function renderPoliciesTable() {
+        const tbody = document.getElementById('policiesTableBody');
+        if (policiesData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">No policies created yet</td></tr>';
+            return;
+        }
+        tbody.innerHTML = policiesData.map(p => `
+            <tr>
+                <td><strong>${escapeHtml(p.policyName)}</strong></td>
+                <td>${escapeHtml(p.documentType || 'All Types')}</td>
+                <td>${p.retentionYears} years, ${p.retentionMonths} months, ${p.retentionDays} days</td>
+                <td><span class="badge bg-info">${p.documentCount}</span></td>
+                <td>${p.isDefault ? '<span class="badge bg-success">Default</span>' : ''}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="editPolicy(${p.policyId})">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deletePolicy(${p.policyId})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function showModifyModal(docId, title, years, months, days) {
+        document.getElementById('modifyDocId').value = docId;
+        document.getElementById('modifyDocTitle').textContent = title;
+        document.getElementById('modifyYears').value = years;
+        document.getElementById('modifyMonths').value = months;
+        document.getElementById('modifyDays').value = days;
+        document.getElementById('modifyReason').value = '';
+        new bootstrap.Modal(document.getElementById('modifyRetentionModal')).show();
+    }
+
+    async function saveModifiedRetention() {
+        const docId = document.getElementById('modifyDocId').value;
+        const data = {
+            retentionYears: parseInt(document.getElementById('modifyYears').value) || 0,
+            retentionMonths: parseInt(document.getElementById('modifyMonths').value) || 0,
+            retentionDays: parseInt(document.getElementById('modifyDays').value) || 0,
+            reason: document.getElementById('modifyReason').value
+        };
+
+        try {
+            const response = await fetch(`/api/RetentionApi/document/${docId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            if (result.success) {
+                alert('Retention period modified successfully!');
+                bootstrap.Modal.getInstance(document.getElementById('modifyRetentionModal')).hide();
+                loadRetentionDocuments();
+                loadStats();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (e) {
+            alert('Error modifying retention');
+        }
+    }
+
+    async function savePolicy() {
+        const policyId = document.getElementById('policyId').value;
+        const data = {
+            policyName: document.getElementById('policyName').value,
+            documentType: document.getElementById('policyDocType').value || null,
+            retentionYears: parseInt(document.getElementById('policyYears').value) || 0,
+            retentionMonths: parseInt(document.getElementById('policyMonths').value) || 0,
+            retentionDays: parseInt(document.getElementById('policyDays').value) || 0,
+            description: document.getElementById('policyDescription').value,
+            isDefault: document.getElementById('policyIsDefault').checked
+        };
+
+        try {
+            const url = policyId ? `/api/RetentionApi/policies/${policyId}` : '/api/RetentionApi/policies';
+            const method = policyId ? 'PUT' : 'POST';
+            
+            const response = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            if (result.success) {
+                alert('Policy saved successfully!');
+                bootstrap.Modal.getInstance(document.getElementById('createPolicyModal')).hide();
+                loadPolicies();
+                loadStats();
+                resetPolicyForm();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (e) {
+            alert('Error saving policy');
+        }
+    }
+
+    async function editPolicy(policyId) {
+        try {
+            const response = await fetch(`/api/RetentionApi/policies/${policyId}`);
+            const data = await response.json();
+            if (data.success) {
+                const p = data.policy;
+                document.getElementById('policyId').value = p.policyId;
+                document.getElementById('policyModalTitle').textContent = 'Edit Retention Policy';
+                document.getElementById('policyName').value = p.policyName;
+                document.getElementById('policyDocType').value = p.documentType || '';
+                document.getElementById('policyYears').value = p.retentionYears || 0;
+                document.getElementById('policyMonths').value = p.retentionMonths || 0;
+                document.getElementById('policyDays').value = p.retentionDays || 0;
+                document.getElementById('policyDescription').value = p.description || '';
+                document.getElementById('policyIsDefault').checked = p.isDefault || false;
+                new bootstrap.Modal(document.getElementById('createPolicyModal')).show();
+            }
+        } catch (e) {
+            alert('Error loading policy');
+        }
+    }
+
+    async function deletePolicy(policyId) {
+        if (!confirm('Are you sure you want to delete this policy?')) return;
+        
+        try {
+            const response = await fetch(`/api/RetentionApi/policies/${policyId}`, { method: 'DELETE' });
+            const result = await response.json();
+            if (result.success) {
+                alert('Policy deleted!');
+                loadPolicies();
+                loadStats();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (e) {
+            alert('Error deleting policy');
+        }
+    }
+
+    async function processExpired() {
+        if (!confirm('This will archive all expired documents. Continue?')) return;
+        
+        try {
+            const response = await fetch('/api/RetentionApi/process-expired', { method: 'POST' });
+            const result = await response.json();
+            if (result.success) {
+                alert(`Processed ${result.archivedCount} expired documents!`);
+                loadRetentionDocuments();
+                loadStats();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (e) {
+            alert('Error processing expired documents');
+        }
+    }
+
+    function resetPolicyForm() {
+        document.getElementById('policyId').value = '';
+        document.getElementById('policyModalTitle').textContent = 'Create Retention Policy';
+        document.getElementById('policyForm').reset();
+        document.getElementById('policyYears').value = 7;
+    }
+
+    function viewDocument(docId) {
+        window.location.href = `/Admin/Document?id=${docId}`;
+    }
+
+    function getFileIcon(ext) {
+        const icons = {
+            '.pdf': 'bi-file-pdf text-danger',
+            '.doc': 'bi-file-word text-primary',
+            '.docx': 'bi-file-word text-primary'
+        };
+        return icons[ext?.toLowerCase()] || 'bi-file-earmark text-secondary';
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Reset form when modal closes
+    document.getElementById('createPolicyModal').addEventListener('hidden.bs.modal', resetPolicyForm);
+</script>
+}

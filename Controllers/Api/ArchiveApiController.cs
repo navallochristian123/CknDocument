@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CKNDocument.Data;
+using CKNDocument.Models.LawFirmDMS;
 using CKNDocument.Services;
 using System.Security.Claims;
 
@@ -48,13 +49,15 @@ public class ArchiveApiController : ControllerBase
                 .ThenInclude(d => d!.Uploader)
             .Include(a => a.Document)
                 .ThenInclude(d => d!.Folder)
-            .Where(a => a.Document != null && a.Document.FirmID == firmId);
+            .Include(a => a.ArchivedByUser)
+            .Include(a => a.RestoredByUser)
+            .Where(a => a.Document != null && a.Document.FirmID == firmId && a.IsRestored != true);
 
         // Filter by type
         switch (type?.ToLower())
         {
             case "archived":
-                query = query.Where(a => a.ArchiveType == "Manual" || a.ArchiveType == "Version");
+                query = query.Where(a => a.ArchiveType == "Manual" || a.ArchiveType == "Version" || a.ArchiveType == "Retention");
                 break;
             case "rejected":
                 query = query.Where(a => a.ArchiveType == "Rejected");
@@ -82,9 +85,12 @@ public class ArchiveApiController : ControllerBase
                 archiveType = a.ArchiveType,
                 archiveReason = a.Reason,
                 archivedAt = a.ArchivedDate,
-                archivedByName = (string?)null, // Simplified - no navigation for now
-                scheduledDeleteDate = a.OriginalRetentionDate, // Use retention date
-                versionNumber = a.VersionNumber
+                archivedByName = a.ArchivedByUser != null ? a.ArchivedByUser.FullName : null,
+                scheduledDeleteDate = a.OriginalRetentionDate,
+                versionNumber = a.VersionNumber,
+                isRestored = a.IsRestored,
+                restoredAt = a.RestoredAt,
+                restoredByName = a.RestoredByUser != null ? a.RestoredByUser.FullName : null
             })
             .ToListAsync();
 
@@ -104,7 +110,7 @@ public class ArchiveApiController : ControllerBase
         var archives = await _context.Archives
             .Include(a => a.Document)
                 .ThenInclude(d => d!.Folder)
-            .Where(a => a.Document != null && a.Document.FirmID == firmId && a.Document.UploadedBy == userId)
+            .Where(a => a.Document != null && a.Document.FirmID == firmId && a.Document.UploadedBy == userId && a.IsRestored != true)
             .OrderByDescending(a => a.ArchivedDate)
             .Select(a => new
             {
@@ -125,10 +131,72 @@ public class ArchiveApiController : ControllerBase
     }
 
     /// <summary>
+    /// Get archive details
+    /// </summary>
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetArchiveDetails(int id)
+    {
+        var firmId = GetFirmId();
+        var role = GetUserRole();
+        var userId = GetCurrentUserId();
+
+        var archive = await _context.Archives
+            .Include(a => a.Document)
+                .ThenInclude(d => d!.Uploader)
+            .Include(a => a.Document)
+                .ThenInclude(d => d!.Folder)
+            .Include(a => a.Document)
+                .ThenInclude(d => d!.Versions.OrderByDescending(v => v.VersionNumber))
+            .Include(a => a.ArchivedByUser)
+            .FirstOrDefaultAsync(a => a.ArchiveID == id && a.Document != null && a.Document.FirmID == firmId);
+
+        if (archive == null)
+            return NotFound(new { success = false, message = "Archive not found" });
+
+        // Check permissions for clients
+        if (role == "Client" && archive.Document?.UploadedBy != userId)
+            return Forbid();
+
+        return Ok(new
+        {
+            success = true,
+            archive = new
+            {
+                archiveId = archive.ArchiveID,
+                documentId = archive.DocumentID,
+                documentTitle = archive.Document?.Title,
+                documentDescription = archive.Document?.Description,
+                documentType = archive.Document?.DocumentType,
+                originalFileName = archive.Document?.OriginalFileName,
+                fileExtension = archive.Document?.FileExtension,
+                totalFileSize = archive.Document?.TotalFileSize,
+                clientName = archive.Document?.Uploader?.FullName,
+                clientEmail = archive.Document?.Uploader?.Email,
+                folderName = archive.Document?.Folder?.FolderName,
+                archiveType = archive.ArchiveType,
+                archiveReason = archive.Reason,
+                archivedAt = archive.ArchivedDate,
+                archivedByName = archive.ArchivedByUser?.FullName,
+                originalRetentionDate = archive.OriginalRetentionDate,
+                isRestored = archive.IsRestored,
+                restoredAt = archive.RestoredAt,
+                versions = archive.Document?.Versions.Select(v => new
+                {
+                    versionId = v.VersionId,
+                    versionNumber = v.VersionNumber,
+                    originalFileName = v.OriginalFileName,
+                    fileSize = v.FileSize,
+                    createdAt = v.CreatedAt
+                })
+            }
+        });
+    }
+
+    /// <summary>
     /// Restore an archived document
     /// </summary>
     [HttpPost("{id}/restore")]
-    public async Task<IActionResult> RestoreArchive(int id)
+    public async Task<IActionResult> RestoreArchive(int id, [FromBody] RestoreArchiveDto? dto = null)
     {
         var userId = GetCurrentUserId();
         var firmId = GetFirmId();
@@ -148,13 +216,41 @@ public class ArchiveApiController : ControllerBase
         if (archive.Document == null)
             return BadRequest(new { success = false, message = "Associated document not found" });
 
-        // Restore the document
-        archive.Document.Status = "Pending";
-        archive.Document.WorkflowStage = "ClientUpload";
+        // Restore the document to Approved status
+        archive.Document.Status = "Completed";
+        archive.Document.WorkflowStage = "Completed";
         archive.Document.UpdatedAt = DateTime.UtcNow;
 
-        // Remove the archive record
-        _context.Archives.Remove(archive);
+        // Mark archive as restored (keep record for audit)
+        archive.IsRestored = true;
+        archive.RestoredAt = DateTime.UtcNow;
+        archive.RestoredBy = userId;
+
+        // Reset retention if requested or by default
+        if (dto?.ResetRetention != false)
+        {
+            var existingRetention = await _context.DocumentRetentions
+                .FirstOrDefaultAsync(dr => dr.DocumentID == archive.DocumentID);
+
+            if (existingRetention != null)
+            {
+                // Reset retention with same policy
+                var startDate = DateTime.UtcNow;
+                existingRetention.RetentionStartDate = startDate;
+                existingRetention.ExpiryDate = startDate
+                    .AddYears(existingRetention.RetentionYears ?? 0)
+                    .AddMonths(existingRetention.RetentionMonths ?? 0)
+                    .AddDays(existingRetention.RetentionDays ?? 0);
+                existingRetention.IsArchived = false;
+                existingRetention.IsModified = true;
+                existingRetention.ModificationReason = "Reset on document restore";
+                existingRetention.ModifiedBy = userId;
+                existingRetention.ModifiedAt = DateTime.UtcNow;
+
+                archive.Document.RetentionExpiryDate = existingRetention.ExpiryDate;
+            }
+        }
+
         await _context.SaveChangesAsync();
 
         await _auditLogService.LogAsync(
@@ -166,7 +262,69 @@ public class ArchiveApiController : ControllerBase
             null,
             "ArchiveOperation");
 
-        return Ok(new { success = true, message = "Document restored successfully", documentId = archive.DocumentID });
+        return Ok(new { 
+            success = true, 
+            message = "Document restored successfully", 
+            documentId = archive.DocumentID,
+            newRetentionExpiry = archive.Document.RetentionExpiryDate
+        });
+    }
+
+    /// <summary>
+    /// Archive a rejected document
+    /// </summary>
+    [HttpPost("archive-rejected/{documentId}")]
+    [Authorize(Policy = "AdminOrStaff")]
+    public async Task<IActionResult> ArchiveRejectedDocument(int documentId, [FromBody] ArchiveReasonDto? dto = null)
+    {
+        var userId = GetCurrentUserId();
+        var firmId = GetFirmId();
+
+        var document = await _context.Documents
+            .FirstOrDefaultAsync(d => d.DocumentID == documentId && d.FirmID == firmId);
+
+        if (document == null)
+            return NotFound(new { success = false, message = "Document not found" });
+
+        if (document.Status != "Rejected")
+            return BadRequest(new { success = false, message = "Only rejected documents can be archived this way" });
+
+        // Check if already archived
+        var existingArchive = await _context.Archives
+            .FirstOrDefaultAsync(a => a.DocumentID == documentId && a.IsRestored != true);
+
+        if (existingArchive != null)
+            return BadRequest(new { success = false, message = "Document is already archived" });
+
+        var archive = new Archive
+        {
+            DocumentID = documentId,
+            ArchivedDate = DateTime.UtcNow,
+            Reason = dto?.Reason ?? "Rejected document archived",
+            ArchiveType = "Rejected",
+            ArchivedBy = userId,
+            IsRestored = false
+        };
+
+        _context.Archives.Add(archive);
+
+        // Update document status
+        document.WorkflowStage = "Archived";
+        document.Status = "Archived";
+        document.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        await _auditLogService.LogAsync(
+            "ArchiveRejected",
+            "Archive",
+            archive.ArchiveID,
+            $"Archived rejected document: {document.Title}",
+            null,
+            null,
+            "ArchiveOperation");
+
+        return Ok(new { success = true, message = "Rejected document archived", archiveId = archive.ArchiveID });
     }
 
     /// <summary>
@@ -207,6 +365,12 @@ public class ArchiveApiController : ControllerBase
             }
         }
 
+        // Delete related retention records
+        var retentionRecords = await _context.DocumentRetentions
+            .Where(dr => dr.DocumentID == archive.DocumentID)
+            .ToListAsync();
+        _context.DocumentRetentions.RemoveRange(retentionRecords);
+
         // Delete from database (cascade should handle related records)
         if (archive.Document != null)
         {
@@ -235,23 +399,44 @@ public class ArchiveApiController : ControllerBase
     public async Task<IActionResult> GetStats()
     {
         var firmId = GetFirmId();
+        var now = DateTime.UtcNow;
 
         var stats = new
         {
             totalArchived = await _context.Archives
-                .Where(a => a.Document != null && a.Document.FirmID == firmId && (a.ArchiveType == "Manual" || a.ArchiveType == "Version"))
+                .Where(a => a.Document != null && a.Document.FirmID == firmId && 
+                    (a.ArchiveType == "Manual" || a.ArchiveType == "Version" || a.ArchiveType == "Retention") &&
+                    a.IsRestored != true)
                 .CountAsync(),
             totalRejected = await _context.Archives
-                .Where(a => a.Document != null && a.Document.FirmID == firmId && a.ArchiveType == "Rejected")
+                .Where(a => a.Document != null && a.Document.FirmID == firmId && 
+                    a.ArchiveType == "Rejected" && a.IsRestored != true)
+                .CountAsync(),
+            totalRestored = await _context.Archives
+                .Where(a => a.Document != null && a.Document.FirmID == firmId && a.IsRestored == true)
                 .CountAsync(),
             pendingDeletion = await _context.Archives
-                .Where(a => a.Document != null && a.Document.FirmID == firmId && a.OriginalRetentionDate != null && a.OriginalRetentionDate <= DateTime.UtcNow.AddDays(30))
+                .Where(a => a.Document != null && a.Document.FirmID == firmId && 
+                    a.OriginalRetentionDate != null && a.OriginalRetentionDate <= now.AddDays(30) &&
+                    a.IsRestored != true)
                 .CountAsync(),
             archivedThisMonth = await _context.Archives
-                .Where(a => a.Document != null && a.Document.FirmID == firmId && a.ArchivedDate >= DateTime.UtcNow.AddDays(-30))
+                .Where(a => a.Document != null && a.Document.FirmID == firmId && 
+                    a.ArchivedDate >= now.AddDays(-30) && a.IsRestored != true)
                 .CountAsync()
         };
 
         return Ok(new { success = true, stats });
     }
+}
+
+// DTOs
+public class RestoreArchiveDto
+{
+    public bool? ResetRetention { get; set; } = true;
+}
+
+public class ArchiveReasonDto
+{
+    public string? Reason { get; set; }
 }

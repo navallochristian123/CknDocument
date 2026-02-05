@@ -17,7 +17,7 @@
         <nav class="sidebar" role="navigation" aria-label="Main navigation">
             <div class="sidebar-header">
                 <a asp-controller="Dashboard" asp-action="Index" class="sidebar-brand">
-                    <i class="bi bi-briefcase" aria-hidden="true"></i>
+                    <img src="/images/document%20logo.png" alt="Logo" style="width: 32px; height: 32px; object-fit: contain;" />
                     <span>Staff Portal</span>
                 </a>
             </div>
@@ -171,7 +171,7 @@
 
         async function loadNotificationBadge() {
             try {
-                const response = await fetch('/api/notification/unread-count');
+                const response = await fetch('/api/NotificationApi/unread-count');
                 if (response.ok) {
                     const data = await response.json();
                     const badge = document.getElementById('notificationBadge');
@@ -189,7 +189,7 @@
 
         async function loadNotifications() {
             try {
-                const response = await fetch('/api/notification/recent');
+                const response = await fetch('/api/NotificationApi/recent');
                 if (response.ok) {
                     const data = await response.json();
                     const listContainer = document.getElementById('notificationList');
@@ -267,7 +267,7 @@
 
         async function markAsRead(notificationId) {
             try {
-                await fetch(`/api/notification/${notificationId}/read`, { method: 'POST' });
+                await fetch(`/api/NotificationApi/${notificationId}/read`, { method: 'POST' });
                 loadNotificationBadge();
                 loadNotifications();
             } catch (error) {
@@ -277,7 +277,7 @@
 
         async function markAllAsRead() {
             try {
-                await fetch('/api/notification/read-all', { method: 'POST' });
+                await fetch('/api/NotificationApi/read-all', { method: 'POST' });
                 loadNotificationBadge();
                 loadNotifications();
             } catch (error) {

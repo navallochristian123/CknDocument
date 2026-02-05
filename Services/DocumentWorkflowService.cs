@@ -409,6 +409,10 @@ public class DocumentWorkflowService
         document.AdminReviewedAt = DateTime.UtcNow;
         document.ApprovedAt = DateTime.UtcNow;
         document.UpdatedAt = DateTime.UtcNow;
+
+        // Apply retention policy automatically
+        await ApplyRetentionOnApprovalAsync(document, adminId);
+
         await _context.SaveChangesAsync();
 
         // Notify client
@@ -446,6 +450,185 @@ public class DocumentWorkflowService
             "DocumentReview");
 
         return review;
+    }
+
+    /// <summary>
+    /// Apply retention policy when document is approved
+    /// </summary>
+    private async Task ApplyRetentionOnApprovalAsync(Document document, int approvedBy)
+    {
+        // Check if retention already exists
+        var existingRetention = await _context.DocumentRetentions
+            .FirstOrDefaultAsync(dr => dr.DocumentID == document.DocumentID);
+
+        if (existingRetention != null)
+            return; // Already has retention
+
+        // Find default policy for this document type
+        var defaultPolicy = await _context.RetentionPolicies
+            .FirstOrDefaultAsync(p => p.FirmId == document.FirmID && 
+                                      p.DocumentType == document.DocumentType && 
+                                      p.IsDefault == true && 
+                                      p.IsActive == true);
+
+        int retentionYears = 7; // Default 7 years
+        int retentionMonths = 0;
+        int retentionDays = 0;
+        int? policyId = null;
+
+        if (defaultPolicy != null)
+        {
+            retentionYears = defaultPolicy.RetentionYears ?? 7;
+            retentionMonths = defaultPolicy.RetentionMonths ?? 0;
+            retentionDays = defaultPolicy.RetentionDays ?? 0;
+            policyId = defaultPolicy.PolicyID;
+        }
+
+        var startDate = DateTime.UtcNow;
+        var expiryDate = startDate
+            .AddYears(retentionYears)
+            .AddMonths(retentionMonths)
+            .AddDays(retentionDays);
+
+        var retention = new DocumentRetention
+        {
+            DocumentID = document.DocumentID,
+            PolicyID = policyId,
+            FirmId = document.FirmID,
+            RetentionStartDate = startDate,
+            ExpiryDate = expiryDate,
+            RetentionYears = retentionYears,
+            RetentionMonths = retentionMonths,
+            RetentionDays = retentionDays,
+            IsArchived = false,
+            CreatedBy = approvedBy,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.DocumentRetentions.Add(retention);
+
+        // Update document with retention expiry
+        document.RetentionExpiryDate = expiryDate;
+
+        await _auditLogService.LogAsync(
+            "ApplyRetention",
+            "Document",
+            document.DocumentID,
+            $"Auto-applied retention to approved document: {document.Title}. Expiry: {expiryDate}",
+            null,
+            null,
+            "RetentionManagement");
+    }
+
+    /// <summary>
+    /// Admin approves document with custom retention
+    /// </summary>
+    public async Task<(DocumentReview review, DocumentRetention retention)> AdminApproveWithRetentionAsync(
+        int documentId, int adminId, string? remarks, int? policyId, int? retentionYears, int? retentionMonths, int? retentionDays)
+    {
+        var document = await _context.Documents
+            .Include(d => d.Uploader)
+            .FirstOrDefaultAsync(d => d.DocumentID == documentId);
+
+        if (document == null)
+            throw new InvalidOperationException("Document not found");
+
+        // Create review record
+        var review = new DocumentReview
+        {
+            DocumentId = documentId,
+            ReviewedBy = adminId,
+            ReviewStatus = STATUS_APPROVED,
+            Remarks = remarks,
+            ReviewedAt = DateTime.UtcNow,
+            ReviewerRole = "Admin",
+            IsChecklistComplete = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.DocumentReviews.Add(review);
+
+        // Update document
+        document.WorkflowStage = STAGE_COMPLETED;
+        document.Status = STATUS_COMPLETED;
+        document.AdminReviewedAt = DateTime.UtcNow;
+        document.ApprovedAt = DateTime.UtcNow;
+        document.UpdatedAt = DateTime.UtcNow;
+
+        // Apply custom retention
+        int years = retentionYears ?? 7;
+        int months = retentionMonths ?? 0;
+        int days = retentionDays ?? 0;
+
+        if (policyId.HasValue)
+        {
+            var policy = await _context.RetentionPolicies.FindAsync(policyId);
+            if (policy != null)
+            {
+                years = policy.RetentionYears ?? 7;
+                months = policy.RetentionMonths ?? 0;
+                days = policy.RetentionDays ?? 0;
+            }
+        }
+
+        var startDate = DateTime.UtcNow;
+        var expiryDate = startDate.AddYears(years).AddMonths(months).AddDays(days);
+
+        var retention = new DocumentRetention
+        {
+            DocumentID = documentId,
+            PolicyID = policyId,
+            FirmId = document.FirmID,
+            RetentionStartDate = startDate,
+            ExpiryDate = expiryDate,
+            RetentionYears = years,
+            RetentionMonths = months,
+            RetentionDays = days,
+            IsArchived = false,
+            CreatedBy = adminId,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.DocumentRetentions.Add(retention);
+        document.RetentionExpiryDate = expiryDate;
+
+        await _context.SaveChangesAsync();
+
+        // Notify client
+        if (document.UploadedBy.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.UploadedBy.Value,
+                "Document Approved",
+                $"Your document '{document.Title}' has been approved with a {years} year(s), {months} month(s) retention period.",
+                "AdminApproved",
+                documentId,
+                $"/Document/Details/{documentId}");
+        }
+
+        // Notify assigned staff
+        if (document.AssignedStaffId.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.AssignedStaffId.Value,
+                "Document Completed",
+                $"Document '{document.Title}' that you reviewed has been approved by admin.",
+                "AdminApproved",
+                documentId,
+                $"/Document/Details/{documentId}");
+        }
+
+        // Audit log
+        await _auditLogService.LogAsync(
+            "AdminApproveWithRetention",
+            "Document",
+            documentId,
+            $"Admin approved document with custom retention: {document.Title}. Expiry: {expiryDate}",
+            null,
+            null,
+            "DocumentReview");
+
+        return (review, retention);
     }
 
     /// <summary>

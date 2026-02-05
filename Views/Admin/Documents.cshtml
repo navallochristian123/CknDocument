@@ -3,94 +3,801 @@
     Layout = "_AdminLayout";
 }
 
+@section Styles {
+<style>
+    /* Clean stat card icon circles */
+    .stat-icon-circle {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+    
+    /* Status badges - only these should be colorful */
+    .status-badge {
+        padding: 0.35em 0.75em;
+        border-radius: 50px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .status-badge.pending { background: #fff3cd; color: #856404; }
+    .status-badge.approved { background: #d4edda; color: #155724; }
+    .status-badge.rejected { background: #f8d7da; color: #721c24; }
+    .status-badge.completed { background: #d1e7dd; color: #0f5132; }
+    .status-badge.uploaded { background: #e7f1ff; color: #0d6efd; }
+    .status-badge.in-review { background: #e2e3e5; color: #383d41; }
+    
+    /* Clean table styling */
+    .table-clean th {
+        font-weight: 600;
+        color: #495057;
+        border-bottom: 2px solid #dee2e6;
+        background: #fafafa;
+    }
+    .table-clean td {
+        vertical-align: middle;
+        color: #495057;
+    }
+    
+    /* Action buttons - outline style for minimal color */
+    .btn-action {
+        padding: 0.375rem 0.5rem;
+        border-radius: 6px;
+    }
+</style>
+}
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h4 class="mb-0">Documents</h4>
-        <p class="text-muted mb-0">Manage all documents</p>
+        <p class="text-muted mb-0 small">Manage all documents - <span id="documentCount">Loading...</span></p>
     </div>
-    <a href="#" class="btn btn-primary">
+    <a href="/Document/Upload" class="btn btn-primary">
         <i class="bi bi-cloud-upload"></i> Upload Document
     </a>
 </div>
 
+<!-- Stats Cards - Clean White Design -->
+<div class="row mb-4 g-3">
+    <div class="col-md-3">
+        <div class="card border">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Total Documents</p>
+                        <h3 class="mb-0 fw-bold" id="totalDocs">-</h3>
+                    </div>
+                    <div class="stat-icon-circle bg-primary-subtle">
+                        <i class="bi bi-files text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Pending Review</p>
+                        <h3 class="mb-0 fw-bold" id="pendingDocs">-</h3>
+                    </div>
+                    <div class="stat-icon-circle bg-warning-subtle">
+                        <i class="bi bi-hourglass-split text-warning"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Approved</p>
+                        <h3 class="mb-0 fw-bold" id="approvedDocs">-</h3>
+                    </div>
+                    <div class="stat-icon-circle bg-success-subtle">
+                        <i class="bi bi-check-circle text-success"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Under Retention</p>
+                        <h3 class="mb-0 fw-bold" id="retentionDocs">-</h3>
+                    </div>
+                    <div class="stat-icon-circle bg-info-subtle">
+                        <i class="bi bi-clock-history text-info"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="card">
     <div class="card-header bg-white">
-        <div class="row align-items-center">
-            <div class="col-md-4">
-                <input type="text" class="form-control" placeholder="Search documents...">
+        <div class="row align-items-center g-2">
+            <div class="col-md-3">
+                <input type="text" class="form-control" id="searchInput" placeholder="Search documents...">
             </div>
             <div class="col-md-2">
-                <select class="form-select">
+                <select class="form-select" id="typeFilter">
                     <option value="">All Types</option>
-                    <option>Contract</option>
-                    <option>Legal Brief</option>
-                    <option>Affidavit</option>
+                    <option value="Contract">Contract</option>
+                    <option value="Legal Brief">Legal Brief</option>
+                    <option value="Affidavit">Affidavit</option>
+                    <option value="Agreement">Agreement</option>
                 </select>
             </div>
             <div class="col-md-2">
-                <select class="form-select">
+                <select class="form-select" id="statusFilter">
                     <option value="">All Status</option>
-                    <option>Approved</option>
-                    <option>Pending</option>
-                    <option>Rejected</option>
+                    <option value="Pending">Pending Review</option>
+                    <option value="Completed">Approved</option>
+                    <option value="Rejected">Rejected</option>
                 </select>
             </div>
             <div class="col-md-2">
-                <select class="form-select">
+                <select class="form-select" id="folderFilter">
                     <option value="">All Folders</option>
-                    <option>Client A</option>
-                    <option>Client B</option>
                 </select>
+            </div>
+            <div class="col-md-3 text-end">
+                <button class="btn btn-outline-secondary" onclick="loadDocuments()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
             </div>
         </div>
     </div>
     <div class="card-body p-0">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Document Name</th>
-                    <th>Type</th>
-                    <th>Folder</th>
-                    <th>Uploaded By</th>
-                    <th>Date</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><i class="bi bi-file-pdf text-danger"></i> Contract_Smith.pdf</td>
-                    <td>Contract</td>
-                    <td>Client A</td>
-                    <td>John Doe</td>
-                    <td>Jan 20, 2024</td>
-                    <td><span class="badge bg-success">Approved</span></td>
-                    <td>
-                        <div class="btn-group btn-group-sm">
-                            <a href="#" class="btn btn-outline-primary"><i class="bi bi-eye"></i></a>
-                            <a href="#" class="btn btn-outline-secondary"><i class="bi bi-download"></i></a>
-                            <a href="#" class="btn btn-outline-info"><i class="bi bi-pencil"></i></a>
-                            <a href="#" class="btn btn-outline-danger"><i class="bi bi-trash"></i></a>
-                        </div>
-                    </td>
-                </tr>
-                <tr>
-                    <td><i class="bi bi-file-word text-primary"></i> Brief_Case123.docx</td>
-                    <td>Legal Brief</td>
-                    <td>Client B</td>
-                    <td>Jane Smith</td>
-                    <td>Jan 18, 2024</td>
-                    <td><span class="badge bg-warning">Pending</span></td>
-                    <td>
-                        <div class="btn-group btn-group-sm">
-                            <a href="#" class="btn btn-outline-primary"><i class="bi bi-eye"></i></a>
-                            <a href="#" class="btn btn-outline-secondary"><i class="bi bi-download"></i></a>
-                            <a href="#" class="btn btn-outline-info"><i class="bi bi-pencil"></i></a>
-                            <a href="#" class="btn btn-outline-danger"><i class="bi bi-trash"></i></a>
-                        </div>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Document Name</th>
+                        <th>Type</th>
+                        <th>Folder</th>
+                        <th>Uploaded By</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="documentsTable">
+                    <tr>
+                        <td colspan="7" class="text-center py-4">
+                            <div class="spinner-border text-primary"></div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="previewModalTitle">Document Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="pdfViewer" style="display:none; height: 75vh;">
+                    <iframe id="previewFrame" src="" style="width:100%; height:100%; border:none;"></iframe>
+                </div>
+                <div id="imageViewer" style="display:none; height: 75vh; justify-content:center; align-items:center; background:#f5f5f5;">
+                    <img id="previewImage" src="" style="max-width:100%; max-height:100%; object-fit:contain;" />
+                </div>
+                <div id="unsupportedViewer" style="display:none; height: 50vh; justify-content:center; align-items:center; flex-direction:column;">
+                    <i class="bi bi-file-earmark display-1 text-muted"></i>
+                    <p class="mt-3 text-muted" id="unsupportedFileName"></p>
+                    <p class="text-muted">Preview not available for this file type</p>
+                    <a id="downloadLink" href="#" class="btn btn-primary">
+                        <i class="bi bi-download me-2"></i>Download File
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Document Details Modal with Retention Info -->
+<div class="modal fade" id="documentDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title"><i class="bi bi-file-earmark-text me-2 text-primary"></i>Document Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="documentDetailsContent">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a href="#" id="downloadDocBtn" class="btn btn-primary">
+                    <i class="bi bi-download me-2"></i>Download
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Document Modal -->
+<div class="modal fade" id="rejectDocumentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title"><i class="bi bi-x-circle me-2 text-danger"></i>Reject Document</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>You are about to reject: <strong id="rejectDocTitle">-</strong></p>
+                <div class="mb-3">
+                    <label class="form-label">Reason for Rejection <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="rejectRemarks" rows="4" placeholder="Please provide the reason for rejection..." required></textarea>
+                </div>
+                <input type="hidden" id="rejectDocId">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmRejectBtn">
+                    <i class="bi bi-x-circle me-1"></i>Reject Document
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Approve Confirmation Modal -->
+<div class="modal fade" id="quickApproveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title"><i class="bi bi-check-circle me-2 text-success"></i>Quick Approve</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>You are about to approve: <strong id="quickApproveDocTitle">-</strong></p>
+                <div class="alert alert-light border">
+                    <i class="bi bi-info-circle me-2 text-primary"></i>
+                    This will approve the document with default retention settings. For a detailed review with checklist, use the "Full Review" option.
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Admin Remarks (Optional)</label>
+                    <textarea class="form-control" id="quickApproveRemarks" rows="2" placeholder="Optional remarks..."></textarea>
+                </div>
+                <input type="hidden" id="quickApproveDocId">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="confirmQuickApproveBtn">
+                    <i class="bi bi-check-circle me-1"></i>Approve Document
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Retention Info Modal (after approval) -->
+<div class="modal fade" id="retentionInfoModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title"><i class="bi bi-check-circle me-2 text-success"></i>Document Approved</h5>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4">
+                    <i class="bi bi-shield-check display-1 text-success"></i>
+                    <h4 class="mt-3">Document Successfully Approved!</h4>
+                </div>
+                
+                <div class="card border">
+                    <div class="card-body">
+                        <h6 class="card-title"><i class="bi bi-clock-history me-2 text-primary"></i>Retention Information</h6>
+                        <hr>
+                        <div class="row">
+                            <div class="col-6">
+                                <p class="mb-2"><strong>Document:</strong></p>
+                                <p class="text-muted" id="retentionDocTitle">-</p>
+                            </div>
+                            <div class="col-6">
+                                <p class="mb-2"><strong>Document Type:</strong></p>
+                                <p class="text-muted" id="retentionDocType">-</p>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-6">
+                                <p class="mb-2"><strong>Retention Start:</strong></p>
+                                <p class="text-muted" id="retentionStartDate">-</p>
+                            </div>
+                            <div class="col-6">
+                                <p class="mb-2"><strong>Retention Expiry:</strong></p>
+                                <p class="text-muted" id="retentionExpiryDate">-</p>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12">
+                                <p class="mb-2"><strong>Retention Period:</strong></p>
+                                <p class="text-primary fs-5" id="retentionPeriodText">-</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-info-circle me-2"></i>
+                    The document will be automatically archived when the retention period expires. You can view and manage retention in the <a href="/Admin/Retention">Retention</a> section.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success" data-bs-dismiss="modal">
+                    <i class="bi bi-check me-2"></i>OK, Got it!
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    const REFRESH_INTERVAL = 10000;
+    let allDocuments = [];
+    let folders = [];
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        loadDocuments();
+        loadFolders();
+        loadStats();
+        setInterval(loadDocuments, REFRESH_INTERVAL);
+        
+        document.getElementById('searchInput').addEventListener('input', filterDocuments);
+        document.getElementById('typeFilter').addEventListener('change', filterDocuments);
+        document.getElementById('statusFilter').addEventListener('change', filterDocuments);
+        document.getElementById('folderFilter').addEventListener('change', filterDocuments);
+    });
+
+    async function loadStats() {
+        try {
+            const [archiveRes, retentionRes] = await Promise.all([
+                fetch('/api/ArchiveApi/stats'),
+                fetch('/api/RetentionApi/stats')
+            ]);
+            
+            if (retentionRes.ok) {
+                const retentionData = await retentionRes.json();
+                if (retentionData.success) {
+                    document.getElementById('retentionDocs').textContent = retentionData.stats.totalDocumentsUnderRetention;
+                }
+            }
+        } catch (e) { console.error('Error loading stats:', e); }
+    }
+    
+    async function loadFolders() {
+        try {
+            const response = await fetch('/api/FolderApi');
+            if (response.ok) {
+                const data = await response.json();
+                folders = data.folders || [];
+                const select = document.getElementById('folderFilter');
+                select.innerHTML = '<option value="">All Folders</option>' + 
+                    folders.map(f => `<option value="${f.folderId}">${escapeHtml(f.folderName)}</option>`).join('');
+            }
+        } catch (e) { console.error('Error loading folders:', e); }
+    }
+    
+    async function loadDocuments() {
+        try {
+            const response = await fetch('/api/DashboardApi/admin-recent?take=100');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    allDocuments = data.documents || [];
+                    filterDocuments();
+                    
+                    // Update stats
+                    document.getElementById('totalDocs').textContent = allDocuments.length;
+                    document.getElementById('pendingDocs').textContent = allDocuments.filter(d => 
+                        d.workflowStage === 'AdminReview' || d.workflowStage === 'PendingAdminReview' || 
+                        d.workflowStage === 'StaffReview' || d.workflowStage === 'PendingStaffReview').length;
+                    document.getElementById('approvedDocs').textContent = allDocuments.filter(d => d.status === 'Completed').length;
+                }
+            }
+        } catch (e) {
+            console.error('Error loading documents:', e);
+            document.getElementById('documentsTable').innerHTML = `
+                <tr><td colspan="7" class="text-center text-danger py-4">Error loading documents</td></tr>
+            `;
+        }
+    }
+    
+    function filterDocuments() {
+        const search = document.getElementById('searchInput').value.toLowerCase();
+        const type = document.getElementById('typeFilter').value;
+        const status = document.getElementById('statusFilter').value;
+        const folderId = document.getElementById('folderFilter').value;
+        
+        let filtered = allDocuments.filter(doc => {
+            const matchesSearch = !search || 
+                doc.title?.toLowerCase().includes(search) || 
+                doc.originalFileName?.toLowerCase().includes(search) ||
+                doc.uploadedBy?.toLowerCase().includes(search);
+            const matchesType = !type || doc.documentType === type;
+            const matchesStatus = !status || doc.status === status || 
+                (status === 'Pending' && !['Completed', 'Rejected'].includes(doc.status));
+            const matchesFolder = !folderId || doc.folderId == folderId;
+            return matchesSearch && matchesType && matchesStatus && matchesFolder;
+        });
+        
+        renderDocuments(filtered);
+    }
+    
+    function renderDocuments(documents) {
+        const tbody = document.getElementById('documentsTable');
+        document.getElementById('documentCount').textContent = `${documents.length} document${documents.length !== 1 ? 's' : ''}`;
+        
+        if (documents.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center py-5">
+                        <i class="bi bi-file-earmark-x display-4 text-muted"></i>
+                        <p class="text-muted mt-2">No documents found</p>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = documents.map(doc => `
+            <tr>
+                <td>
+                    <i class="bi ${getFileIcon(doc.fileExtension)}"></i>
+                    <span class="ms-2">${escapeHtml(doc.originalFileName || doc.title)}</span>
+                </td>
+                <td>${escapeHtml(doc.documentType || '-')}</td>
+                <td>${escapeHtml(doc.folderName || 'General')}</td>
+                <td>${escapeHtml(doc.uploadedBy || '-')}</td>
+                <td>${formatDate(doc.createdAt)}</td>
+                <td>${getStatusBadge(doc.status, doc.workflowStage)}</td>
+                <td>
+                    <div class="d-flex gap-1">
+                        ${doc.workflowStage === 'AdminReview' || doc.workflowStage === 'PendingAdminReview' || doc.workflowStage === 'PendingStaffReview' || doc.workflowStage === 'StaffReview' ? `
+                        <a href="/Review/Review?documentId=${doc.id}" class="btn btn-sm btn-primary" title="Review Document">
+                            <i class="bi bi-clipboard-check me-1"></i>Review
+                        </a>
+                        ` : `
+                        <button class="btn btn-sm btn-outline-secondary" onclick="viewDocumentDetails(${doc.id})" title="View Details">
+                            <i class="bi bi-eye me-1"></i>View
+                        </button>
+                        `}
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="More">
+                                <i class="bi bi-three-dots"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="#" onclick="viewDocumentDetails(${doc.id}); return false;"><i class="bi bi-info-circle me-2"></i>View Details</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="previewDocument(${doc.id}, '${escapeHtml(doc.fileExtension || '')}', '${escapeHtml(doc.originalFileName || doc.title)}'); return false;"><i class="bi bi-file-earmark me-2"></i>Preview</a></li>
+                                <li><a class="dropdown-item" href="/api/DocumentApi/${doc.id}/download"><i class="bi bi-download me-2"></i>Download</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    async function viewDocumentDetails(docId) {
+        const modal = new bootstrap.Modal(document.getElementById('documentDetailsModal'));
+        const content = document.getElementById('documentDetailsContent');
+        
+        content.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
+        modal.show();
+        
+        try {
+            const [docRes, retentionRes] = await Promise.all([
+                fetch(`/api/DocumentApi/${docId}`),
+                fetch(`/api/RetentionApi/document/${docId}`)
+            ]);
+            
+            const docData = await docRes.json();
+            let retentionData = null;
+            
+            if (retentionRes.ok) {
+                const rData = await retentionRes.json();
+                if (rData.success) retentionData = rData.retention;
+            }
+            
+            if (docData.success) {
+                const doc = docData.document;
+                document.getElementById('downloadDocBtn').href = `/api/DocumentApi/${docId}/download`;
+                
+                content.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h5 class="mb-3"><i class="bi bi-file-earmark-text me-2"></i>${escapeHtml(doc.title)}</h5>
+                            
+                            <table class="table table-sm">
+                                <tr><th width="35%">File Name</th><td>${escapeHtml(doc.originalFileName)}</td></tr>
+                                <tr><th>Document Type</th><td><span class="badge bg-secondary">${escapeHtml(doc.documentType || 'Unknown')}</span></td></tr>
+                                <tr><th>Category</th><td>${escapeHtml(doc.category || '-')}</td></tr>
+                                <tr><th>Status</th><td>${getStatusBadge(doc.status, doc.workflowStage)}</td></tr>
+                                <tr><th>Folder</th><td>${escapeHtml(doc.folder?.name || 'General')}</td></tr>
+                                <tr><th>Uploaded By</th><td>${escapeHtml(doc.uploader?.name || '-')}</td></tr>
+                                <tr><th>Upload Date</th><td>${formatDate(doc.createdAt)}</td></tr>
+                                <tr><th>File Size</th><td>${formatFileSize(doc.totalFileSize)}</td></tr>
+                                <tr><th>Current Version</th><td>v${doc.currentVersion || 1}</td></tr>
+                                ${doc.description ? `<tr><th>Description</th><td>${escapeHtml(doc.description)}</td></tr>` : ''}
+                            </table>
+                        </div>
+                        <div class="col-md-4">
+                            ${doc.status === 'Completed' && retentionData ? `
+                            <div class="card bg-light mb-3">
+                                <div class="card-header bg-info text-white">
+                                    <i class="bi bi-clock-history me-2"></i>Retention Info
+                                </div>
+                                <div class="card-body">
+                                    <p class="mb-2"><strong>Start Date:</strong><br>${formatDate(retentionData.retentionStartDate)}</p>
+                                    <p class="mb-2"><strong>Expiry Date:</strong><br>${formatDate(retentionData.expiryDate)}</p>
+                                    <p class="mb-2"><strong>Period:</strong><br>
+                                        ${retentionData.retentionYears || 0} years, 
+                                        ${retentionData.retentionMonths || 0} months, 
+                                        ${retentionData.retentionDays || 0} days
+                                    </p>
+                                    <hr>
+                                    <p class="mb-0"><strong>Time Remaining:</strong></p>
+                                    <p class="text-primary fs-5 mb-0">
+                                        ${retentionData.timeRemaining?.years || 0}y 
+                                        ${retentionData.timeRemaining?.months || 0}m 
+                                        ${retentionData.timeRemaining?.days || 0}d
+                                    </p>
+                                    <small class="text-muted">(${retentionData.totalDaysRemaining} days total)</small>
+                                </div>
+                            </div>
+                            ` : doc.status === 'Completed' ? `
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                No retention policy applied
+                            </div>
+                            ` : ''}
+                            
+                            ${doc.reviews && doc.reviews.length > 0 ? `
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="bi bi-chat-dots me-2"></i>Review History
+                                </div>
+                                <div class="card-body p-2" style="max-height: 200px; overflow-y: auto;">
+                                    ${doc.reviews.slice(0, 5).map(r => `
+                                        <div class="border-bottom pb-2 mb-2">
+                                            <small>
+                                                <span class="badge ${r.reviewStatus === 'Approved' ? 'bg-success' : 'bg-danger'}">${r.reviewStatus}</span>
+                                                by <strong>${escapeHtml(r.reviewer)}</strong> (${r.reviewerRole})
+                                                <br>${formatDate(r.reviewedAt)}
+                                                ${r.remarks ? `<br><em class="text-muted">"${escapeHtml(r.remarks)}"</em>` : ''}
+                                            </small>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            } else {
+                content.innerHTML = '<div class="alert alert-danger">Failed to load document details</div>';
+            }
+        } catch (e) {
+            console.error('Error loading document details:', e);
+            content.innerHTML = '<div class="alert alert-danger">Error loading document details</div>';
+        }
+    }
+
+    function showRetentionInfoModal(docTitle, docType, retention) {
+        document.getElementById('retentionDocTitle').textContent = docTitle;
+        document.getElementById('retentionDocType').textContent = docType || 'Unknown';
+        document.getElementById('retentionStartDate').textContent = formatDate(retention.startDate);
+        document.getElementById('retentionExpiryDate').textContent = formatDate(retention.expiryDate);
+        document.getElementById('retentionPeriodText').textContent = 
+            `${retention.retentionYears || 0} year(s), ${retention.retentionMonths || 0} month(s), ${retention.retentionDays || 0} day(s)`;
+        
+        new bootstrap.Modal(document.getElementById('retentionInfoModal')).show();
+    }
+    
+    function previewDocument(docId, fileExt, fileName) {
+        const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+        const pdfViewer = document.getElementById('pdfViewer');
+        const imageViewer = document.getElementById('imageViewer');
+        const unsupportedViewer = document.getElementById('unsupportedViewer');
+        
+        document.getElementById('previewModalTitle').innerHTML = `<i class="bi bi-file-earmark me-2"></i>${escapeHtml(fileName)}`;
+        
+        pdfViewer.style.display = 'none';
+        imageViewer.style.display = 'none';
+        unsupportedViewer.style.display = 'none';
+        
+        const ext = (fileExt || '').toLowerCase();
+        
+        if (ext === '.pdf') {
+            pdfViewer.style.display = 'block';
+            document.getElementById('previewFrame').src = `/api/DocumentApi/${docId}/view#toolbar=0&navpanes=0`;
+        } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
+            imageViewer.style.display = 'flex';
+            document.getElementById('previewImage').src = `/api/DocumentApi/${docId}/view`;
+        } else {
+            unsupportedViewer.style.display = 'flex';
+            document.getElementById('unsupportedFileName').textContent = fileName;
+            document.getElementById('downloadLink').href = `/api/DocumentApi/${docId}/download`;
+        }
+        
+        modal.show();
+    }
+    
+    function getFileIcon(ext) {
+        const icons = {
+            '.pdf': 'bi-file-pdf text-danger',
+            '.doc': 'bi-file-word text-primary',
+            '.docx': 'bi-file-word text-primary',
+            '.xls': 'bi-file-excel text-success',
+            '.xlsx': 'bi-file-excel text-success',
+            '.jpg': 'bi-file-image text-info',
+            '.jpeg': 'bi-file-image text-info',
+            '.png': 'bi-file-image text-info'
+        };
+        return icons[ext?.toLowerCase()] || 'bi-file-earmark text-secondary';
+    }
+    
+    function getStatusBadge(status, workflowStage) {
+        if (status === 'Completed') return '<span class="status-badge completed">Approved</span>';
+        if (status === 'Rejected') return '<span class="status-badge rejected">Rejected</span>';
+        if (workflowStage === 'AdminReview' || workflowStage === 'PendingAdminReview') return '<span class="status-badge pending">Pending Admin Review</span>';
+        if (workflowStage === 'StaffReview' || workflowStage === 'PendingStaffReview') return '<span class="status-badge in-review">Staff Review</span>';
+        if (workflowStage === 'ClientUpload') return '<span class="status-badge uploaded">Pending Review</span>';
+        return '<span class="status-badge pending">Pending</span>';
+    }
+    
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function formatFileSize(bytes) {
+        if (!bytes) return '-';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+    
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Quick Approve Functions
+    function quickApprove(docId, docTitle) {
+        document.getElementById('quickApproveDocId').value = docId;
+        document.getElementById('quickApproveDocTitle').textContent = docTitle;
+        document.getElementById('quickApproveRemarks').value = '';
+        new bootstrap.Modal(document.getElementById('quickApproveModal')).show();
+    }
+
+    document.getElementById('confirmQuickApproveBtn').addEventListener('click', async function() {
+        const docId = document.getElementById('quickApproveDocId').value;
+        const remarks = document.getElementById('quickApproveRemarks').value;
+
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Approving...';
+
+        try {
+            const response = await fetch(`/api/ReviewApi/${docId}/admin-approve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ remarks: remarks })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('quickApproveModal')).hide();
+                
+                // Show retention info
+                if (data.retention) {
+                    showRetentionInfoModal(document.getElementById('quickApproveDocTitle').textContent, '-', data.retention);
+                } else {
+                    alert('Document approved successfully!');
+                    loadDocuments();
+                }
+            } else {
+                alert('Error: ' + (data.message || 'Failed to approve'));
+            }
+        } catch (error) {
+            console.error('Error approving:', error);
+            alert('Error approving document');
+        }
+
+        this.disabled = false;
+        this.innerHTML = '<i class="bi bi-check-circle me-1"></i>Approve Document';
+    });
+
+    // Reject Functions
+    function showRejectModal(docId, docTitle) {
+        document.getElementById('rejectDocId').value = docId;
+        document.getElementById('rejectDocTitle').textContent = docTitle;
+        document.getElementById('rejectRemarks').value = '';
+        new bootstrap.Modal(document.getElementById('rejectDocumentModal')).show();
+    }
+
+    document.getElementById('confirmRejectBtn').addEventListener('click', async function() {
+        const docId = document.getElementById('rejectDocId').value;
+        const remarks = document.getElementById('rejectRemarks').value;
+
+        if (!remarks.trim()) {
+            alert('Please provide a reason for rejection');
+            document.getElementById('rejectRemarks').focus();
+            return;
+        }
+
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Rejecting...';
+
+        try {
+            const response = await fetch(`/api/ReviewApi/${docId}/admin-reject`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ remarks: remarks })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('rejectDocumentModal')).hide();
+                alert('Document rejected.');
+                loadDocuments();
+            } else {
+                alert('Error: ' + (data.message || 'Failed to reject'));
+            }
+        } catch (error) {
+            console.error('Error rejecting:', error);
+            alert('Error rejecting document');
+        }
+
+        this.disabled = false;
+        this.innerHTML = '<i class="bi bi-x-circle me-1"></i>Reject Document';
+    });
+
+    function showRetentionInfoModal(title, docType, retention) {
+        document.getElementById('retentionDocTitle').textContent = title;
+        document.getElementById('retentionDocType').textContent = docType || '-';
+        document.getElementById('retentionStartDate').textContent = formatDate(retention.startDate);
+        document.getElementById('retentionExpiryDate').textContent = formatDate(retention.expiryDate);
+        
+        let period = [];
+        if (retention.retentionYears > 0) period.push(`${retention.retentionYears} year(s)`);
+        if (retention.retentionMonths > 0) period.push(`${retention.retentionMonths} month(s)`);
+        if (retention.retentionDays > 0) period.push(`${retention.retentionDays} day(s)`);
+        document.getElementById('retentionPeriodText').textContent = period.join(', ') || '7 years (default)';
+        
+        const modal = new bootstrap.Modal(document.getElementById('retentionInfoModal'));
+        modal.show();
+        
+        document.getElementById('retentionInfoModal').addEventListener('hidden.bs.modal', function() {
+            loadDocuments();
+        }, { once: true });
+    }
+</script>
+}

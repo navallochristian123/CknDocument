@@ -228,6 +228,7 @@ public class DocumentApiController : ControllerBase
         var document = await _context.Documents
             .Include(d => d.Uploader)
             .Include(d => d.Folder)
+                .ThenInclude(f => f!.Client)
             .Include(d => d.AssignedStaff)
             .Include(d => d.AssignedAdmin)
             .Include(d => d.Versions.OrderByDescending(v => v.VersionNumber))
@@ -262,7 +263,9 @@ public class DocumentApiController : ControllerBase
                 isDuplicate = document.IsDuplicate,
                 currentRemarks = document.CurrentRemarks,
                 uploader = new { id = document.Uploader?.UserID, name = document.Uploader?.FullName },
-                folder = document.Folder != null ? new { id = document.Folder.FolderId, name = document.Folder.FolderName } : null,
+                uploaderName = document.Uploader?.FullName,
+                clientName = document.Folder?.Client?.FullName ?? document.Uploader?.FullName,
+                folder = document.Folder != null ? new { id = document.Folder.FolderId, name = document.Folder.FolderName, clientName = document.Folder.Client?.FullName } : null,
                 assignedStaff = document.AssignedStaff != null ? new { id = document.AssignedStaff.UserID, name = document.AssignedStaff.FullName } : null,
                 assignedAdmin = document.AssignedAdmin != null ? new { id = document.AssignedAdmin.UserID, name = document.AssignedAdmin.FullName } : null,
                 createdAt = document.CreatedAt,
@@ -403,25 +406,37 @@ public class DocumentApiController : ControllerBase
     /// Archive document (Client can archive their own)
     /// </summary>
     [HttpPost("{id}/archive")]
-    public async Task<IActionResult> ArchiveDocument(int id, [FromBody] ArchiveDocumentDto dto)
+    public async Task<IActionResult> ArchiveDocument(int id, [FromBody] ArchiveDocumentDto? dto = null)
     {
-        var userId = GetCurrentUserId();
-        var firmId = GetFirmId();
-        var role = GetUserRole();
+        try
+        {
+            var userId = GetCurrentUserId();
+            var firmId = GetFirmId();
+            var role = GetUserRole();
 
-        var document = await _context.Documents
-            .FirstOrDefaultAsync(d => d.DocumentID == id && d.FirmID == firmId);
+            var document = await _context.Documents
+                .FirstOrDefaultAsync(d => d.DocumentID == id && d.FirmID == firmId);
 
-        if (document == null)
-            return NotFound(new { success = false, message = "Document not found" });
+            if (document == null)
+                return NotFound(new { success = false, message = "Document not found" });
 
-        // Check permissions
-        if (role == "Client" && document.UploadedBy != userId)
-            return Forbid();
+            // Check permissions
+            if (role == "Client" && document.UploadedBy != userId)
+                return StatusCode(403, new { success = false, message = "You don't have permission to archive this document" });
 
-        var archive = await _workflowService.ArchiveDocumentAsync(id, userId, dto.Reason ?? "Archived by user", "Manual");
+            // Only completed documents can be archived by clients
+            if (role == "Client" && document.Status != "Completed")
+                return BadRequest(new { success = false, message = "Only completed documents can be archived" });
 
-        return Ok(new { success = true, message = "Document archived successfully", archiveId = archive.ArchiveID });
+            var archive = await _workflowService.ArchiveDocumentAsync(id, userId, dto?.Reason ?? "Archived by user", "Manual");
+
+            return Ok(new { success = true, message = "Document archived successfully", archiveId = archive.ArchiveID });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error archiving document {Id}", id);
+            return StatusCode(500, new { success = false, message = "An error occurred while archiving the document" });
+        }
     }
 
     /// <summary>

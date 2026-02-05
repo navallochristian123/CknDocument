@@ -1,0 +1,573 @@
+@{
+    ViewData["Title"] = "Review Document";
+    Layout = "_StaffLayout";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/Review">Reviews</a></li>
+                <li class="breadcrumb-item active">Review Document</li>
+            </ol>
+        </nav>
+        <h4 class="mb-0 mt-2">Staff Document Review</h4>
+    </div>
+    <a href="/Review" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Reviews
+    </a>
+</div>
+
+<div class="row">
+    <!-- Left Column - Document Info & Preview -->
+    <div class="col-lg-5">
+        <!-- Document Information -->
+        <div class="card mb-3">
+            <div class="card-header bg-primary text-white">
+                <h6 class="mb-0"><i class="bi bi-file-earmark-text me-2"></i>Document Information</h6>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-3" id="loadingDoc">
+                    <div class="spinner-border text-primary"></div>
+                </div>
+                <div id="documentInfo" style="display: none;">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Title:</dt>
+                        <dd class="col-sm-8" id="docTitle">-</dd>
+                        <dt class="col-sm-4">Type:</dt>
+                        <dd class="col-sm-8"><span class="badge bg-secondary" id="docType">-</span></dd>
+                        <dt class="col-sm-4">Category:</dt>
+                        <dd class="col-sm-8" id="docCategory">-</dd>
+                        <dt class="col-sm-4">File:</dt>
+                        <dd class="col-sm-8" id="docFileName">-</dd>
+                        <dt class="col-sm-4">Size:</dt>
+                        <dd class="col-sm-8" id="docFileSize">-</dd>
+                        <dt class="col-sm-4">Status:</dt>
+                        <dd class="col-sm-8"><span class="badge" id="docStatus">-</span></dd>
+                        <dt class="col-sm-4">Submitted:</dt>
+                        <dd class="col-sm-8" id="docSubmittedDate">-</dd>
+                        <dt class="col-sm-4">By:</dt>
+                        <dd class="col-sm-8" id="docSubmitter">-</dd>
+                        <dt class="col-sm-4">Client:</dt>
+                        <dd class="col-sm-8" id="docClient">-</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <!-- Document Actions -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <a href="#" class="btn btn-outline-primary w-100 mb-2" id="btnViewDoc" target="_blank">
+                    <i class="bi bi-eye"></i> View / Preview Document
+                </a>
+                <a href="#" class="btn btn-outline-secondary w-100" id="btnDownloadDoc">
+                    <i class="bi bi-download"></i> Download Document
+                </a>
+            </div>
+        </div>
+
+        <!-- Version History -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>Version History</h6>
+            </div>
+            <div class="card-body p-0" style="max-height: 250px; overflow-y: auto;">
+                <ul class="list-group list-group-flush" id="versionsList">
+                    <li class="list-group-item text-center text-muted">Loading...</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column - Staff Checklist & Decision -->
+    <div class="col-lg-7">
+        <!-- Staff Review Checklist -->
+        <div class="card mb-3">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0"><i class="bi bi-list-check me-2"></i>Review Checklist</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Complete the checklist items below before making your decision. Required items must be checked.
+                </p>
+                <div id="checklistContainer">
+                    <div class="text-center py-3">
+                        <div class="spinner-border text-primary"></div>
+                        <p class="text-muted mt-2">Loading checklist...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Staff Decision -->
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0"><i class="bi bi-person-check me-2"></i>Staff Review Decision</h6>
+            </div>
+            <div class="card-body">
+                <input type="hidden" id="documentId">
+                
+                <!-- Checklist Summary -->
+                <div class="alert alert-light mb-3" id="checklistSummary">
+                    <div class="d-flex justify-content-between">
+                        <span>Checklist Progress:</span>
+                        <span id="checklistProgress">0 / 0 completed</span>
+                    </div>
+                    <div class="progress mt-2" style="height: 10px;">
+                        <div class="progress-bar" id="checklistProgressBar" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- Staff Remarks -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Review Remarks <span class="text-muted">(Required for Rejection)</span></label>
+                    <textarea class="form-control" id="staffRemarks" rows="3" placeholder="Enter your review remarks or notes..."></textarea>
+                </div>
+
+                <!-- Internal Notes (visible only to staff/admin) -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Internal Notes <span class="text-muted">(Optional - Admin only)</span></label>
+                    <textarea class="form-control" id="internalNotes" rows="2" placeholder="Notes for admin review..."></textarea>
+                </div>
+
+                <!-- Decision Buttons -->
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <button type="button" class="btn btn-success btn-lg w-100" id="btnApprove" disabled>
+                            <i class="bi bi-check-circle me-1"></i>Approve
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="button" class="btn btn-warning btn-lg w-100" id="btnRequestChanges">
+                            <i class="bi bi-arrow-repeat me-1"></i>Changes
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="button" class="btn btn-danger btn-lg w-100" id="btnReject">
+                            <i class="bi bi-x-circle me-1"></i>Reject
+                        </button>
+                    </div>
+                </div>
+
+                <div class="alert alert-info mt-3 mb-0 small">
+                    <i class="bi bi-lightbulb me-1"></i>
+                    <strong>Tip:</strong> Approved documents will be forwarded to Admin for final approval.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Request Changes Modal -->
+<div class="modal fade" id="requestChangesModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="bi bi-arrow-repeat me-2"></i>Request Changes</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Please specify what changes are required:</p>
+                <div class="mb-3">
+                    <label class="form-label">Required Changes</label>
+                    <textarea class="form-control" id="changesRequired" rows="4" placeholder="Describe what changes need to be made..." required></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" id="confirmRequestChangesBtn">
+                    <i class="bi bi-arrow-repeat me-1"></i>Request Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Rejection Confirmation Modal -->
+<div class="modal fade" id="rejectConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-x-circle me-2"></i>Confirm Rejection</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to reject this document?</p>
+                <div class="alert alert-warning">
+                    <strong>Reason:</strong>
+                    <p class="mb-0" id="rejectReasonPreview">-</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmRejectBtn">
+                    <i class="bi bi-x-circle me-1"></i>Confirm Rejection
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let documentData = null;
+    let checklistItems = [];
+    let checklistResults = {};
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const docId = urlParams.get('documentId') || getDocIdFromPath();
+        
+        if (docId) {
+            document.getElementById('documentId').value = docId;
+            loadDocument(docId);
+            loadChecklist(docId);
+        } else {
+            showError('No document ID provided');
+        }
+
+        document.getElementById('btnApprove').addEventListener('click', approveDocument);
+        document.getElementById('btnRequestChanges').addEventListener('click', showRequestChangesModal);
+        document.getElementById('btnReject').addEventListener('click', showRejectConfirm);
+        document.getElementById('confirmRequestChangesBtn').addEventListener('click', requestChanges);
+        document.getElementById('confirmRejectBtn').addEventListener('click', rejectDocument);
+    });
+
+    function getDocIdFromPath() {
+        const pathParts = window.location.pathname.split('/');
+        const reviewIndex = pathParts.findIndex(p => p.toLowerCase() === 'review');
+        if (reviewIndex !== -1 && pathParts.length > reviewIndex + 1) {
+            return pathParts[reviewIndex + 1];
+        }
+        return null;
+    }
+
+    async function loadDocument(docId) {
+        try {
+            const response = await fetch(`/api/DocumentApi/${docId}`);
+            const data = await response.json();
+
+            if (data.success) {
+                documentData = data.document;
+                displayDocumentInfo(documentData);
+                loadVersions(docId);
+            } else {
+                showError(data.message || 'Failed to load document');
+            }
+        } catch (error) {
+            console.error('Error loading document:', error);
+            showError('Error loading document');
+        }
+    }
+
+    function displayDocumentInfo(doc) {
+        document.getElementById('loadingDoc').style.display = 'none';
+        document.getElementById('documentInfo').style.display = 'block';
+
+        document.getElementById('docTitle').textContent = doc.title || doc.originalFileName || '-';
+        document.getElementById('docType').textContent = doc.documentType || 'General';
+        document.getElementById('docCategory').textContent = doc.category || '-';
+        document.getElementById('docFileName').textContent = doc.originalFileName || '-';
+        document.getElementById('docFileSize').textContent = formatFileSize(doc.fileSize);
+        
+        const statusBadge = document.getElementById('docStatus');
+        statusBadge.textContent = doc.status || 'Unknown';
+        statusBadge.className = 'badge ' + getStatusBadgeClass(doc.status);
+
+        document.getElementById('docSubmittedDate').textContent = formatDate(doc.createdAt);
+        document.getElementById('docSubmitter').textContent = doc.uploaderName || '-';
+        document.getElementById('docClient').textContent = doc.clientName || '-';
+
+        document.getElementById('btnViewDoc').href = `/api/DocumentApi/${doc.id}/preview`;
+        document.getElementById('btnDownloadDoc').href = `/api/DocumentApi/${doc.id}/download`;
+    }
+
+    async function loadVersions(docId) {
+        try {
+            const response = await fetch(`/api/DocumentApi/${docId}/versions`);
+            const data = await response.json();
+
+            const list = document.getElementById('versionsList');
+            if (data.success && data.versions?.length > 0) {
+                list.innerHTML = data.versions.map((v, i) => `
+                    <li class="list-group-item ${i === 0 ? 'bg-light' : ''}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>v${v.versionNumber}</strong>
+                                ${i === 0 ? '<span class="badge bg-primary ms-2">Current</span>' : ''}
+                                <br>
+                                <small class="text-muted">${formatDate(v.createdAt)}</small>
+                            </div>
+                            <a href="/api/DocumentApi/${docId}/download?versionId=${v.versionId}" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-download"></i>
+                            </a>
+                        </div>
+                    </li>
+                `).join('');
+            } else {
+                list.innerHTML = '<li class="list-group-item text-muted">No versions found</li>';
+            }
+        } catch (error) {
+            console.error('Error loading versions:', error);
+        }
+    }
+
+    async function loadChecklist(docId) {
+        try {
+            const docResponse = await fetch(`/api/DocumentApi/${docId}`);
+            const docData = await docResponse.json();
+            const docType = docData.document?.documentType || '';
+
+            const response = await fetch(`/api/ReviewApi/checklist-items?documentType=${encodeURIComponent(docType)}`);
+            const data = await response.json();
+
+            const container = document.getElementById('checklistContainer');
+
+            if (data.success && data.items?.length > 0) {
+                checklistItems = data.items;
+                renderChecklist();
+            } else {
+                checklistItems = [
+                    { checklistItemId: -1, itemName: 'Document is complete and readable', isRequired: true },
+                    { checklistItemId: -2, itemName: 'All required fields are filled', isRequired: true },
+                    { checklistItemId: -3, itemName: 'Document format is acceptable', isRequired: false },
+                    { checklistItemId: -4, itemName: 'No obvious errors or issues', isRequired: true }
+                ];
+                renderChecklist();
+            }
+        } catch (error) {
+            console.error('Error loading checklist:', error);
+            document.getElementById('checklistContainer').innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Could not load checklist. You can still review the document.
+                </div>
+            `;
+            document.getElementById('btnApprove').disabled = false;
+        }
+    }
+
+    function renderChecklist() {
+        const container = document.getElementById('checklistContainer');
+        
+        container.innerHTML = checklistItems.map(item => `
+            <div class="form-check mb-3 p-3 border rounded ${item.isRequired ? 'border-info' : ''}">
+                <input class="form-check-input" type="checkbox" id="checklist_${item.checklistItemId}" 
+                       onchange="updateChecklistResult(${item.checklistItemId}, this.checked)"
+                       style="transform: scale(1.3);">
+                <label class="form-check-label ms-2" for="checklist_${item.checklistItemId}">
+                    <strong>${escapeHtml(item.itemName)}</strong>
+                    ${item.isRequired ? '<span class="badge bg-info ms-2">Required</span>' : ''}
+                    ${item.description ? `<br><small class="text-muted">${escapeHtml(item.description)}</small>` : ''}
+                </label>
+                <div class="mt-2">
+                    <input type="text" class="form-control form-control-sm" 
+                           id="checklist_remarks_${item.checklistItemId}"
+                           placeholder="Optional remarks for this item..."
+                           onchange="updateChecklistRemarks(${item.checklistItemId}, this.value)">
+                </div>
+            </div>
+        `).join('');
+
+        updateChecklistProgress();
+    }
+
+    function updateChecklistResult(itemId, isPassed) {
+        checklistResults[itemId] = {
+            ...checklistResults[itemId],
+            isPassed: isPassed
+        };
+        updateChecklistProgress();
+    }
+
+    function updateChecklistRemarks(itemId, remarks) {
+        checklistResults[itemId] = {
+            ...checklistResults[itemId],
+            remarks: remarks
+        };
+    }
+
+    function updateChecklistProgress() {
+        const totalRequired = checklistItems.filter(i => i.isRequired).length;
+        const completedRequired = checklistItems.filter(i => i.isRequired && checklistResults[i.checklistItemId]?.isPassed).length;
+        const totalChecked = Object.values(checklistResults).filter(r => r.isPassed).length;
+        const total = checklistItems.length;
+
+        const progress = total > 0 ? Math.round((totalChecked / total) * 100) : 0;
+        
+        document.getElementById('checklistProgress').textContent = `${totalChecked} / ${total} completed`;
+        document.getElementById('checklistProgressBar').style.width = `${progress}%`;
+        document.getElementById('checklistProgressBar').className = `progress-bar ${completedRequired >= totalRequired ? 'bg-success' : 'bg-info'}`;
+
+        document.getElementById('btnApprove').disabled = completedRequired < totalRequired;
+    }
+
+    async function approveDocument() {
+        const docId = document.getElementById('documentId').value;
+        const remarks = document.getElementById('staffRemarks').value;
+        const internalNotes = document.getElementById('internalNotes').value;
+
+        const checklistData = checklistItems.map(item => ({
+            checklistItemId: item.checklistItemId,
+            isPassed: checklistResults[item.checklistItemId]?.isPassed || false,
+            remarks: checklistResults[item.checklistItemId]?.remarks || ''
+        }));
+
+        try {
+            document.getElementById('btnApprove').disabled = true;
+            document.getElementById('btnApprove').innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+
+            const response = await fetch(`/api/ReviewApi/${docId}/approve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    remarks: remarks,
+                    internalNotes: internalNotes,
+                    checklistResults: checklistData
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                alert('Document approved and forwarded to Admin for final review.');
+                window.location.href = '/Review';
+            } else {
+                alert('Error: ' + (data.message || 'Failed to approve document'));
+                document.getElementById('btnApprove').disabled = false;
+                document.getElementById('btnApprove').innerHTML = '<i class="bi bi-check-circle me-1"></i>Approve';
+            }
+        } catch (error) {
+            console.error('Error approving document:', error);
+            alert('Error approving document');
+            document.getElementById('btnApprove').disabled = false;
+            document.getElementById('btnApprove').innerHTML = '<i class="bi bi-check-circle me-1"></i>Approve';
+        }
+    }
+
+    function showRequestChangesModal() {
+        document.getElementById('changesRequired').value = document.getElementById('staffRemarks').value;
+        new bootstrap.Modal(document.getElementById('requestChangesModal')).show();
+    }
+
+    async function requestChanges() {
+        const docId = document.getElementById('documentId').value;
+        const changes = document.getElementById('changesRequired').value;
+
+        if (!changes.trim()) {
+            alert('Please specify what changes are required.');
+            return;
+        }
+
+        try {
+            document.getElementById('confirmRequestChangesBtn').disabled = true;
+            document.getElementById('confirmRequestChangesBtn').innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+
+            const response = await fetch(`/api/ReviewApi/${docId}/request-changes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ remarks: changes })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                alert('Changes requested. The submitter will be notified.');
+                window.location.href = '/Review';
+            } else {
+                alert('Error: ' + (data.message || 'Failed to request changes'));
+            }
+        } catch (error) {
+            alert('Error requesting changes');
+        } finally {
+            document.getElementById('confirmRequestChangesBtn').disabled = false;
+            document.getElementById('confirmRequestChangesBtn').innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Request Changes';
+        }
+    }
+
+    function showRejectConfirm() {
+        const remarks = document.getElementById('staffRemarks').value;
+        if (!remarks.trim()) {
+            alert('Please provide remarks explaining the rejection reason.');
+            document.getElementById('staffRemarks').focus();
+            return;
+        }
+        document.getElementById('rejectReasonPreview').textContent = remarks;
+        new bootstrap.Modal(document.getElementById('rejectConfirmModal')).show();
+    }
+
+    async function rejectDocument() {
+        const docId = document.getElementById('documentId').value;
+        const remarks = document.getElementById('staffRemarks').value;
+
+        try {
+            document.getElementById('confirmRejectBtn').disabled = true;
+            document.getElementById('confirmRejectBtn').innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+
+            const response = await fetch(`/api/ReviewApi/${docId}/reject`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ remarks: remarks })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                alert('Document rejected.');
+                window.location.href = '/Review';
+            } else {
+                alert('Error: ' + (data.message || 'Failed to reject document'));
+            }
+        } catch (error) {
+            alert('Error rejecting document');
+        } finally {
+            document.getElementById('confirmRejectBtn').disabled = false;
+            document.getElementById('confirmRejectBtn').innerHTML = '<i class="bi bi-x-circle me-1"></i>Confirm Rejection';
+        }
+    }
+
+    function showError(message) {
+        document.getElementById('loadingDoc').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle me-2"></i>${escapeHtml(message)}
+            </div>
+        `;
+    }
+
+    function getStatusBadgeClass(status) {
+        const classes = {
+            'Pending': 'bg-warning text-dark',
+            'PendingReview': 'bg-warning text-dark',
+            'UnderReview': 'bg-info',
+            'StaffApproved': 'bg-primary',
+            'Approved': 'bg-success',
+            'Rejected': 'bg-danger'
+        };
+        return classes[status] || 'bg-secondary';
+    }
+
+    function formatFileSize(bytes) {
+        if (!bytes) return '-';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        return new Date(dateStr).toLocaleDateString('en-US', { 
+            year: 'numeric', month: 'short', day: 'numeric', 
+            hour: '2-digit', minute: '2-digit' 
+        });
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+}
