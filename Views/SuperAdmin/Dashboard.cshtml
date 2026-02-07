@@ -5,9 +5,23 @@
 
 @section Styles {
 <style>
-    .stat-card { border-radius: 12px; border: none; box-shadow: 0 2px 12px rgba(0,0,0,0.06); transition: transform 0.15s; }
-    .stat-card:hover { transform: translateY(-2px); }
-    .stat-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; }
+    .stat-card {
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        transition: box-shadow 0.2s;
+    }
+    .stat-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+    .stat-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+    }
     .chart-container { position: relative; height: 320px; }
     .period-btn.active { background: #0d6efd !important; color: #fff !important; }
     .tax-badge { font-size: 0.7rem; padding: 3px 8px; border-radius: 12px; }
@@ -16,52 +30,49 @@
     .mini-stat { font-size: 0.75rem; color: #6c757d; }
     .download-menu { min-width: 280px; padding: 16px; }
     .download-menu .form-label { font-size: 0.8rem; font-weight: 600; }
-    .sparkline { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.3); overflow: hidden; margin-top: 8px; }
-    .sparkline-fill { height: 100%; border-radius: 2px; background: rgba(255,255,255,0.7); }
 </style>
 }
 
 <!-- KPI Cards Row -->
 <div class="row mb-4 g-3" id="kpiCards">
     <div class="col-md-3">
-        <div class="card stat-card bg-primary text-white h-100">
+        <div class="card stat-card h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <p class="mb-1 small opacity-75">Law Firms</p>
+                        <p class="text-muted mb-1 small">Law Firms</p>
                         <h2 class="mb-0 fw-bold" id="statFirms"><span class="spinner-border spinner-border-sm"></span></h2>
-                        <div class="mini-stat text-white-50" id="statActiveFirms"></div>
+                        <div class="mini-stat" id="statActiveFirms"></div>
                     </div>
-                    <div class="stat-icon bg-white bg-opacity-25"><i class="bi bi-building text-white"></i></div>
+                    <div class="stat-icon bg-primary-subtle"><i class="bi bi-building text-primary"></i></div>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card stat-card bg-success text-white h-100">
+        <div class="card stat-card h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <p class="mb-1 small opacity-75">Revenue (This Month)</p>
+                        <p class="text-muted mb-1 small">Revenue (This Month)</p>
                         <h2 class="mb-0 fw-bold" id="statRevenue"><span class="spinner-border spinner-border-sm"></span></h2>
-                        <div class="mini-stat text-white-50" id="statTax">Tax: ₱0.00</div>
+                        <div class="mini-stat" id="statTax">Tax: ₱0.00</div>
                     </div>
-                    <div class="stat-icon bg-white bg-opacity-25"><i class="bi bi-currency-dollar text-white"></i></div>
+                    <div class="stat-icon bg-success-subtle"><i class="bi bi-currency-dollar text-success"></i></div>
                 </div>
-                <div class="sparkline"><div class="sparkline-fill" id="revenueSparkline" style="width: 0%"></div></div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card stat-card bg-warning text-dark h-100">
+        <div class="card stat-card h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <p class="mb-1 small opacity-75">Pending Invoices</p>
+                        <p class="text-muted mb-1 small">Pending Invoices</p>
                         <h2 class="mb-0 fw-bold" id="statPendingInvoices"><span class="spinner-border spinner-border-sm"></span></h2>
                         <div class="mini-stat" id="statOverdue">0 overdue</div>
                     </div>
-                    <div class="stat-icon bg-white bg-opacity-25"><i class="bi bi-receipt text-dark"></i></div>
+                    <div class="stat-icon bg-warning-subtle"><i class="bi bi-receipt text-warning"></i></div>
                 </div>
             </div>
         </div>
@@ -71,7 +82,7 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <p class="mb-1 small text-muted">Net Profit (Month)</p>
+                        <p class="text-muted mb-1 small">Net Profit (Month)</p>
                         <h2 class="mb-0 fw-bold" id="statProfit"><span class="spinner-border spinner-border-sm"></span></h2>
                         <div class="mini-stat" id="statExpenses">Expenses: ₱0.00</div>
                     </div>
@@ -199,7 +210,7 @@
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-header bg-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Recent Payments</h5>
-                <a href="/SuperAdmin/Payment" class="btn btn-sm btn-outline-primary">View All</a>
+                <a href="/Payment" class="btn btn-sm btn-outline-primary">View All</a>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -226,7 +237,7 @@
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-header bg-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Law Firms</h5>
-                <a href="/SuperAdmin/LawFirm" class="btn btn-sm btn-outline-primary">View All</a>
+                <a href="/LawFirm" class="btn btn-sm btn-outline-primary">View All</a>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -270,7 +281,7 @@
 
     async function loadKPIs() {
         try {
-            const res = await fetch('/SuperAdmin/SuperAdminDashboard/GetDashboardStats');
+            const res = await fetch('/SuperAdminDashboard/GetDashboardStats');
             const d = await res.json();
 
             document.getElementById('statFirms').textContent = d.firms.total;
@@ -315,18 +326,12 @@
                     <strong class="${profit >= 0 ? 'text-success' : 'text-danger'}">${formatCurrency(profit)}</strong>
                 </li>`;
             document.getElementById('taxSummaryList').innerHTML = taxHtml;
-
-            // Sparkline
-            if (d.revenue.thisYear.gross > 0) {
-                const pct = Math.min((d.revenue.thisMonth.gross / (d.revenue.thisYear.gross / 12)) * 100, 100);
-                document.getElementById('revenueSparkline').style.width = pct + '%';
-            }
         } catch (e) { console.error('KPI load error:', e); }
     }
 
     async function loadChartData() {
         try {
-            const res = await fetch('/SuperAdmin/SuperAdminDashboard/GetMonthlyChartData');
+            const res = await fetch('/SuperAdminDashboard/GetMonthlyChartData');
             const data = await res.json();
 
             const labels = data.map(d => d.month);
@@ -378,7 +383,7 @@
         try {
             document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === period));
 
-            const res = await fetch(`/SuperAdmin/SuperAdminDashboard/GetRevenueBreakdown?period=${period}`);
+            const res = await fetch(`/SuperAdminDashboard/GetRevenueBreakdown?period=${period}`);
             const data = await res.json();
 
             const colors = ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6f42c1', '#0dcaf0', '#fd7e14'];
@@ -432,7 +437,7 @@
 
     async function loadRecentPayments() {
         try {
-            const res = await fetch('/SuperAdmin/SuperAdminDashboard/GetRecentPayments?take=8');
+            const res = await fetch('/SuperAdminDashboard/GetRecentPayments?take=8');
             const data = await res.json();
 
             if (data.length === 0) {
@@ -458,7 +463,7 @@
 
     async function loadFirmsSummary() {
         try {
-            const res = await fetch('/SuperAdmin/SuperAdminDashboard/GetFirmsSummary');
+            const res = await fetch('/SuperAdminDashboard/GetFirmsSummary');
             const data = await res.json();
 
             if (data.length === 0) {
@@ -485,7 +490,7 @@
         const type = document.getElementById('reportType').value;
         const period = document.getElementById('reportPeriod').value;
         const sortBy = document.getElementById('reportSort').value;
-        window.location.href = `/SuperAdmin/SuperAdminDashboard/DownloadReport?type=${type}&period=${period}&sortBy=${sortBy}`;
+        window.location.href = `/SuperAdminDashboard/DownloadReport?type=${type}&period=${period}&sortBy=${sortBy}`;
     }
 
     function formatCurrency(value) {

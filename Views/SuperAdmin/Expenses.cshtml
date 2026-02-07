@@ -143,7 +143,7 @@
 
     async function loadExpenseStats() {
         try {
-            const res = await fetch('/SuperAdmin/Expense/GetExpenseStats');
+            const res = await fetch('/Expense/GetExpenseStats');
             const d = await res.json();
             document.getElementById('statMonth').textContent = fc(d.thisMonth);
             document.getElementById('statYear').textContent = fc(d.thisYear);
@@ -154,7 +154,7 @@
     async function loadExpenses() {
         try {
             const period = document.getElementById('period').value;
-            const res = await fetch(`/SuperAdmin/Expense/GetExpenses?period=${period}`);
+            const res = await fetch(`/Expense/GetExpenses?period=${period}`);
             const data = await res.json();
 
             if (data.length === 0) {
@@ -199,7 +199,7 @@
         }
 
         try {
-            const res = await fetch('/SuperAdmin/Expense/AddExpense', {
+            const res = await fetch('/Expense/AddExpense', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
@@ -220,7 +220,7 @@
     async function deleteExpense(id) {
         if (!confirm('Delete this expense?')) return;
         try {
-            await fetch(`/SuperAdmin/Expense/DeleteExpense?id=${id}`, { method: 'DELETE' });
+            await fetch(`/Expense/DeleteExpense?id=${id}`, { method: 'DELETE' });
             loadExpenseStats();
             loadExpenses();
         } catch(e) { console.error(e); }
@@ -228,7 +228,7 @@
 
     function downloadExpReport() {
         const period = document.getElementById('period').value;
-        window.location.href = `/SuperAdmin/SuperAdminDashboard/DownloadReport?type=expenses&period=${period}&sortBy=date`;
+        window.location.href = `/SuperAdminDashboard/DownloadReport?type=expenses&period=${period}&sortBy=date`;
     }
 
     function fc(v) { return '₱' + Number(v||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}); }

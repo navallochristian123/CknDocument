@@ -109,7 +109,7 @@
 
     async function loadPaymentStats() {
         try {
-            const res = await fetch('/SuperAdmin/Payment/GetPaymentStats');
+            const res = await fetch('/Payment/GetPaymentStats');
             const d = await res.json();
             document.getElementById('statTotal').textContent = formatCurrency(d.totalCompleted);
             document.getElementById('statMonth').textContent = formatCurrency(d.thisMonthTotal);
@@ -128,7 +128,7 @@
     async function loadPayments() {
         try {
             const sortBy = document.getElementById('sortBy').value;
-            const res = await fetch(`/SuperAdmin/Payment/GetPayments?status=${currentFilter}&sortBy=${sortBy}`);
+            const res = await fetch(`/Payment/GetPayments?status=${currentFilter}&sortBy=${sortBy}`);
             const data = await res.json();
 
             if (data.length === 0) {

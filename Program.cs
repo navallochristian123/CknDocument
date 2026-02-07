@@ -150,22 +150,10 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 // ===========================================
-// ROUTE MAPPING - Area-based routing
+// ROUTE MAPPING
 // ===========================================
 
-// SuperAdmin Area (Platform Management)
-app.MapControllerRoute(
-    name: "superadmin",
-    pattern: "SuperAdmin/{controller=Dashboard}/{action=Index}/{id?}",
-    defaults: new { area = "SuperAdmin" });
-
-// LawFirm Area (Tenant Management)
-app.MapControllerRoute(
-    name: "lawfirm",
-    pattern: "LawFirm/{controller=Dashboard}/{action=Index}/{id?}",
-    defaults: new { area = "LawFirm" });
-
-// Default route
+// Default route (all roles use clean URLs)
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");

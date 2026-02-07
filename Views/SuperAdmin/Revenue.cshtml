@@ -103,7 +103,7 @@
 
     async function loadRevenueStats() {
         try {
-            const res = await fetch('/SuperAdmin/Revenue/GetRevenueStats');
+            const res = await fetch('/Revenue/GetRevenueStats');
             const d = await res.json();
             document.getElementById('monthGross').textContent = fc(d.thisMonth.gross);
             document.getElementById('monthTaxInfo').textContent = `Tax: ${fc(d.thisMonth.tax)} | Net: ${fc(d.thisMonth.net)}`;
@@ -118,7 +118,7 @@
         try {
             const period = document.getElementById('period').value;
             const sortBy = document.getElementById('sortRevBy').value;
-            const res = await fetch(`/SuperAdmin/Revenue/GetRevenueList?period=${period}&sortBy=${sortBy}`);
+            const res = await fetch(`/Revenue/GetRevenueList?period=${period}&sortBy=${sortBy}`);
             const data = await res.json();
 
             if (data.length === 0) {
@@ -146,7 +146,7 @@
     function downloadRevReport() {
         const period = document.getElementById('period').value;
         const sortBy = document.getElementById('sortRevBy').value;
-        window.location.href = `/SuperAdmin/SuperAdminDashboard/DownloadReport?type=revenue&period=${period}&sortBy=${sortBy}`;
+        window.location.href = `/SuperAdminDashboard/DownloadReport?type=revenue&period=${period}&sortBy=${sortBy}`;
     }
 
     function fc(v) { return '₱' + Number(v||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}); }

@@ -424,9 +424,9 @@ public class DocumentApiController : ControllerBase
             if (role == "Client" && document.UploadedBy != userId)
                 return StatusCode(403, new { success = false, message = "You don't have permission to archive this document" });
 
-            // Only completed documents can be archived by clients
-            if (role == "Client" && document.Status != "Completed")
-                return BadRequest(new { success = false, message = "Only completed documents can be archived" });
+            // Only completed or approved documents can be archived by clients
+            if (role == "Client" && document.Status != "Completed" && document.Status != "Approved")
+                return BadRequest(new { success = false, message = "Only approved or completed documents can be archived" });
 
             var archive = await _workflowService.ArchiveDocumentAsync(id, userId, dto?.Reason ?? "Archived by user", "Manual");
 

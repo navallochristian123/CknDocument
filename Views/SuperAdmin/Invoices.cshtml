@@ -102,7 +102,7 @@
 
     async function loadStats() {
         try {
-            const res = await fetch('/SuperAdmin/Invoice/GetInvoiceStats');
+            const res = await fetch('/Invoice/GetInvoiceStats');
             const d = await res.json();
             document.getElementById('statTotal').textContent = d.total;
             document.getElementById('statPaid').textContent = d.paid;
@@ -114,8 +114,8 @@
     async function loadInvoices() {
         try {
             const url = currentFilter === 'all'
-                ? '/SuperAdmin/Invoice/GetInvoices'
-                : `/SuperAdmin/Invoice/GetInvoices?status=${currentFilter}`;
+                ? '/Invoice/GetInvoices'
+                : `/Invoice/GetInvoices?status=${currentFilter}`;
             const res = await fetch(url);
             allInvoices = await res.json();
             renderTable(allInvoices);

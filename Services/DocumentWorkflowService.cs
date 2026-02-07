@@ -779,12 +779,17 @@ public class DocumentWorkflowService
         var archive = new Archive
         {
             DocumentID = documentId,
+            FirmId = document.FirmID,
             ArchivedDate = DateTime.UtcNow,
             Reason = reason,
             ArchiveType = archiveType,
             OriginalRetentionDate = document.RetentionExpiryDate,
             ArchivedBy = archivedBy,
-            IsRestored = false
+            IsRestored = false,
+            OriginalStatus = document.Status,
+            OriginalWorkflowStage = document.WorkflowStage,
+            OriginalFolderId = document.FolderId,
+            CreatedAt = DateTime.UtcNow
         };
 
         _context.Archives.Add(archive);

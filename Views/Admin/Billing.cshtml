@@ -149,7 +149,7 @@
                         {
                             var balance = (inv.TotalAmount ?? 0) - (inv.PaidAmount ?? 0);
                             var isOverdue = inv.DueDate.HasValue && inv.DueDate.Value.Date < DateTime.Today;
-                            <tr class="invoice-row" onclick="window.location='/LawFirm/Billing/Invoice/@inv.InvoiceID'">
+                            <tr class="invoice-row" onclick="window.location='/Billing/Invoice/@inv.InvoiceID'">
                                 <td class="fw-semibold">@(inv.InvoiceNumber ?? $"INV-{inv.InvoiceID:D4}")</td>
                                 <td>
                                     @if (inv.InvoiceItems.Any())
@@ -182,7 +182,7 @@
                                     <button class="btn btn-sm btn-primary" onclick="openPayModal(@inv.InvoiceID)">
                                         <i class="bi bi-wallet2 me-1"></i>Pay Now
                                     </button>
-                                    <a href="/LawFirm/Billing/Invoice/@inv.InvoiceID" class="btn btn-sm btn-outline-secondary ms-1">
+                                    <a href="/Billing/Invoice/@inv.InvoiceID" class="btn btn-sm btn-outline-secondary ms-1">
                                         <i class="bi bi-eye"></i>
                                     </a>
                                 </td>
@@ -199,7 +199,7 @@
 <div class="card billing-card">
     <div class="card-header bg-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Payment History</h5>
-        <a href="/LawFirm/Billing/History" class="btn btn-sm btn-outline-primary">View All</a>
+        <a href="/Billing/History" class="btn btn-sm btn-outline-primary">View All</a>
     </div>
     <div class="card-body p-0">
         @if (payments.Any())
@@ -268,7 +268,7 @@
                                 <td>
                                     @if (p.Status == "Completed")
                                     {
-                                        <a href="/LawFirm/Billing/Receipt/@p.PaymentID" class="btn btn-sm btn-outline-primary">
+                                        <a href="/Billing/Receipt/@p.PaymentID" class="btn btn-sm btn-outline-primary">
                                             <i class="bi bi-receipt"></i>
                                         </a>
                                     }

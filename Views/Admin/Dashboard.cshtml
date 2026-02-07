@@ -5,6 +5,14 @@
 
 @section Styles {
 <style>
+    .stat-card {
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        transition: box-shadow 0.2s;
+    }
+    .stat-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
     .stat-icon-circle {
         width: 52px;
         height: 52px;
@@ -28,7 +36,7 @@
 
 <div class="row mb-4 g-3">
     <div class="col-md-3">
-        <div class="card border h-100">
+        <div class="card stat-card h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
@@ -45,7 +53,7 @@
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card border h-100">
+        <div class="card stat-card h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
@@ -62,7 +70,7 @@
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card border h-100">
+        <div class="card stat-card h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
@@ -79,7 +87,7 @@
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card border h-100">
+        <div class="card stat-card h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>

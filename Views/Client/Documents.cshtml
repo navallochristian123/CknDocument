@@ -43,55 +43,63 @@
 </ul>
 
 <!-- Stats Cards -->
-<div class="row mb-4" id="statsCards">
+<div class="row mb-4 g-3" id="statsCards">
     <div class="col-md-3">
-        <div class="card bg-primary text-white">
+        <div class="card border h-100" style="border-radius: 12px;">
             <div class="card-body">
-                <div class="d-flex justify-content-between">
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="card-subtitle mb-1">Total Documents</h6>
-                        <h3 class="mb-0" id="totalCount">0</h3>
+                        <p class="text-muted mb-1 small">Total Documents</p>
+                        <h3 class="mb-0 fw-bold" id="totalCount">0</h3>
                     </div>
-                    <i class="bi bi-files fs-1 opacity-50"></i>
+                    <div class="rounded-3 bg-primary-subtle d-flex align-items-center justify-content-center" style="width:44px;height:44px;">
+                        <i class="bi bi-files text-primary fs-5"></i>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-warning text-dark">
+        <div class="card border h-100" style="border-radius: 12px;">
             <div class="card-body">
-                <div class="d-flex justify-content-between">
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="card-subtitle mb-1">Pending Review</h6>
-                        <h3 class="mb-0" id="pendingCount">0</h3>
+                        <p class="text-muted mb-1 small">Pending Review</p>
+                        <h3 class="mb-0 fw-bold" id="pendingCount">0</h3>
                     </div>
-                    <i class="bi bi-hourglass-split fs-1 opacity-50"></i>
+                    <div class="rounded-3 bg-warning-subtle d-flex align-items-center justify-content-center" style="width:44px;height:44px;">
+                        <i class="bi bi-hourglass-split text-warning fs-5"></i>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-success text-white">
+        <div class="card border h-100" style="border-radius: 12px;">
             <div class="card-body">
-                <div class="d-flex justify-content-between">
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="card-subtitle mb-1">Approved</h6>
-                        <h3 class="mb-0" id="approvedCount">0</h3>
+                        <p class="text-muted mb-1 small">Approved</p>
+                        <h3 class="mb-0 fw-bold" id="approvedCount">0</h3>
                     </div>
-                    <i class="bi bi-check-circle fs-1 opacity-50"></i>
+                    <div class="rounded-3 bg-success-subtle d-flex align-items-center justify-content-center" style="width:44px;height:44px;">
+                        <i class="bi bi-check-circle text-success fs-5"></i>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-danger text-white">
+        <div class="card border h-100" style="border-radius: 12px;">
             <div class="card-body">
-                <div class="d-flex justify-content-between">
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="card-subtitle mb-1">Rejected</h6>
-                        <h3 class="mb-0" id="rejectedCount">0</h3>
+                        <p class="text-muted mb-1 small">Rejected</p>
+                        <h3 class="mb-0 fw-bold" id="rejectedCount">0</h3>
                     </div>
-                    <i class="bi bi-x-circle fs-1 opacity-50"></i>
+                    <div class="rounded-3 bg-danger-subtle d-flex align-items-center justify-content-center" style="width:44px;height:44px;">
+                        <i class="bi bi-x-circle text-danger fs-5"></i>
+                    </div>
                 </div>
             </div>
         </div>
@@ -485,18 +493,44 @@
                 body: JSON.stringify({ reason })
             });
             
-            if (response.ok) {
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
                 bootstrap.Modal.getInstance(document.getElementById('archiveModal')).hide();
                 loadDocuments();
-                alert('Document archived successfully');
+                showToast('Document archived successfully', 'success');
             } else {
-                const data = await response.json();
-                alert('Error: ' + (data.message || 'Failed to archive document'));
+                showToast(data.message || 'Failed to archive document', 'danger');
             }
         } catch (error) {
             console.error('Error archiving document:', error);
-            alert('Error archiving document');
+            showToast('Error archiving document', 'danger');
         }
+    }
+    
+    function showToast(message, type = 'success') {
+        const toastHtml = `
+            <div class="toast align-items-center text-white bg-${type} border-0 show" role="alert">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        <i class="bi ${type === 'success' ? 'bi-check-circle' : 'bi-exclamation-triangle'} me-2"></i>${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        `;
+        
+        let container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+            container.style.zIndex = '9999';
+            document.body.appendChild(container);
+        }
+        
+        container.innerHTML = toastHtml;
+        setTimeout(() => { container.innerHTML = ''; }, 3000);
     }
     
     function getFileIcon(ext) {

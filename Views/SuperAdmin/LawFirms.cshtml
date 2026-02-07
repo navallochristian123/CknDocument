@@ -55,7 +55,7 @@
                 </button>
             </div>
             <div class="col-md-2">
-                <a href="/SuperAdmin/LawFirm" class="btn btn-outline-secondary w-100">
+                <a href="/LawFirm" class="btn btn-outline-secondary w-100">
                     <i class="bi bi-arrow-clockwise"></i> Reset
                 </a>
             </div>
@@ -562,7 +562,7 @@
 
         try {
             const formData = new FormData(form);
-            const response = await fetch('/SuperAdmin/LawFirm/Create', {
+            const response = await fetch('/LawFirm/Create', {
                 method: 'POST',
                 body: formData
             });
@@ -602,7 +602,7 @@
     async function viewFirm(firmId) {
         currentFirmId = firmId;
         try {
-            const response = await fetch(`/SuperAdmin/LawFirm/GetFirm?id=${firmId}`);
+            const response = await fetch(`/LawFirm/GetFirm?id=${firmId}`);
             const result = await response.json();
 
             if (result.success) {
@@ -655,7 +655,7 @@
     async function editFirm(firmId) {
         currentFirmId = firmId;
         try {
-            const response = await fetch(`/SuperAdmin/LawFirm/GetFirm?id=${firmId}`);
+            const response = await fetch(`/LawFirm/GetFirm?id=${firmId}`);
             const result = await response.json();
 
             if (result.success) {
@@ -730,7 +730,7 @@
 
         try {
             const formData = new FormData(form);
-            const response = await fetch(`/SuperAdmin/LawFirm/Edit/${firmId}`, {
+            const response = await fetch(`/LawFirm/Edit/${firmId}`, {
                 method: 'POST',
                 body: formData
             });
@@ -779,8 +779,8 @@
     // Execute confirm action
     async function executeConfirmAction() {
         const url = confirmAction === 'deactivate'
-            ? `/SuperAdmin/LawFirm/Delete/${currentFirmId}`
-            : `/SuperAdmin/LawFirm/Activate/${currentFirmId}`;
+            ? `/LawFirm/Delete/${currentFirmId}`
+            : `/LawFirm/Activate/${currentFirmId}`;
 
         try {
             const token = document.querySelector('input[name="__RequestVerificationToken"]').value;

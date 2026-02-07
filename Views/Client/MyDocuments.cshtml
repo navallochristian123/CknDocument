@@ -227,7 +227,7 @@
                         <button class="btn btn-outline-primary" onclick="previewDocument(${doc.id}, '${escapeHtml(doc.fileExtension || '')}', '${escapeHtml(doc.originalFileName || doc.title)}')" title="Preview">
                             <i class="bi bi-eye"></i>
                         </button>
-                        ${doc.status === 'Completed' ? `
+                        ${(doc.status === 'Completed' || doc.status === 'Approved') ? `
                         <a href="/api/DocumentApi/${doc.id}/download" class="btn btn-outline-secondary" title="Download">
                             <i class="bi bi-download"></i>
                         </a>
@@ -287,17 +287,20 @@
                 body: JSON.stringify({ reason: 'Archived by client' })
             });
             
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success) {
-                    bootstrap.Modal.getInstance(document.getElementById('archiveModal')).hide();
-                    loadDocuments();
-                    showToast('Document archived successfully', 'success');
-                } else {
-                    showToast(data.message || 'Failed to archive', 'danger');
-                }
+            let data;
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                data = await response.json();
             } else {
-                showToast('Failed to archive document', 'danger');
+                data = { success: false, message: 'Server error (status ' + response.status + '). Please log out and log back in, then navigate to My Documents from the sidebar.' };
+            }
+
+            if (response.ok && data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('archiveModal')).hide();
+                loadDocuments();
+                showToast('Document archived successfully', 'success');
+            } else {
+                showToast(data.message || 'Failed to archive document', 'danger');
             }
         } catch (e) {
             console.error('Error archiving:', e);

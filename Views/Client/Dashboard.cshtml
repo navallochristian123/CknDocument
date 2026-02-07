@@ -3,63 +3,93 @@
     Layout = "_ClientLayout";
 }
 
-<div class="row mb-4">
+@section Styles {
+<style>
+    .stat-card {
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        transition: box-shadow 0.2s;
+    }
+    .stat-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+    .stat-icon-circle {
+        width: 52px;
+        height: 52px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+</style>
+}
+
+<div class="row mb-4 g-3">
     <div class="col-md-3">
-        <div class="card bg-primary text-white">
+        <div class="card stat-card h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="mb-1">My Documents</h6>
-                        <h2 class="mb-0" id="statMyDocuments">
+                        <p class="text-muted mb-1 small">My Documents</p>
+                        <h2 class="mb-0 fw-bold" id="statMyDocuments">
                             <span class="spinner-border spinner-border-sm"></span>
                         </h2>
                     </div>
-                    <i class="bi bi-file-earmark fs-1 opacity-50"></i>
+                    <div class="stat-icon-circle bg-primary-subtle">
+                        <i class="bi bi-file-earmark text-primary"></i>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-success text-white">
+        <div class="card stat-card h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="mb-1">Approved</h6>
-                        <h2 class="mb-0" id="statApproved">
+                        <p class="text-muted mb-1 small">Approved</p>
+                        <h2 class="mb-0 fw-bold" id="statApproved">
                             <span class="spinner-border spinner-border-sm"></span>
                         </h2>
                     </div>
-                    <i class="bi bi-check-circle fs-1 opacity-50"></i>
+                    <div class="stat-icon-circle bg-success-subtle">
+                        <i class="bi bi-check-circle text-success"></i>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-warning text-dark">
+        <div class="card stat-card h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="mb-1">Pending Review</h6>
-                        <h2 class="mb-0" id="statPending">
+                        <p class="text-muted mb-1 small">Pending Review</p>
+                        <h2 class="mb-0 fw-bold" id="statPending">
                             <span class="spinner-border spinner-border-sm"></span>
                         </h2>
                     </div>
-                    <i class="bi bi-hourglass-split fs-1 opacity-50"></i>
+                    <div class="stat-icon-circle bg-warning-subtle">
+                        <i class="bi bi-hourglass-split text-warning"></i>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-danger text-white">
+        <div class="card stat-card h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="mb-1">Rejected</h6>
-                        <h2 class="mb-0" id="statRejected">
+                        <p class="text-muted mb-1 small">Rejected</p>
+                        <h2 class="mb-0 fw-bold" id="statRejected">
                             <span class="spinner-border spinner-border-sm"></span>
                         </h2>
                     </div>
-                    <i class="bi bi-x-circle fs-1 opacity-50"></i>
+                    <div class="stat-icon-circle bg-danger-subtle">
+                        <i class="bi bi-x-circle text-danger"></i>
+                    </div>
                 </div>
             </div>
         </div>
