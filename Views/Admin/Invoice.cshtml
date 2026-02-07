@@ -8,6 +8,7 @@
     var vatRate = 0.12m;
     var vatAmount = Math.Round((Model.TotalAmount ?? 0) * vatRate / (1 + vatRate), 2);
     var netAmount = (Model.TotalAmount ?? 0) - vatAmount;
+    var paymentMethods = ViewBag.PaymentMethods as Dictionary<string, string> ?? new Dictionary<string, string>();
 }
 
 @section Styles {
@@ -17,6 +18,17 @@
     .invoice-badge { font-size: 0.8rem; padding: 6px 16px; border-radius: 20px; }
     .breakdown-table td, .breakdown-table th { padding: 10px 16px; }
     .total-row { font-size: 1.1rem; border-top: 2px solid #dee2e6; }
+    .payment-method-card {
+        border: 2px solid #dee2e6; border-radius: 12px; padding: 16px;
+        cursor: pointer; transition: all 0.2s ease; text-align: center;
+        background: #fff;
+    }
+    .payment-method-card:hover { border-color: #0d6efd; background: #f0f6ff; }
+    .payment-method-card.selected { border-color: #0d6efd; background: #e8f0fe; box-shadow: 0 0 0 3px rgba(13,110,253,0.15); }
+    .payment-method-card .method-icon { font-size: 2rem; margin-bottom: 8px; }
+    .payment-method-card .method-name { font-weight: 600; font-size: 0.95rem; }
+    .gcash-icon { color: #007bff; }
+    .grabpay-icon { color: #00b14f; }
 </style>
 }
 
@@ -105,7 +117,7 @@
                 </div>
             </div>
 
-            <!-- Line Items (Breakdown) -->
+            <!-- Line Items -->
             <h6 class="text-muted text-uppercase small fw-bold mb-3">Payment Breakdown</h6>
             <div class="table-responsive mb-4">
                 <table class="table breakdown-table mb-0">
@@ -176,19 +188,42 @@
                 </div>
             }
 
-            <!-- Payment Action -->
+            <!-- Payment Method Selection & Pay Button -->
             @if (Model.Status != "Paid" && balance > 0)
             {
-                <div class="border-top pt-4 text-center">
-                    <p class="text-muted mb-3">Pay securely via GCash, Maya, GrabPay, or Credit/Debit Card</p>
-                    <form asp-controller="Billing" asp-action="Pay" method="post" class="d-inline">
+                <div class="border-top pt-4">
+                    <h6 class="text-muted text-uppercase small fw-bold mb-3">
+                        <i class="bi bi-wallet2 me-1"></i>Choose Payment Method
+                    </h6>
+                    <form asp-controller="Billing" asp-action="Pay" method="post" id="paymentForm">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="invoiceId" value="@Model.InvoiceID" />
-                        <button type="submit" class="btn btn-primary btn-lg px-5">
-                            <i class="bi bi-credit-card me-2"></i>Pay ₱@balance.ToString("N2") Now
-                        </button>
+                        <input type="hidden" name="paymentMethod" id="selectedMethod" value="gcash" />
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-6">
+                                <div class="payment-method-card selected" data-method="gcash" onclick="selectMethod('gcash', this)">
+                                    <div class="method-icon gcash-icon"><i class="bi bi-phone-fill"></i></div>
+                                    <div class="method-name">GCash</div>
+                                    <div class="text-muted" style="font-size: 0.75rem;">E-Wallet Payment</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="payment-method-card" data-method="grab_pay" onclick="selectMethod('grab_pay', this)">
+                                    <div class="method-icon grabpay-icon"><i class="bi bi-phone-fill"></i></div>
+                                    <div class="method-name">GrabPay</div>
+                                    <div class="text-muted" style="font-size: 0.75rem;">E-Wallet Payment</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="text-center">
+                            <button type="submit" class="btn btn-primary btn-lg px-5" id="payBtn">
+                                <i class="bi bi-shield-lock me-2"></i>Pay ₱@balance.ToString("N2") with <span id="methodLabel">GCash</span>
+                            </button>
+                        </div>
                     </form>
-                    <div class="mt-3">
+                    <div class="text-center mt-3">
                         <small class="text-muted">
                             <i class="bi bi-shield-check me-1"></i>Secured by PayMongo Payment Gateway
                         </small>
@@ -210,6 +245,7 @@
                                     <th>Method</th>
                                     <th>Date</th>
                                     <th>Status</th>
+                                    <th></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -218,7 +254,20 @@
                                     <tr>
                                         <td class="small">@(p.PaymentReference ?? "N/A")</td>
                                         <td>₱@((p.Amount ?? 0).ToString("N2"))</td>
-                                        <td>@(p.PaymentMethod ?? "N/A")</td>
+                                        <td>
+                                            @switch (p.PaymentMethod?.ToLower())
+                                            {
+                                                case "gcash":
+                                                    <span class="badge bg-primary-subtle text-primary"><i class="bi bi-phone me-1"></i>GCash</span>
+                                                    break;
+                                                case "grab_pay":
+                                                    <span class="badge bg-success-subtle text-success"><i class="bi bi-phone me-1"></i>GrabPay</span>
+                                                    break;
+                                                default:
+                                                    <span class="badge bg-secondary-subtle text-secondary">@(p.PaymentMethod ?? "N/A")</span>
+                                                    break;
+                                            }
+                                        </td>
                                         <td>@(p.PaymentDate?.ToString("MMM dd, yyyy") ?? "N/A")</td>
                                         <td>
                                             @if (p.Status == "Completed")
@@ -234,6 +283,14 @@
                                                 <span class="badge bg-secondary">@p.Status</span>
                                             }
                                         </td>
+                                        <td>
+                                            @if (p.Status == "Completed")
+                                            {
+                                                <a href="/LawFirm/Billing/Receipt/@p.PaymentID" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-receipt"></i> Receipt
+                                                </a>
+                                            }
+                                        </td>
                                     </tr>
                                 }
                             </tbody>
@@ -244,3 +301,22 @@
         </div>
     </div>
 </div>
+
+@section Scripts {
+<script>
+    function selectMethod(method, el) {
+        document.getElementById('selectedMethod').value = method;
+        document.querySelectorAll('.payment-method-card').forEach(c => c.classList.remove('selected'));
+        el.classList.add('selected');
+
+        const labels = { 'gcash': 'GCash', 'grab_pay': 'GrabPay' };
+        document.getElementById('methodLabel').textContent = labels[method] || method;
+    }
+
+    document.getElementById('paymentForm')?.addEventListener('submit', function() {
+        var btn = document.getElementById('payBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+    });
+</script>
+}

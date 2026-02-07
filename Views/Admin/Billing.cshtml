@@ -179,13 +179,9 @@
                                     }
                                 </td>
                                 <td class="text-end" onclick="event.stopPropagation();">
-                                    <form asp-controller="Billing" asp-action="Pay" method="post" class="d-inline">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="invoiceId" value="@inv.InvoiceID" />
-                                        <button type="submit" class="btn btn-sm btn-primary">
-                                            <i class="bi bi-credit-card me-1"></i>Pay Now
-                                        </button>
-                                    </form>
+                                    <button class="btn btn-sm btn-primary" onclick="openPayModal(@inv.InvoiceID)">
+                                        <i class="bi bi-wallet2 me-1"></i>Pay Now
+                                    </button>
                                     <a href="/LawFirm/Billing/Invoice/@inv.InvoiceID" class="btn btn-sm btn-outline-secondary ms-1">
                                         <i class="bi bi-eye"></i>
                                     </a>
@@ -218,6 +214,7 @@
                             <th>Method</th>
                             <th>Date</th>
                             <th>Status</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -268,6 +265,14 @@
                                             break;
                                     }
                                 </td>
+                                <td>
+                                    @if (p.Status == "Completed")
+                                    {
+                                        <a href="/LawFirm/Billing/Receipt/@p.PaymentID" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-receipt"></i>
+                                        </a>
+                                    }
+                                </td>
                             </tr>
                         }
                     </tbody>
@@ -283,3 +288,70 @@
         }
     </div>
 </div>
+
+<!-- Payment Method Modal -->
+<div class="modal fade" id="payModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-wallet2 me-2"></i>Select Payment Method</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form asp-controller="Billing" asp-action="Pay" method="post" id="modalPayForm">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="invoiceId" id="modalInvoiceId" value="" />
+                    <input type="hidden" name="paymentMethod" id="modalPayMethod" value="gcash" />
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <div class="payment-method-card selected" onclick="selectModalMethod('gcash', this)" style="border:2px solid #0d6efd; border-radius:12px; padding:16px; cursor:pointer; text-align:center; background:#e8f0fe;">
+                                <div style="font-size:2rem; color:#007bff;"><i class="bi bi-phone-fill"></i></div>
+                                <div style="font-weight:600;">GCash</div>
+                                <div class="text-muted" style="font-size:0.75rem;">E-Wallet</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="payment-method-card" onclick="selectModalMethod('grab_pay', this)" style="border:2px solid #dee2e6; border-radius:12px; padding:16px; cursor:pointer; text-align:center; background:#fff;">
+                                <div style="font-size:2rem; color:#00b14f;"><i class="bi bi-phone-fill"></i></div>
+                                <div style="font-weight:600;">GrabPay</div>
+                                <div class="text-muted" style="font-size:0.75rem;">E-Wallet</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 btn-lg">
+                        <i class="bi bi-shield-lock me-2"></i>Proceed to Payment
+                    </button>
+                    <div class="text-center mt-2">
+                        <small class="text-muted"><i class="bi bi-shield-check me-1"></i>Secured by PayMongo</small>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    function openPayModal(invoiceId) {
+        document.getElementById('modalInvoiceId').value = invoiceId;
+        document.getElementById('modalPayMethod').value = 'gcash';
+        new bootstrap.Modal(document.getElementById('payModal')).show();
+    }
+
+    function selectModalMethod(method, el) {
+        document.getElementById('modalPayMethod').value = method;
+        document.querySelectorAll('#payModal .payment-method-card').forEach(c => {
+            c.style.borderColor = '#dee2e6'; c.style.background = '#fff';
+        });
+        el.style.borderColor = '#0d6efd'; el.style.background = '#e8f0fe';
+    }
+
+    document.getElementById('modalPayForm')?.addEventListener('submit', function() {
+        var btn = this.querySelector('button[type=submit]');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+    });
+</script>
+}

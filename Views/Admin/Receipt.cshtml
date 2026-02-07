@@ -1,0 +1,236 @@
+@model CKNDocument.Models.LawFirmDMS.Payment
+@{
+    ViewData["Title"] = "Payment Receipt";
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+
+    var firm = Model.Invoice?.Subscription?.Firm ?? Model.Subscription?.Firm;
+    var firmName = firm?.FirmName ?? "Law Firm";
+    var invoiceNumber = Model.Invoice?.InvoiceNumber ?? "—";
+    var invoiceDate = Model.Invoice?.InvoiceDate?.ToString("MMMM dd, yyyy") ?? "—";
+    var paymentDate = Model.PaymentDate?.ToString("MMMM dd, yyyy 'at' hh:mm tt") ?? "—";
+    var amount = Model.Amount ?? 0m;
+    var tax = Model.TaxAmount ?? 0m;
+    var net = Model.NetAmount ?? (amount - tax);
+
+    var methodLabel = Model.PaymentMethod switch
+    {
+        "GCash" => "GCash",
+        "GrabPay" => "GrabPay",
+        _ => Model.PaymentMethod ?? "Online Payment"
+    };
+    var methodIcon = Model.PaymentMethod switch
+    {
+        "GCash" => "bi-phone-fill text-primary",
+        "GrabPay" => "bi-phone-fill text-success",
+        _ => "bi-credit-card text-secondary"
+    };
+}
+
+<style>
+    .receipt-container {
+        max-width: 700px;
+        margin: 0 auto;
+    }
+    .receipt-card {
+        background: #fff;
+        border-radius: 16px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+        overflow: hidden;
+    }
+    .receipt-header {
+        background: linear-gradient(135deg, #198754, #20c997);
+        color: #fff;
+        padding: 2.5rem 2rem;
+        text-align: center;
+    }
+    .receipt-header .check-circle {
+        width: 64px;
+        height: 64px;
+        background: rgba(255,255,255,0.2);
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1rem;
+    }
+    .receipt-header .check-circle i {
+        font-size: 2rem;
+    }
+    .receipt-body {
+        padding: 2rem;
+    }
+    .receipt-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.6rem 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .receipt-row:last-child {
+        border-bottom: none;
+    }
+    .receipt-row .label {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    .receipt-row .value {
+        font-weight: 600;
+        color: #212529;
+        text-align: right;
+    }
+    .receipt-total {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-top: 1rem;
+    }
+    .receipt-total .total-amount {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #198754;
+    }
+    .receipt-footer {
+        padding: 1.5rem 2rem;
+        background: #fafafa;
+        text-align: center;
+        border-top: 1px solid #eee;
+    }
+    .payment-method-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: #e8f5e9;
+        padding: 0.35rem 0.85rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+    .ref-code {
+        font-family: 'Consolas', 'Courier New', monospace;
+        font-size: 0.85rem;
+        letter-spacing: 0.5px;
+    }
+
+    @@media print {
+        body, .content-wrapper, .main-content { background: #fff !important; }
+        .sidebar, .topbar, .btn-print-receipt, .back-link, .receipt-actions { display: none !important; }
+        .receipt-container { max-width: 100%; box-shadow: none; }
+        .receipt-card { box-shadow: none; border: 1px solid #ddd; }
+    }
+</style>
+
+<div class="receipt-container my-4">
+    <!-- Back link -->
+    <div class="mb-3 back-link">
+        <a href="/LawFirm/Billing/History" class="text-decoration-none text-muted">
+            <i class="bi bi-arrow-left me-1"></i>Back to Payment History
+        </a>
+    </div>
+
+    <div class="receipt-card">
+        <!-- Success Header -->
+        <div class="receipt-header">
+            <div class="check-circle">
+                <i class="bi bi-check-lg"></i>
+            </div>
+            <h4 class="mb-1">Payment Successful!</h4>
+            <p class="mb-0 opacity-75">Your payment has been processed successfully.</p>
+        </div>
+
+        <!-- Receipt Body -->
+        <div class="receipt-body">
+            <!-- Amount -->
+            <div class="receipt-total text-center mb-4">
+                <div class="text-muted mb-1" style="font-size:0.85rem;">Amount Paid</div>
+                <div class="total-amount">₱@amount.ToString("N2")</div>
+                <div class="mt-2">
+                    <span class="payment-method-badge">
+                        <i class="bi @methodIcon"></i> @methodLabel
+                    </span>
+                </div>
+            </div>
+
+            <!-- Details -->
+            <h6 class="text-uppercase text-muted fw-bold mb-3" style="font-size:0.75rem; letter-spacing:1px;">
+                Payment Details
+            </h6>
+
+            <div class="receipt-row">
+                <span class="label">Reference No.</span>
+                <span class="value ref-code">@(Model.PaymentReference ?? "—")</span>
+            </div>
+            <div class="receipt-row">
+                <span class="label">PayMongo ID</span>
+                <span class="value ref-code" style="font-size:0.8rem;">@(Model.PayMongoPaymentId ?? "—")</span>
+            </div>
+            <div class="receipt-row">
+                <span class="label">Invoice</span>
+                <span class="value">@invoiceNumber</span>
+            </div>
+            <div class="receipt-row">
+                <span class="label">Payment Date</span>
+                <span class="value">@paymentDate</span>
+            </div>
+            <div class="receipt-row">
+                <span class="label">Status</span>
+                <span class="value"><span class="badge bg-success">Completed</span></span>
+            </div>
+
+            <hr class="my-3" />
+
+            <h6 class="text-uppercase text-muted fw-bold mb-3" style="font-size:0.75rem; letter-spacing:1px;">
+                Billing Summary
+            </h6>
+
+            <div class="receipt-row">
+                <span class="label">Law Firm</span>
+                <span class="value">@firmName</span>
+            </div>
+
+            @if (Model.Invoice?.InvoiceItems != null && Model.Invoice.InvoiceItems.Any())
+            {
+                foreach (var item in Model.Invoice.InvoiceItems)
+                {
+                    <div class="receipt-row">
+                        <span class="label">@(item.Description ?? "Item") @(item.Quantity > 1 ? $"x{item.Quantity}" : "")</span>
+                        <span class="value">₱@((item.SubTotal ?? 0m).ToString("N2"))</span>
+                    </div>
+                }
+            }
+
+            <div class="receipt-row">
+                <span class="label">Subtotal</span>
+                <span class="value">₱@net.ToString("N2")</span>
+            </div>
+            <div class="receipt-row">
+                <span class="label">VAT (12%)</span>
+                <span class="value">₱@tax.ToString("N2")</span>
+            </div>
+
+            <div class="receipt-total">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="fw-bold">Total Paid</span>
+                    <span class="total-amount">₱@amount.ToString("N2")</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="receipt-footer">
+            <small class="text-muted">
+                <i class="bi bi-shield-check me-1"></i>
+                Payment processed securely via PayMongo
+            </small>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="receipt-actions mt-3 d-flex gap-2 justify-content-center">
+        <button class="btn btn-outline-primary btn-print-receipt" onclick="window.print()">
+            <i class="bi bi-printer me-1"></i>Print Receipt
+        </button>
+        <a href="/LawFirm/Billing" class="btn btn-primary btn-print-receipt">
+            <i class="bi bi-arrow-left me-1"></i>Back to Billing
+        </a>
+    </div>
+</div>

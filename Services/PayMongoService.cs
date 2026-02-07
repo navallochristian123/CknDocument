@@ -7,44 +7,98 @@ namespace CKNDocument.Services;
 
 /// <summary>
 /// Service for PayMongo payment gateway integration
-/// Uses environment variable PAYMONGO_SECRET_KEY for API authentication
+/// Uses Sources API for e-wallet payments (GCash, GrabPay, Maya)
+/// Uses environment variable PAYMONGO_SECRET_KEY or appsettings fallback
 /// </summary>
 public class PayMongoService
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<PayMongoService> _logger;
-    private readonly string _secretKey;
+    private readonly string? _secretKey;
+    private readonly string? _authHeaderValue;
     private const string BaseUrl = "https://api.paymongo.com/v1";
 
-    public PayMongoService(HttpClient httpClient, ILogger<PayMongoService> logger)
+    public bool IsConfigured => !string.IsNullOrEmpty(_secretKey);
+
+    /// <summary>
+    /// Supported payment methods (e-wallets via Sources API)
+    /// </summary>
+    public static readonly Dictionary<string, string> SupportedMethods = new()
+    {
+        { "gcash", "GCash" },
+        { "grab_pay", "GrabPay" },
+    };
+
+    public PayMongoService(HttpClient httpClient, ILogger<PayMongoService> logger, IConfiguration configuration)
     {
         _httpClient = httpClient;
         _logger = logger;
-        _secretKey = Environment.GetEnvironmentVariable("PAYMONGO_SECRET_KEY")
-            ?? throw new InvalidOperationException("PAYMONGO_SECRET_KEY environment variable is not set.");
 
-        var authBytes = Encoding.UTF8.GetBytes($"{_secretKey}:");
-        _httpClient.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Basic", Convert.ToBase64String(authBytes));
-        _httpClient.DefaultRequestHeaders.Accept.Add(
-            new MediaTypeWithQualityHeaderValue("application/json"));
+        _secretKey = Environment.GetEnvironmentVariable("PAYMONGO_SECRET_KEY");
+        if (string.IsNullOrEmpty(_secretKey))
+            _secretKey = configuration["PayMongo:SecretKey"];
+
+        if (string.IsNullOrEmpty(_secretKey))
+        {
+            _logger.LogWarning("PayMongo API key not configured. Payment processing unavailable.");
+        }
+        else
+        {
+            var authBytes = Encoding.UTF8.GetBytes($"{_secretKey}:");
+            _authHeaderValue = Convert.ToBase64String(authBytes);
+            _logger.LogInformation("PayMongo service initialized successfully.");
+        }
+    }
+
+    private HttpRequestMessage CreateRequest(HttpMethod method, string url)
+    {
+        var request = new HttpRequestMessage(method, url);
+        if (!string.IsNullOrEmpty(_authHeaderValue))
+            request.Headers.Authorization = new AuthenticationHeaderValue("Basic", _authHeaderValue);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        return request;
     }
 
     /// <summary>
-    /// Create a PayMongo Checkout Session for payment
+    /// Create a PayMongo Source for e-wallet payment (GCash, GrabPay)
+    /// This is the working flow that bypasses the Checkout Sessions issue
     /// </summary>
-    public async Task<PayMongoCheckoutResult> CreateCheckoutSession(
+    public async Task<PayMongoSourceResult> CreateSource(
         decimal amount,
-        string description,
-        string invoiceNumber,
-        string firmName,
+        string type,
         string successUrl,
-        string cancelUrl)
+        string failedUrl,
+        string? description = null)
     {
+        if (!IsConfigured)
+        {
+            return new PayMongoSourceResult
+            {
+                Success = false,
+                ErrorMessage = "PayMongo is not configured. Please set the PAYMONGO_SECRET_KEY."
+            };
+        }
+
+        if (!SupportedMethods.ContainsKey(type))
+        {
+            return new PayMongoSourceResult
+            {
+                Success = false,
+                ErrorMessage = $"Unsupported payment method: {type}. Supported: {string.Join(", ", SupportedMethods.Keys)}"
+            };
+        }
+
         try
         {
-            // PayMongo expects amount in centavos (smallest currency unit)
             var amountInCentavos = (int)(amount * 100);
+            if (amountInCentavos < 100)
+            {
+                return new PayMongoSourceResult
+                {
+                    Success = false,
+                    ErrorMessage = "Amount must be at least ₱1.00"
+                };
+            }
 
             var payload = new
             {
@@ -52,188 +106,238 @@ public class PayMongoService
                 {
                     attributes = new
                     {
-                        send_email_receipt = true,
-                        show_description = true,
-                        show_line_items = true,
-                        description = description,
-                        line_items = new[]
+                        amount = amountInCentavos,
+                        redirect = new
                         {
-                            new
-                            {
-                                currency = "PHP",
-                                amount = amountInCentavos,
-                                description = description,
-                                name = $"CKN Subscription - {firmName}",
-                                quantity = 1
-                            }
+                            success = successUrl,
+                            failed = failedUrl
                         },
-                        payment_method_types = new[] { "gcash", "grab_pay", "card", "paymaya" },
-                        success_url = successUrl,
-                        cancel_url = cancelUrl,
-                        reference_number = invoiceNumber,
-                        metadata = new
-                        {
-                            invoice_number = invoiceNumber,
-                            firm_name = firmName
-                        }
+                        type = type,
+                        currency = "PHP",
+                        description = description ?? "CKN Document Subscription Payment"
                     }
                 }
             };
 
-            var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-            });
+            var json = JsonSerializer.Serialize(payload);
+            _logger.LogInformation("Creating PayMongo {Type} source for {Amount} centavos", type, amountInCentavos);
 
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var response = await _httpClient.PostAsync($"{BaseUrl}/checkout_sessions", content);
+            var request = CreateRequest(HttpMethod.Post, $"{BaseUrl}/sources");
+            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.SendAsync(request);
             var responseBody = await response.Content.ReadAsStringAsync();
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogError("PayMongo API error: {StatusCode} - {Body}", response.StatusCode, responseBody);
-                return new PayMongoCheckoutResult
+                _logger.LogError("PayMongo Source API error: {StatusCode} - {Body}", response.StatusCode, responseBody);
+                var errorMsg = ParseErrorMessage(responseBody) ?? $"PayMongo API error: {response.StatusCode}";
+                return new PayMongoSourceResult { Success = false, ErrorMessage = errorMsg };
+            }
+
+            var result = JsonSerializer.Deserialize<JsonElement>(responseBody);
+            var data = result.GetProperty("data");
+            var attributes = data.GetProperty("attributes");
+            var redirect = attributes.GetProperty("redirect");
+
+            var sourceId = data.GetProperty("id").GetString()!;
+            var checkoutUrl = redirect.GetProperty("checkout_url").GetString()!;
+
+            _logger.LogInformation("PayMongo source created: {SourceId}, type: {Type}", sourceId, type);
+
+            return new PayMongoSourceResult
+            {
+                Success = true,
+                SourceId = sourceId,
+                CheckoutUrl = checkoutUrl,
+                Status = attributes.GetProperty("status").GetString() ?? "pending",
+                Type = type
+            };
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Network error connecting to PayMongo");
+            return new PayMongoSourceResult
+            {
+                Success = false,
+                ErrorMessage = "Unable to connect to PayMongo. Please check your internet connection."
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating PayMongo source");
+            return new PayMongoSourceResult
+            {
+                Success = false,
+                ErrorMessage = $"Payment processing error: {ex.Message}"
+            };
+        }
+    }
+
+    /// <summary>
+    /// Get the status of a source (pending, chargeable, cancelled, expired, failed)
+    /// </summary>
+    public async Task<PayMongoSourceStatus> GetSourceStatus(string sourceId)
+    {
+        if (!IsConfigured)
+            return new PayMongoSourceStatus { Status = "error", ErrorMessage = "PayMongo not configured" };
+
+        try
+        {
+            var request = CreateRequest(HttpMethod.Get, $"{BaseUrl}/sources/{sourceId}");
+            var response = await _httpClient.SendAsync(request);
+            var responseBody = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("PayMongo Source status error: {StatusCode}", response.StatusCode);
+                return new PayMongoSourceStatus { Status = "error" };
+            }
+
+            var result = JsonSerializer.Deserialize<JsonElement>(responseBody);
+            var attributes = result.GetProperty("data").GetProperty("attributes");
+
+            return new PayMongoSourceStatus
+            {
+                Status = attributes.GetProperty("status").GetString() ?? "pending",
+                Type = attributes.GetProperty("type").GetString(),
+                Amount = attributes.GetProperty("amount").GetInt64() / 100m
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting source status");
+            return new PayMongoSourceStatus { Status = "error", ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <summary>
+    /// Create a payment to charge a chargeable source
+    /// </summary>
+    public async Task<PayMongoPaymentResult> CreatePayment(string sourceId, decimal amount, string? description = null)
+    {
+        if (!IsConfigured)
+            return new PayMongoPaymentResult { Success = false, ErrorMessage = "PayMongo not configured" };
+
+        try
+        {
+            var amountInCentavos = (int)(amount * 100);
+            var payload = new
+            {
+                data = new
                 {
-                    Success = false,
-                    ErrorMessage = $"PayMongo API error: {response.StatusCode}"
-                };
+                    attributes = new
+                    {
+                        amount = amountInCentavos,
+                        source = new
+                        {
+                            id = sourceId,
+                            type = "source"
+                        },
+                        currency = "PHP",
+                        description = description ?? "CKN Document Subscription Payment"
+                    }
+                }
+            };
+
+            var json = JsonSerializer.Serialize(payload);
+            _logger.LogInformation("Creating PayMongo payment from source {SourceId}", sourceId);
+
+            var request = CreateRequest(HttpMethod.Post, $"{BaseUrl}/payments");
+            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.SendAsync(request);
+            var responseBody = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("PayMongo Payment API error: {StatusCode} - {Body}", response.StatusCode, responseBody);
+                var errorMsg = ParseErrorMessage(responseBody) ?? $"Payment failed: {response.StatusCode}";
+                return new PayMongoPaymentResult { Success = false, ErrorMessage = errorMsg };
             }
 
             var result = JsonSerializer.Deserialize<JsonElement>(responseBody);
             var data = result.GetProperty("data");
             var attributes = data.GetProperty("attributes");
 
-            return new PayMongoCheckoutResult
-            {
-                Success = true,
-                CheckoutSessionId = data.GetProperty("id").GetString()!,
-                CheckoutUrl = attributes.GetProperty("checkout_url").GetString()!,
-                PaymentIntentId = attributes.TryGetProperty("payment_intent", out var pi) && pi.ValueKind != JsonValueKind.Null
-                    ? pi.GetProperty("id").GetString() : null
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error creating PayMongo checkout session");
-            return new PayMongoCheckoutResult
-            {
-                Success = false,
-                ErrorMessage = ex.Message
-            };
-        }
-    }
+            var paymentId = data.GetProperty("id").GetString()!;
+            var status = attributes.GetProperty("status").GetString()!;
+            var paidAt = attributes.TryGetProperty("paid_at", out var paidAtElem) && paidAtElem.ValueKind == JsonValueKind.Number
+                ? DateTimeOffset.FromUnixTimeSeconds(paidAtElem.GetInt64()).DateTime
+                : (DateTime?)null;
 
-    /// <summary>
-    /// Retrieve a checkout session to check payment status
-    /// </summary>
-    public async Task<PayMongoPaymentStatus> GetCheckoutSessionStatus(string checkoutSessionId)
-    {
-        try
-        {
-            var response = await _httpClient.GetAsync($"{BaseUrl}/checkout_sessions/{checkoutSessionId}");
-            var responseBody = await response.Content.ReadAsStringAsync();
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogError("PayMongo API error: {StatusCode} - {Body}", response.StatusCode, responseBody);
-                return new PayMongoPaymentStatus { Status = "error" };
-            }
-
-            var result = JsonSerializer.Deserialize<JsonElement>(responseBody);
-            var attributes = result.GetProperty("data").GetProperty("attributes");
-
-            var status = "pending";
-            string? paymentId = null;
             string? paymentMethod = null;
+            if (attributes.TryGetProperty("source", out var source) && source.ValueKind == JsonValueKind.Object)
+                paymentMethod = source.TryGetProperty("type", out var typeEl) ? typeEl.GetString() : null;
 
-            // Check payments array
-            if (attributes.TryGetProperty("payments", out var payments) && payments.ValueKind == JsonValueKind.Array)
+            _logger.LogInformation("PayMongo payment {PaymentId} status: {Status}", paymentId, status);
+
+            return new PayMongoPaymentResult
             {
-                foreach (var payment in payments.EnumerateArray())
-                {
-                    var payAttrs = payment.GetProperty("attributes");
-                    var payStatus = payAttrs.GetProperty("status").GetString();
-                    paymentId = payment.GetProperty("id").GetString();
-
-                    if (payAttrs.TryGetProperty("source", out var source) && source.ValueKind != JsonValueKind.Null)
-                    {
-                        paymentMethod = source.TryGetProperty("type", out var type) ? type.GetString() : "card";
-                    }
-
-                    if (payStatus == "paid")
-                    {
-                        status = "paid";
-                        break;
-                    }
-                    else if (payStatus == "failed")
-                    {
-                        status = "failed";
-                    }
-                }
-            }
-
-            // Fall back to checkout session status
-            if (status == "pending")
-            {
-                var sessionStatus = attributes.GetProperty("status").GetString();
-                if (sessionStatus == "expired") status = "expired";
-            }
-
-            var paymentIntentId = attributes.TryGetProperty("payment_intent", out var piElem) && piElem.ValueKind != JsonValueKind.Null
-                ? (piElem.TryGetProperty("id", out var piId) ? piId.GetString() : null)
-                : null;
-
-            return new PayMongoPaymentStatus
-            {
-                Status = status,
+                Success = status == "paid",
                 PaymentId = paymentId,
-                PaymentIntentId = paymentIntentId,
-                PaymentMethod = paymentMethod
+                Status = status,
+                PaymentMethod = paymentMethod,
+                PaidAt = paidAt,
+                Amount = attributes.GetProperty("amount").GetInt64() / 100m
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting PayMongo checkout session status");
-            return new PayMongoPaymentStatus { Status = "error" };
+            _logger.LogError(ex, "Error creating PayMongo payment");
+            return new PayMongoPaymentResult { Success = false, ErrorMessage = ex.Message };
         }
     }
 
-    /// <summary>
-    /// Retrieve payment details by ID
-    /// </summary>
-    public async Task<PayMongoPaymentDetails?> GetPaymentDetails(string paymentId)
+    private string? ParseErrorMessage(string responseBody)
     {
         try
         {
-            var response = await _httpClient.GetAsync($"{BaseUrl}/payments/{paymentId}");
-            var responseBody = await response.Content.ReadAsStringAsync();
-
-            if (!response.IsSuccessStatusCode) return null;
-
-            var result = JsonSerializer.Deserialize<JsonElement>(responseBody);
-            var attrs = result.GetProperty("data").GetProperty("attributes");
-
-            return new PayMongoPaymentDetails
+            var errorJson = JsonSerializer.Deserialize<JsonElement>(responseBody);
+            if (errorJson.TryGetProperty("errors", out var errors) && errors.ValueKind == JsonValueKind.Array && errors.GetArrayLength() > 0)
             {
-                Id = result.GetProperty("data").GetProperty("id").GetString()!,
-                Amount = attrs.GetProperty("amount").GetInt64() / 100m,
-                Currency = attrs.GetProperty("currency").GetString()!,
-                Status = attrs.GetProperty("status").GetString()!,
-                PaidAt = attrs.TryGetProperty("paid_at", out var paidAt) && paidAt.ValueKind == JsonValueKind.Number
-                    ? DateTimeOffset.FromUnixTimeSeconds(paidAt.GetInt64()).DateTime
-                    : null
-            };
+                var firstErr = errors[0];
+                if (firstErr.TryGetProperty("detail", out var detail))
+                    return detail.GetString();
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting PayMongo payment details");
-            return null;
-        }
+        catch { }
+        return null;
     }
 }
 
-// DTO classes for PayMongo responses
+// ========== DTO Classes ==========
+
+public class PayMongoSourceResult
+{
+    public bool Success { get; set; }
+    public string? SourceId { get; set; }
+    public string? CheckoutUrl { get; set; }
+    public string? Status { get; set; }
+    public string? Type { get; set; }
+    public string? ErrorMessage { get; set; }
+}
+
+public class PayMongoSourceStatus
+{
+    public string Status { get; set; } = "pending";
+    public string? Type { get; set; }
+    public decimal Amount { get; set; }
+    public string? ErrorMessage { get; set; }
+}
+
+public class PayMongoPaymentResult
+{
+    public bool Success { get; set; }
+    public string? PaymentId { get; set; }
+    public string? Status { get; set; }
+    public string? PaymentMethod { get; set; }
+    public DateTime? PaidAt { get; set; }
+    public decimal Amount { get; set; }
+    public string? ErrorMessage { get; set; }
+}
+
+// Keep for backward compatibility
 public class PayMongoCheckoutResult
 {
     public bool Success { get; set; }
@@ -249,6 +353,7 @@ public class PayMongoPaymentStatus
     public string? PaymentId { get; set; }
     public string? PaymentIntentId { get; set; }
     public string? PaymentMethod { get; set; }
+    public string? ErrorMessage { get; set; }
 }
 
 public class PayMongoPaymentDetails
