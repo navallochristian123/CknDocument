@@ -6,54 +6,165 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h4 class="mb-0">Invoices</h4>
-        <p class="text-muted mb-0">Manage all invoices</p>
+        <p class="text-muted mb-0">Manage all billing invoices across law firms</p>
     </div>
-    <a href="#" class="btn btn-primary">
-        <i class="bi bi-plus-circle"></i> Create Invoice
-    </a>
+    <button class="btn btn-outline-secondary btn-sm" onclick="downloadCSV()">
+        <i class="bi bi-download"></i> Download CSV
+    </button>
 </div>
 
-<div class="card">
-    <div class="card-body p-0">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Invoice #</th>
-                    <th>Client</th>
-                    <th>Amount</th>
-                    <th>Due Date</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>INV-001</td>
-                    <td>Smith & Associates</td>
-                    <td>$2,500.00</td>
-                    <td>Mar 15, 2024</td>
-                    <td><span class="badge bg-success">Paid</span></td>
-                    <td>
-                        <div class="btn-group btn-group-sm">
-                            <a href="#" class="btn btn-outline-primary"><i class="bi bi-eye"></i></a>
-                            <a href="#" class="btn btn-outline-secondary"><i class="bi bi-pencil"></i></a>
-                        </div>
-                    </td>
-                </tr>
-                <tr>
-                    <td>INV-002</td>
-                    <td>Legal Eagles LLP</td>
-                    <td>$1,500.00</td>
-                    <td>Mar 20, 2024</td>
-                    <td><span class="badge bg-warning">Pending</span></td>
-                    <td>
-                        <div class="btn-group btn-group-sm">
-                            <a href="#" class="btn btn-outline-primary"><i class="bi bi-eye"></i></a>
-                            <a href="#" class="btn btn-outline-secondary"><i class="bi bi-pencil"></i></a>
-                        </div>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+<!-- Stats Row -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small">Total Invoices</div>
+                <h3 class="mb-0" id="statTotal">-</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small">Paid</div>
+                <h3 class="mb-0 text-success" id="statPaid">-</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small">Pending</div>
+                <h3 class="mb-0 text-warning" id="statPending">-</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small">Outstanding Balance</div>
+                <h3 class="mb-0 text-danger" id="statOutstanding">-</h3>
+            </div>
+        </div>
     </div>
 </div>
+
+<!-- Filter Buttons -->
+<div class="mb-3">
+    <div class="btn-group btn-group-sm" role="group">
+        <button class="btn btn-outline-primary active" onclick="filterInvoices('all', this)">All</button>
+        <button class="btn btn-outline-success" onclick="filterInvoices('Paid', this)">Paid</button>
+        <button class="btn btn-outline-warning" onclick="filterInvoices('Pending', this)">Pending</button>
+        <button class="btn btn-outline-danger" onclick="filterInvoices('Overdue', this)">Overdue</button>
+    </div>
+</div>
+
+<!-- Invoices Table -->
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Invoice #</th>
+                        <th>Law Firm</th>
+                        <th>Amount</th>
+                        <th>Paid</th>
+                        <th>Balance</th>
+                        <th>Invoice Date</th>
+                        <th>Due Date</th>
+                        <th>Payments</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="invoiceTableBody">
+                    <tr>
+                        <td colspan="9" class="text-center py-4 text-muted">
+                            <div class="spinner-border spinner-border-sm me-2"></div> Loading invoices...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let currentFilter = 'all';
+    let allInvoices = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadStats();
+        loadInvoices();
+        setInterval(() => { loadStats(); loadInvoices(); }, 15000);
+    });
+
+    async function loadStats() {
+        try {
+            const res = await fetch('/SuperAdmin/Invoice/GetInvoiceStats');
+            const d = await res.json();
+            document.getElementById('statTotal').textContent = d.total;
+            document.getElementById('statPaid').textContent = d.paid;
+            document.getElementById('statPending').textContent = d.pending;
+            document.getElementById('statOutstanding').textContent = '₱' + d.outstanding.toLocaleString('en-PH', { minimumFractionDigits: 2 });
+        } catch (e) { console.error(e); }
+    }
+
+    async function loadInvoices() {
+        try {
+            const url = currentFilter === 'all'
+                ? '/SuperAdmin/Invoice/GetInvoices'
+                : `/SuperAdmin/Invoice/GetInvoices?status=${currentFilter}`;
+            const res = await fetch(url);
+            allInvoices = await res.json();
+            renderTable(allInvoices);
+        } catch (e) {
+            document.getElementById('invoiceTableBody').innerHTML =
+                '<tr><td colspan="9" class="text-center py-4 text-danger">Failed to load invoices</td></tr>';
+        }
+    }
+
+    function renderTable(invoices) {
+        const tbody = document.getElementById('invoiceTableBody');
+        if (!invoices.length) {
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-muted">No invoices found</td></tr>';
+            return;
+        }
+        tbody.innerHTML = invoices.map(i => {
+            const statusClass = i.status === 'Paid' ? 'success' : i.status === 'Overdue' ? 'danger' : 'warning';
+            return `<tr>
+                <td><strong>${i.invoiceNumber}</strong></td>
+                <td>${i.firmName}</td>
+                <td>₱${i.totalAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                <td class="text-success">₱${i.paidAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                <td class="${i.balance > 0 ? 'text-danger' : ''}">₱${i.balance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                <td>${new Date(i.invoiceDate).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                <td>${new Date(i.dueDate).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                <td><span class="badge bg-secondary">${i.paymentCount}</span></td>
+                <td><span class="badge bg-${statusClass}">${i.status}</span></td>
+            </tr>`;
+        }).join('');
+    }
+
+    function filterInvoices(status, btn) {
+        currentFilter = status;
+        document.querySelectorAll('.btn-group .btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadInvoices();
+    }
+
+    function downloadCSV() {
+        if (!allInvoices.length) return;
+        let csv = 'Invoice #,Law Firm,Total Amount,Paid,Balance,Invoice Date,Due Date,Payments,Status\n';
+        allInvoices.forEach(i => {
+            csv += `"${i.invoiceNumber}","${i.firmName}",${i.totalAmount},${i.paidAmount},${i.balance},"${new Date(i.invoiceDate).toLocaleDateString()}","${new Date(i.dueDate).toLocaleDateString()}",${i.paymentCount},"${i.status}"\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `invoices_${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+    }
+</script>
+}

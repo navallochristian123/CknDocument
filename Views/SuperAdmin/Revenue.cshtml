@@ -3,64 +3,154 @@
     Layout = "_SuperAdminLayout";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h4 class="mb-0">Revenue</h4>
-        <p class="text-muted mb-0">Track all revenue streams</p>
+@section Styles {
+<style>
+    .stat-card { border-radius: 12px; border: none; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+    .tax-badge { font-size: 0.7rem; padding: 3px 8px; border-radius: 12px; }
+</style>
+}
+
+<!-- Revenue Stats -->
+<div class="row mb-4 g-3">
+    <div class="col-md-4">
+        <div class="card stat-card bg-success text-white">
+            <div class="card-body">
+                <p class="small mb-1 opacity-75">Gross Revenue (This Month)</p>
+                <h3 class="fw-bold mb-0" id="monthGross">₱0.00</h3>
+                <small class="opacity-75" id="monthTaxInfo">Tax: ₱0 | Net: ₱0</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card bg-info text-white">
+            <div class="card-body">
+                <p class="small mb-1 opacity-75">Gross Revenue (This Year)</p>
+                <h3 class="fw-bold mb-0" id="yearGross">₱0.00</h3>
+                <small class="opacity-75" id="yearTaxInfo">Tax: ₱0 | Net: ₱0</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card bg-primary text-white">
+            <div class="card-body">
+                <p class="small mb-1 opacity-75">Average Monthly</p>
+                <h3 class="fw-bold mb-0" id="avgMonthly">₱0.00</h3>
+                <small class="opacity-75" id="lastMonthInfo">Last month: ₱0</small>
+            </div>
+        </div>
     </div>
 </div>
 
-<div class="row mb-4">
-    <div class="col-md-4">
-        <div class="card bg-success text-white">
-            <div class="card-body">
-                <h6>Total Revenue (This Month)</h6>
-                <h2>$45,250</h2>
+<!-- Filter & Download -->
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-body py-3">
+        <div class="row align-items-center">
+            <div class="col-md-4">
+                <h5 class="mb-0">Revenue History</h5>
             </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card bg-info text-white">
-            <div class="card-body">
-                <h6>Total Revenue (This Year)</h6>
-                <h2>$125,500</h2>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card bg-primary text-white">
-            <div class="card-body">
-                <h6>Average Monthly</h6>
-                <h2>$41,833</h2>
+            <div class="col-md-8 text-end">
+                <select class="form-select form-select-sm d-inline-block me-2" style="width:auto;" id="period" onchange="loadRevenue()">
+                    <option value="week">This Week</option>
+                    <option value="month" selected>This Month</option>
+                    <option value="quarter">This Quarter</option>
+                    <option value="year">This Year</option>
+                    <option value="all">All Time</option>
+                </select>
+                <select class="form-select form-select-sm d-inline-block me-2" style="width:auto;" id="sortRevBy" onchange="loadRevenue()">
+                    <option value="date">Sort by Date</option>
+                    <option value="amount">Sort by Amount</option>
+                    <option value="firm">Sort by Firm</option>
+                </select>
+                <a href="#" class="btn btn-sm btn-outline-primary" onclick="downloadRevReport()">
+                    <i class="bi bi-download me-1"></i>Download CSV
+                </a>
             </div>
         </div>
     </div>
 </div>
 
-<div class="card">
-    <div class="card-header bg-white">
-        <h5 class="mb-0">Revenue History</h5>
-    </div>
+<!-- Revenue Table -->
+<div class="card border-0 shadow-sm">
     <div class="card-body p-0">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Date</th>
-                    <th>Source</th>
-                    <th>Client</th>
-                    <th>Amount</th>
-                    <th>Type</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>Mar 10, 2024</td>
-                    <td>Subscription</td>
-                    <td>Smith & Associates</td>
-                    <td>$2,500.00</td>
-                    <td><span class="badge bg-primary">Monthly</span></td>
-                </tr>
-            </tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Source</th>
+                        <th>Category</th>
+                        <th>Firm</th>
+                        <th>Gross Amount</th>
+                        <th>VAT (12%)</th>
+                        <th>Net Amount</th>
+                    </tr>
+                </thead>
+                <tbody id="revenueBody">
+                    <tr><td colspan="7" class="text-center py-4"><span class="spinner-border spinner-border-sm"></span> Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
+
+@section Scripts {
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        loadRevenueStats();
+        loadRevenue();
+        setInterval(() => { loadRevenueStats(); loadRevenue(); }, 15000);
+    });
+
+    async function loadRevenueStats() {
+        try {
+            const res = await fetch('/SuperAdmin/Revenue/GetRevenueStats');
+            const d = await res.json();
+            document.getElementById('monthGross').textContent = fc(d.thisMonth.gross);
+            document.getElementById('monthTaxInfo').textContent = `Tax: ${fc(d.thisMonth.tax)} | Net: ${fc(d.thisMonth.net)}`;
+            document.getElementById('yearGross').textContent = fc(d.thisYear.gross);
+            document.getElementById('yearTaxInfo').textContent = `Tax: ${fc(d.thisYear.tax)} | Net: ${fc(d.thisYear.net)}`;
+            document.getElementById('avgMonthly').textContent = fc(d.avgMonthly);
+            document.getElementById('lastMonthInfo').textContent = `Last month: ${fc(d.lastMonth.gross)}`;
+        } catch(e) { console.error(e); }
+    }
+
+    async function loadRevenue() {
+        try {
+            const period = document.getElementById('period').value;
+            const sortBy = document.getElementById('sortRevBy').value;
+            const res = await fetch(`/SuperAdmin/Revenue/GetRevenueList?period=${period}&sortBy=${sortBy}`);
+            const data = await res.json();
+
+            if (data.length === 0) {
+                document.getElementById('revenueBody').innerHTML =
+                    '<tr><td colspan="7" class="text-center py-4 text-muted">No revenue data for this period</td></tr>';
+                return;
+            }
+
+            let html = '';
+            data.forEach(r => {
+                html += `<tr>
+                    <td class="small">${fd(r.date)}</td>
+                    <td><span class="badge bg-primary-subtle text-primary">${esc(r.source)}</span></td>
+                    <td>${esc(r.category)}</td>
+                    <td class="fw-semibold">${esc(r.firmName)}</td>
+                    <td class="fw-bold">${fc(r.grossAmount)}</td>
+                    <td class="text-danger">${fc(r.taxAmount)}</td>
+                    <td class="text-success fw-semibold">${fc(r.netAmount)}</td>
+                </tr>`;
+            });
+            document.getElementById('revenueBody').innerHTML = html;
+        } catch(e) { console.error(e); }
+    }
+
+    function downloadRevReport() {
+        const period = document.getElementById('period').value;
+        const sortBy = document.getElementById('sortRevBy').value;
+        window.location.href = `/SuperAdmin/SuperAdminDashboard/DownloadReport?type=revenue&period=${period}&sortBy=${sortBy}`;
+    }
+
+    function fc(v) { return '₱' + Number(v||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+    function fd(d) { return d ? new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'N/A'; }
+    function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+</script>
+}

@@ -1,0 +1,246 @@
+@model CKNDocument.Models.LawFirmDMS.Invoice
+@{
+    ViewData["Title"] = $"Invoice #{Model.InvoiceNumber ?? Model.InvoiceID.ToString("D4")}";
+    Layout = "_AdminLayout";
+    var firm = Model.Subscription?.Firm;
+    var balance = (Model.TotalAmount ?? 0) - (Model.PaidAmount ?? 0);
+    var subtotal = Model.InvoiceItems.Sum(i => i.SubTotal ?? 0);
+    var vatRate = 0.12m;
+    var vatAmount = Math.Round((Model.TotalAmount ?? 0) * vatRate / (1 + vatRate), 2);
+    var netAmount = (Model.TotalAmount ?? 0) - vatAmount;
+}
+
+@section Styles {
+<style>
+    .invoice-container { max-width: 800px; margin: 0 auto; }
+    .invoice-header { border-bottom: 3px solid #0d6efd; padding-bottom: 20px; }
+    .invoice-badge { font-size: 0.8rem; padding: 6px 16px; border-radius: 20px; }
+    .breakdown-table td, .breakdown-table th { padding: 10px 16px; }
+    .total-row { font-size: 1.1rem; border-top: 2px solid #dee2e6; }
+</style>
+}
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle me-2"></i>@TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-circle me-2"></i>@TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+@if (TempData["Warning"] != null)
+{
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle me-2"></i>@TempData["Warning"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="invoice-container">
+    <!-- Back Button -->
+    <div class="mb-3">
+        <a href="/LawFirm/Billing" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Back to Billing
+        </a>
+        <a href="/LawFirm/Billing/DownloadInvoice/@Model.InvoiceID" target="_blank" class="btn btn-outline-primary btn-sm ms-2">
+            <i class="bi bi-printer me-1"></i>Print Invoice
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+            <!-- Invoice Header -->
+            <div class="invoice-header d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <h2 class="fw-bold text-primary mb-1">INVOICE</h2>
+                    <h5 class="text-muted">#@(Model.InvoiceNumber ?? Model.InvoiceID.ToString("D4"))</h5>
+                </div>
+                <div class="text-end">
+                    <h5 class="fw-bold">CKN Document</h5>
+                    <p class="text-muted small mb-0">Document Management System</p>
+                    <p class="text-muted small mb-0">support@ckndocument.com</p>
+                </div>
+            </div>
+
+            <!-- Billing Info -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <h6 class="text-muted text-uppercase small fw-bold mb-2">Bill To</h6>
+                    <p class="fw-bold mb-0">@(firm?.FirmName ?? "Law Firm")</p>
+                    <p class="text-muted small mb-0">@(firm?.ContactEmail ?? "")</p>
+                    <p class="text-muted small mb-0">@(firm?.Address ?? "")</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <div class="mb-2">
+                        <span class="text-muted small">Invoice Date:</span>
+                        <span class="fw-semibold ms-2">@(Model.InvoiceDate?.ToString("MMMM dd, yyyy") ?? "N/A")</span>
+                    </div>
+                    <div class="mb-2">
+                        <span class="text-muted small">Due Date:</span>
+                        <span class="fw-semibold ms-2 @(Model.DueDate < DateTime.Today && Model.Status != "Paid" ? "text-danger" : "")">
+                            @(Model.DueDate?.ToString("MMMM dd, yyyy") ?? "N/A")
+                        </span>
+                    </div>
+                    <div>
+                        <span class="text-muted small">Status:</span>
+                        @switch (Model.Status)
+                        {
+                            case "Paid":
+                                <span class="invoice-badge bg-success text-white ms-2">Paid</span>
+                                break;
+                            case "Overdue":
+                                <span class="invoice-badge bg-danger text-white ms-2">Overdue</span>
+                                break;
+                            default:
+                                <span class="invoice-badge bg-warning text-dark ms-2">@Model.Status</span>
+                                break;
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Line Items (Breakdown) -->
+            <h6 class="text-muted text-uppercase small fw-bold mb-3">Payment Breakdown</h6>
+            <div class="table-responsive mb-4">
+                <table class="table breakdown-table mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Description</th>
+                            <th class="text-center">Qty</th>
+                            <th class="text-end">Unit Price</th>
+                            <th class="text-end">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.InvoiceItems.Any())
+                        {
+                            @foreach (var item in Model.InvoiceItems)
+                            {
+                                <tr>
+                                    <td>@(item.Description ?? "Subscription")</td>
+                                    <td class="text-center">@(item.Quantity ?? 1)</td>
+                                    <td class="text-end">₱@((item.UnitPrice ?? 0).ToString("N2"))</td>
+                                    <td class="text-end">₱@((item.SubTotal ?? 0).ToString("N2"))</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td>Monthly Subscription - @(Model.Subscription?.PlanType ?? "Standard")</td>
+                                <td class="text-center">1</td>
+                                <td class="text-end">₱@((Model.TotalAmount ?? 0).ToString("N2"))</td>
+                                <td class="text-end">₱@((Model.TotalAmount ?? 0).ToString("N2"))</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="3" class="text-end text-muted">Subtotal (Net of VAT)</td>
+                            <td class="text-end">₱@netAmount.ToString("N2")</td>
+                        </tr>
+                        <tr>
+                            <td colspan="3" class="text-end text-muted">VAT (12%)</td>
+                            <td class="text-end">₱@vatAmount.ToString("N2")</td>
+                        </tr>
+                        <tr class="total-row">
+                            <td colspan="3" class="text-end fw-bold">Total Amount</td>
+                            <td class="text-end fw-bold fs-5">₱@((Model.TotalAmount ?? 0).ToString("N2"))</td>
+                        </tr>
+                        @if ((Model.PaidAmount ?? 0) > 0)
+                        {
+                            <tr>
+                                <td colspan="3" class="text-end text-success">Amount Paid</td>
+                                <td class="text-end text-success">-₱@((Model.PaidAmount ?? 0).ToString("N2"))</td>
+                            </tr>
+                            <tr>
+                                <td colspan="3" class="text-end fw-bold">Balance Due</td>
+                                <td class="text-end fw-bold text-danger fs-5">₱@balance.ToString("N2")</td>
+                            </tr>
+                        }
+                    </tfoot>
+                </table>
+            </div>
+
+            @if (!string.IsNullOrEmpty(Model.Notes))
+            {
+                <div class="bg-light rounded p-3 mb-4">
+                    <h6 class="small text-muted text-uppercase fw-bold mb-1">Notes</h6>
+                    <p class="mb-0 small">@Model.Notes</p>
+                </div>
+            }
+
+            <!-- Payment Action -->
+            @if (Model.Status != "Paid" && balance > 0)
+            {
+                <div class="border-top pt-4 text-center">
+                    <p class="text-muted mb-3">Pay securely via GCash, Maya, GrabPay, or Credit/Debit Card</p>
+                    <form asp-controller="Billing" asp-action="Pay" method="post" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="invoiceId" value="@Model.InvoiceID" />
+                        <button type="submit" class="btn btn-primary btn-lg px-5">
+                            <i class="bi bi-credit-card me-2"></i>Pay ₱@balance.ToString("N2") Now
+                        </button>
+                    </form>
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <i class="bi bi-shield-check me-1"></i>Secured by PayMongo Payment Gateway
+                        </small>
+                    </div>
+                </div>
+            }
+
+            <!-- Payment History for this Invoice -->
+            @if (Model.Payments.Any())
+            {
+                <div class="border-top pt-4 mt-4">
+                    <h6 class="text-muted text-uppercase small fw-bold mb-3">Payment History for this Invoice</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Reference</th>
+                                    <th>Amount</th>
+                                    <th>Method</th>
+                                    <th>Date</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var p in Model.Payments.OrderByDescending(p => p.PaymentDate))
+                                {
+                                    <tr>
+                                        <td class="small">@(p.PaymentReference ?? "N/A")</td>
+                                        <td>₱@((p.Amount ?? 0).ToString("N2"))</td>
+                                        <td>@(p.PaymentMethod ?? "N/A")</td>
+                                        <td>@(p.PaymentDate?.ToString("MMM dd, yyyy") ?? "N/A")</td>
+                                        <td>
+                                            @if (p.Status == "Completed")
+                                            {
+                                                <span class="badge bg-success">Completed</span>
+                                            }
+                                            else if (p.Status == "Pending")
+                                            {
+                                                <span class="badge bg-warning text-dark">Pending</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">@p.Status</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>

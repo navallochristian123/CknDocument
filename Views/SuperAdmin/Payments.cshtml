@@ -3,43 +3,164 @@
     Layout = "_SuperAdminLayout";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h4 class="mb-0">Payments</h4>
-        <p class="text-muted mb-0">Track all payments</p>
+@section Styles {
+<style>
+    .stat-card { border-radius: 12px; border: none; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+    .status-pill { padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+</style>
+}
+
+<!-- Stats Row -->
+<div class="row mb-4 g-3">
+    <div class="col-md-3">
+        <div class="card stat-card bg-success text-white">
+            <div class="card-body">
+                <p class="small mb-1 opacity-75">Total Received</p>
+                <h3 class="fw-bold mb-0" id="statTotal">₱0.00</h3>
+            </div>
+        </div>
     </div>
-    <a href="#" class="btn btn-primary">
-        <i class="bi bi-plus-circle"></i> Record Payment
-    </a>
+    <div class="col-md-3">
+        <div class="card stat-card bg-primary text-white">
+            <div class="card-body">
+                <p class="small mb-1 opacity-75">This Month</p>
+                <h3 class="fw-bold mb-0" id="statMonth">₱0.00</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card bg-warning text-dark">
+            <div class="card-body">
+                <p class="small mb-1 opacity-75">Pending</p>
+                <h3 class="fw-bold mb-0" id="statPending">0</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card bg-info text-white">
+            <div class="card-body">
+                <p class="small mb-1 opacity-75">Completed Payments</p>
+                <h3 class="fw-bold mb-0" id="statCount">0</h3>
+            </div>
+        </div>
+    </div>
 </div>
 
-<div class="card">
-    <div class="card-body p-0">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Payment ID</th>
-                    <th>Invoice</th>
-                    <th>Client</th>
-                    <th>Amount</th>
-                    <th>Method</th>
-                    <th>Date</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>PAY-001</td>
-                    <td>INV-001</td>
-                    <td>Smith & Associates</td>
-                    <td>$2,500.00</td>
-                    <td>Bank Transfer</td>
-                    <td>Mar 10, 2024</td>
-                    <td>
-                        <a href="#" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+<!-- Filter -->
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-body py-3">
+        <div class="row align-items-center">
+            <div class="col-md-4">
+                <h5 class="mb-0">All Payments</h5>
+            </div>
+            <div class="col-md-8 text-end">
+                <div class="btn-group btn-group-sm me-2">
+                    <button class="btn btn-outline-secondary active" onclick="filterPayments('all', this)">All</button>
+                    <button class="btn btn-outline-success" onclick="filterPayments('Completed', this)">Completed</button>
+                    <button class="btn btn-outline-warning" onclick="filterPayments('Pending', this)">Pending</button>
+                    <button class="btn btn-outline-danger" onclick="filterPayments('Failed', this)">Failed</button>
+                </div>
+                <select class="form-select form-select-sm d-inline-block" style="width:auto;" id="sortBy" onchange="loadPayments()">
+                    <option value="date">Sort by Date</option>
+                    <option value="amount">Sort by Amount</option>
+                    <option value="firm">Sort by Firm</option>
+                </select>
+            </div>
+        </div>
     </div>
 </div>
+
+<!-- Payments Table -->
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Reference</th>
+                        <th>Invoice</th>
+                        <th>Firm</th>
+                        <th>Amount</th>
+                        <th>Tax (VAT)</th>
+                        <th>Net</th>
+                        <th>Method</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>PayMongo ID</th>
+                    </tr>
+                </thead>
+                <tbody id="paymentsBody">
+                    <tr><td colspan="10" class="text-center py-4"><span class="spinner-border spinner-border-sm"></span> Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let currentFilter = 'all';
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadPaymentStats();
+        loadPayments();
+        setInterval(() => { loadPaymentStats(); loadPayments(); }, 15000);
+    });
+
+    async function loadPaymentStats() {
+        try {
+            const res = await fetch('/SuperAdmin/Payment/GetPaymentStats');
+            const d = await res.json();
+            document.getElementById('statTotal').textContent = formatCurrency(d.totalCompleted);
+            document.getElementById('statMonth').textContent = formatCurrency(d.thisMonthTotal);
+            document.getElementById('statPending').textContent = d.pendingCount;
+            document.getElementById('statCount').textContent = d.totalCount;
+        } catch(e) { console.error(e); }
+    }
+
+    function filterPayments(status, btn) {
+        currentFilter = status;
+        document.querySelectorAll('.btn-group .btn').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        loadPayments();
+    }
+
+    async function loadPayments() {
+        try {
+            const sortBy = document.getElementById('sortBy').value;
+            const res = await fetch(`/SuperAdmin/Payment/GetPayments?status=${currentFilter}&sortBy=${sortBy}`);
+            const data = await res.json();
+
+            if (data.length === 0) {
+                document.getElementById('paymentsBody').innerHTML =
+                    '<tr><td colspan="10" class="text-center py-4 text-muted"><i class="bi bi-inbox fs-3 d-block mb-2"></i>No payments found</td></tr>';
+                return;
+            }
+
+            let html = '';
+            data.forEach(p => {
+                const statusClass = p.status === 'Completed' ? 'bg-success text-white' :
+                    p.status === 'Pending' ? 'bg-warning text-dark' :
+                    p.status === 'Failed' ? 'bg-danger text-white' : 'bg-secondary text-white';
+                html += `<tr>
+                    <td class="small fw-semibold">${esc(p.paymentReference)}</td>
+                    <td>${esc(p.invoiceNumber)}</td>
+                    <td>${esc(p.firmName)}</td>
+                    <td class="fw-bold">${formatCurrency(p.amount)}</td>
+                    <td class="text-danger small">${formatCurrency(p.taxAmount)}</td>
+                    <td class="text-success small">${formatCurrency(p.netAmount)}</td>
+                    <td><span class="badge bg-secondary-subtle text-secondary">${esc(p.method)}</span></td>
+                    <td class="small">${formatDate(p.date)}</td>
+                    <td><span class="status-pill ${statusClass}">${esc(p.status)}</span></td>
+                    <td class="small text-muted">${esc(p.paymongoId || '-')}</td>
+                </tr>`;
+            });
+            document.getElementById('paymentsBody').innerHTML = html;
+        } catch(e) { console.error(e); }
+    }
+
+    function formatCurrency(v) { return '₱' + Number(v||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+    function formatDate(d) { return d ? new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'N/A'; }
+    function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+</script>
+}

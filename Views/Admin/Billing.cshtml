@@ -1,0 +1,285 @@
+@{
+    ViewData["Title"] = "Billing & Subscription";
+    Layout = "_AdminLayout";
+    var subscription = ViewBag.Subscription as CKNDocument.Models.LawFirmDMS.FirmSubscription;
+    var payments = ViewBag.Payments as List<CKNDocument.Models.LawFirmDMS.Payment> ?? new List<CKNDocument.Models.LawFirmDMS.Payment>();
+    var pendingInvoices = ViewBag.PendingInvoices as List<CKNDocument.Models.LawFirmDMS.Invoice> ?? new List<CKNDocument.Models.LawFirmDMS.Invoice>();
+}
+
+@section Styles {
+<style>
+    .billing-card { border-radius: 12px; border: none; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+    .plan-badge { font-size: 0.7rem; padding: 4px 12px; border-radius: 20px; font-weight: 600; text-transform: uppercase; }
+    .due-alert { border-left: 4px solid #dc3545; background: #fff5f5; }
+    .due-alert.upcoming { border-left-color: #ffc107; background: #fffbeb; }
+    .due-alert.paid { border-left-color: #198754; background: #f0fdf4; }
+    .payment-method-icon { font-size: 1.2rem; }
+    .status-pill { padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+    .invoice-row { cursor: pointer; transition: background 0.15s; }
+    .invoice-row:hover { background: #f8f9fa; }
+</style>
+}
+
+<!-- Toast Notifications -->
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle me-2"></i>@TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-circle me-2"></i>@TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+@if (TempData["Warning"] != null)
+{
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle me-2"></i>@TempData["Warning"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<!-- Subscription Overview -->
+<div class="row mb-4 g-3">
+    <div class="col-md-4">
+        <div class="card billing-card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <p class="text-muted mb-1 small">Current Plan</p>
+                        <h3 class="mb-0 fw-bold">@(subscription?.PlanType ?? "No Plan")</h3>
+                    </div>
+                    <span class="plan-badge bg-primary-subtle text-primary">
+                        @(subscription?.Status ?? "Inactive")
+                    </span>
+                </div>
+                <div class="small text-muted">
+                    @if (subscription != null)
+                    {
+                        <div><i class="bi bi-calendar3 me-1"></i> Started: @(subscription.StartDate?.ToString("MMM dd, yyyy") ?? "N/A")</div>
+                        <div><i class="bi bi-calendar-check me-1"></i> Expires: @(subscription.EndDate?.ToString("MMM dd, yyyy") ?? "N/A")</div>
+                    }
+                    else
+                    {
+                        <div>No active subscription found.</div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card billing-card h-100">
+            <div class="card-body">
+                <p class="text-muted mb-1 small">Next Due Date</p>
+                @if (pendingInvoices.Any())
+                {
+                    var nextInvoice = pendingInvoices.First();
+                    var daysUntilDue = (nextInvoice.DueDate?.Date - DateTime.Today)?.Days ?? 0;
+                    <h3 class="mb-1 fw-bold @(daysUntilDue <= 3 ? "text-danger" : daysUntilDue <= 7 ? "text-warning" : "")">
+                        @(nextInvoice.DueDate?.ToString("MMMM dd, yyyy") ?? "N/A")
+                    </h3>
+                    <div class="small">
+                        @if (daysUntilDue < 0)
+                        {
+                            <span class="text-danger fw-bold"><i class="bi bi-exclamation-triangle"></i> Overdue by @Math.Abs(daysUntilDue) days</span>
+                        }
+                        else if (daysUntilDue == 0)
+                        {
+                            <span class="text-danger fw-bold"><i class="bi bi-clock"></i> Due Today!</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">@daysUntilDue days remaining</span>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <h3 class="mb-1 fw-bold text-success">All Paid</h3>
+                    <div class="small text-muted">No pending dues</div>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card billing-card h-100">
+            <div class="card-body">
+                <p class="text-muted mb-1 small">Outstanding Balance</p>
+                @{
+                    var totalOutstanding = pendingInvoices.Sum(i => (i.TotalAmount ?? 0) - (i.PaidAmount ?? 0));
+                }
+                <h3 class="mb-1 fw-bold @(totalOutstanding > 0 ? "text-danger" : "text-success")">
+                    ₱@totalOutstanding.ToString("N2")
+                </h3>
+                <div class="small text-muted">
+                    @pendingInvoices.Count pending invoice(s)
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pending Invoices -->
+@if (pendingInvoices.Any())
+{
+    <div class="card billing-card mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-receipt-cutoff me-2"></i>Pending Invoices</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Invoice #</th>
+                            <th>Description</th>
+                            <th>Due Date</th>
+                            <th>Amount</th>
+                            <th>Balance</th>
+                            <th>Status</th>
+                            <th class="text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var inv in pendingInvoices)
+                        {
+                            var balance = (inv.TotalAmount ?? 0) - (inv.PaidAmount ?? 0);
+                            var isOverdue = inv.DueDate.HasValue && inv.DueDate.Value.Date < DateTime.Today;
+                            <tr class="invoice-row" onclick="window.location='/LawFirm/Billing/Invoice/@inv.InvoiceID'">
+                                <td class="fw-semibold">@(inv.InvoiceNumber ?? $"INV-{inv.InvoiceID:D4}")</td>
+                                <td>
+                                    @if (inv.InvoiceItems.Any())
+                                    {
+                                        @inv.InvoiceItems.First().Description
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Subscription Payment</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="@(isOverdue ? "text-danger fw-bold" : "")">
+                                        @(inv.DueDate?.ToString("MMM dd, yyyy") ?? "N/A")
+                                    </span>
+                                </td>
+                                <td>₱@((inv.TotalAmount ?? 0).ToString("N2"))</td>
+                                <td class="fw-bold text-danger">₱@balance.ToString("N2")</td>
+                                <td>
+                                    @if (isOverdue)
+                                    {
+                                        <span class="status-pill bg-danger text-white">Overdue</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="status-pill bg-warning text-dark">Pending</span>
+                                    }
+                                </td>
+                                <td class="text-end" onclick="event.stopPropagation();">
+                                    <form asp-controller="Billing" asp-action="Pay" method="post" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="invoiceId" value="@inv.InvoiceID" />
+                                        <button type="submit" class="btn btn-sm btn-primary">
+                                            <i class="bi bi-credit-card me-1"></i>Pay Now
+                                        </button>
+                                    </form>
+                                    <a href="/LawFirm/Billing/Invoice/@inv.InvoiceID" class="btn btn-sm btn-outline-secondary ms-1">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Payment History -->
+<div class="card billing-card">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Payment History</h5>
+        <a href="/LawFirm/Billing/History" class="btn btn-sm btn-outline-primary">View All</a>
+    </div>
+    <div class="card-body p-0">
+        @if (payments.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Reference</th>
+                            <th>Invoice</th>
+                            <th>Amount</th>
+                            <th>Method</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in payments.Take(10))
+                        {
+                            <tr>
+                                <td class="small fw-semibold">@(p.PaymentReference ?? "N/A")</td>
+                                <td>@(p.Invoice?.InvoiceNumber ?? "N/A")</td>
+                                <td>₱@((p.Amount ?? 0).ToString("N2"))</td>
+                                <td>
+                                    @switch (p.PaymentMethod?.ToLower())
+                                    {
+                                        case "gcash":
+                                            <span class="badge bg-primary-subtle text-primary"><i class="bi bi-phone me-1"></i>GCash</span>
+                                            break;
+                                        case "grab_pay":
+                                            <span class="badge bg-success-subtle text-success"><i class="bi bi-phone me-1"></i>GrabPay</span>
+                                            break;
+                                        case "card":
+                                            <span class="badge bg-info-subtle text-info"><i class="bi bi-credit-card me-1"></i>Card</span>
+                                            break;
+                                        case "paymaya":
+                                            <span class="badge bg-warning-subtle text-dark"><i class="bi bi-phone me-1"></i>Maya</span>
+                                            break;
+                                        default:
+                                            <span class="badge bg-secondary-subtle text-secondary">@(p.PaymentMethod ?? "N/A")</span>
+                                            break;
+                                    }
+                                </td>
+                                <td>@(p.PaymentDate?.ToString("MMM dd, yyyy") ?? "N/A")</td>
+                                <td>
+                                    @switch (p.Status)
+                                    {
+                                        case "Completed":
+                                            <span class="status-pill bg-success text-white">Completed</span>
+                                            break;
+                                        case "Pending":
+                                            <span class="status-pill bg-warning text-dark">Pending</span>
+                                            break;
+                                        case "Failed":
+                                            <span class="status-pill bg-danger text-white">Failed</span>
+                                            break;
+                                        case "Cancelled":
+                                            <span class="status-pill bg-secondary text-white">Cancelled</span>
+                                            break;
+                                        default:
+                                            <span class="status-pill bg-secondary text-white">@p.Status</span>
+                                            break;
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-credit-card fs-1 d-block mb-3 opacity-25"></i>
+                <p class="mb-0">No payment history yet.</p>
+            </div>
+        }
+    </div>
+</div>

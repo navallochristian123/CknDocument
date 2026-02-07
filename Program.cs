@@ -104,6 +104,10 @@ builder.Services.AddScoped<DocumentWorkflowService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<DocumentAIService>();
 
+// PayMongo Payment Service (API key from environment variable)
+builder.Services.AddHttpClient<PayMongoService>();
+builder.Services.AddScoped<PayMongoService>();
+
 // Background Services
 builder.Services.AddHostedService<RetentionArchiveBackgroundService>();
 

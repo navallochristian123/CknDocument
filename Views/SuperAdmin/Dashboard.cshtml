@@ -3,135 +3,506 @@
     Layout = "_SuperAdminLayout";
 }
 
-<div class="row mb-4">
+@section Styles {
+<style>
+    .stat-card { border-radius: 12px; border: none; box-shadow: 0 2px 12px rgba(0,0,0,0.06); transition: transform 0.15s; }
+    .stat-card:hover { transform: translateY(-2px); }
+    .stat-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; }
+    .chart-container { position: relative; height: 320px; }
+    .period-btn.active { background: #0d6efd !important; color: #fff !important; }
+    .tax-badge { font-size: 0.7rem; padding: 3px 8px; border-radius: 12px; }
+    .profit-positive { color: #198754; }
+    .profit-negative { color: #dc3545; }
+    .mini-stat { font-size: 0.75rem; color: #6c757d; }
+    .download-menu { min-width: 280px; padding: 16px; }
+    .download-menu .form-label { font-size: 0.8rem; font-weight: 600; }
+    .sparkline { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.3); overflow: hidden; margin-top: 8px; }
+    .sparkline-fill { height: 100%; border-radius: 2px; background: rgba(255,255,255,0.7); }
+</style>
+}
+
+<!-- KPI Cards Row -->
+<div class="row mb-4 g-3" id="kpiCards">
     <div class="col-md-3">
-        <div class="card bg-primary text-white">
+        <div class="card stat-card bg-primary text-white h-100">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <h6 class="mb-1">Law Firms</h6>
-                        <h2 class="mb-0">24</h2>
+                        <p class="mb-1 small opacity-75">Law Firms</p>
+                        <h2 class="mb-0 fw-bold" id="statFirms"><span class="spinner-border spinner-border-sm"></span></h2>
+                        <div class="mini-stat text-white-50" id="statActiveFirms"></div>
                     </div>
-                    <i class="bi bi-building fs-1 opacity-50"></i>
+                    <div class="stat-icon bg-white bg-opacity-25"><i class="bi bi-building text-white"></i></div>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-success text-white">
+        <div class="card stat-card bg-success text-white h-100">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <h6 class="mb-1">Total Revenue</h6>
-                        <h2 class="mb-0">$125K</h2>
+                        <p class="mb-1 small opacity-75">Revenue (This Month)</p>
+                        <h2 class="mb-0 fw-bold" id="statRevenue"><span class="spinner-border spinner-border-sm"></span></h2>
+                        <div class="mini-stat text-white-50" id="statTax">Tax: ₱0.00</div>
                     </div>
-                    <i class="bi bi-currency-dollar fs-1 opacity-50"></i>
+                    <div class="stat-icon bg-white bg-opacity-25"><i class="bi bi-currency-dollar text-white"></i></div>
+                </div>
+                <div class="sparkline"><div class="sparkline-fill" id="revenueSparkline" style="width: 0%"></div></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card bg-warning text-dark h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <p class="mb-1 small opacity-75">Pending Invoices</p>
+                        <h2 class="mb-0 fw-bold" id="statPendingInvoices"><span class="spinner-border spinner-border-sm"></span></h2>
+                        <div class="mini-stat" id="statOverdue">0 overdue</div>
+                    </div>
+                    <div class="stat-icon bg-white bg-opacity-25"><i class="bi bi-receipt text-dark"></i></div>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-warning text-dark">
+        <div class="card stat-card h-100" id="profitCard">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <h6 class="mb-1">Pending Invoices</h6>
-                        <h2 class="mb-0">8</h2>
+                        <p class="mb-1 small text-muted">Net Profit (Month)</p>
+                        <h2 class="mb-0 fw-bold" id="statProfit"><span class="spinner-border spinner-border-sm"></span></h2>
+                        <div class="mini-stat" id="statExpenses">Expenses: ₱0.00</div>
                     </div>
-                    <i class="bi bi-receipt fs-1 opacity-50"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-info text-white">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="mb-1">Active Subscriptions</h6>
-                        <h2 class="mb-0">22</h2>
-                    </div>
-                    <i class="bi bi-credit-card fs-1 opacity-50"></i>
+                    <div class="stat-icon bg-info-subtle"><i class="bi bi-graph-up text-info"></i></div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="row">
-    <div class="col-md-8">
-        <div class="card mb-4">
-            <div class="card-header bg-white">
-                <h5 class="mb-0">Recent Law Firms</h5>
+<!-- Tax Summary Strip -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-3">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <div class="small text-muted">Gross Revenue (Year)</div>
+                        <div class="fw-bold fs-5" id="yearGrossRevenue">₱0.00</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="small text-muted">VAT Collected (Year)</div>
+                        <div class="fw-bold fs-5 text-danger" id="yearTaxCollected">₱0.00</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="small text-muted">Net Revenue (Year)</div>
+                        <div class="fw-bold fs-5 text-success" id="yearNetRevenue">₱0.00</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="small text-muted">Net Profit (Year)</div>
+                        <div class="fw-bold fs-5" id="yearProfit">₱0.00</div>
+                    </div>
+                </div>
             </div>
-            <div class="card-body p-0">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Firm Name</th>
-                            <th>Owner</th>
-                            <th>Subscription</th>
-                            <th>Status</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Smith & Associates</td>
-                            <td>John Smith</td>
-                            <td>Enterprise</td>
-                            <td><span class="badge bg-success">Active</span></td>
-                            <td><a href="#" class="btn btn-sm btn-outline-primary">View</a></td>
-                        </tr>
-                        <tr>
-                            <td>Legal Eagles LLP</td>
-                            <td>Sarah Johnson</td>
-                            <td>Professional</td>
-                            <td><span class="badge bg-success">Active</span></td>
-                            <td><a href="#" class="btn btn-sm btn-outline-primary">View</a></td>
-                        </tr>
-                        <tr>
-                            <td>Brown Law Office</td>
-                            <td>Michael Brown</td>
-                            <td>Basic</td>
-                            <td><span class="badge bg-warning">Pending</span></td>
-                            <td><a href="#" class="btn btn-sm btn-outline-primary">View</a></td>
-                        </tr>
-                    </tbody>
-                </table>
+        </div>
+    </div>
+</div>
+
+<!-- Charts & Analytics -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Revenue vs Expenses (12 Months)</h5>
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="bi bi-download me-1"></i>Download Report
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end download-menu">
+                        <div class="mb-3">
+                            <label class="form-label">Report Type</label>
+                            <select class="form-select form-select-sm" id="reportType">
+                                <option value="full">Full Report (Revenue + Expenses)</option>
+                                <option value="revenue">Revenue Only</option>
+                                <option value="expenses">Expenses Only</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Period</label>
+                            <select class="form-select form-select-sm" id="reportPeriod">
+                                <option value="week">This Week</option>
+                                <option value="month" selected>This Month</option>
+                                <option value="quarter">This Quarter</option>
+                                <option value="year">This Year</option>
+                                <option value="all">All Time</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Sort By</label>
+                            <select class="form-select form-select-sm" id="reportSort">
+                                <option value="date" selected>Date</option>
+                                <option value="amount">Amount</option>
+                                <option value="firm">Firm Name</option>
+                                <option value="category">Category</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary btn-sm w-100" onclick="downloadReport()">
+                            <i class="bi bi-file-earmark-spreadsheet me-1"></i>Download CSV
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="revenueExpenseChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card mb-4">
-            <div class="card-header bg-white">
-                <h5 class="mb-0">Recent Payments</h5>
+        <!-- Revenue Breakdown Pie -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Revenue Breakdown</h5>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary period-btn active" data-period="month" onclick="loadRevenueBreakdown('month')">Month</button>
+                    <button class="btn btn-outline-secondary period-btn" data-period="year" onclick="loadRevenueBreakdown('year')">Year</button>
+                </div>
             </div>
             <div class="card-body">
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                        <div>
-                            <strong>Smith & Associates</strong>
-                            <small class="d-block text-muted">Today</small>
-                        </div>
-                        <span class="text-success">+$2,500</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                        <div>
-                            <strong>Legal Eagles LLP</strong>
-                            <small class="d-block text-muted">Yesterday</small>
-                        </div>
-                        <span class="text-success">+$1,500</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                        <div>
-                            <strong>Brown Law Office</strong>
-                            <small class="d-block text-muted">2 days ago</small>
-                        </div>
-                        <span class="text-success">+$750</span>
+                <div style="height: 220px;"><canvas id="revenueBreakdownChart"></canvas></div>
+                <div id="revenueBreakdownLegend" class="mt-3"></div>
+            </div>
+        </div>
+        <!-- Tax Summary Small Card -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-receipt-cutoff me-2"></i>Tax Summary</h5>
+            </div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush" id="taxSummaryList">
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span class="text-muted">Loading...</span>
+                        <span class="spinner-border spinner-border-sm"></span>
                     </li>
                 </ul>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Recent Payments & Firms -->
+<div class="row">
+    <div class="col-md-7">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Recent Payments</h5>
+                <a href="/SuperAdmin/Payment" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Firm</th>
+                                <th>Invoice</th>
+                                <th>Amount</th>
+                                <th>Tax</th>
+                                <th>Method</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentPaymentsBody">
+                            <tr><td colspan="6" class="text-center py-3"><span class="spinner-border spinner-border-sm"></span> Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-5">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Law Firms</h5>
+                <a href="/SuperAdmin/LawFirm" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Firm</th>
+                                <th>Plan</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="firmsBody">
+                            <tr><td colspan="3" class="text-center py-3"><span class="spinner-border spinner-border-sm"></span> Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    let revenueExpenseChart, revenueBreakdownChart;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadDashboard();
+        setInterval(loadDashboard, 15000); // refresh every 15s
+    });
+
+    async function loadDashboard() {
+        await Promise.all([
+            loadKPIs(),
+            loadChartData(),
+            loadRecentPayments(),
+            loadFirmsSummary(),
+            loadRevenueBreakdown('month')
+        ]);
+    }
+
+    async function loadKPIs() {
+        try {
+            const res = await fetch('/SuperAdmin/SuperAdminDashboard/GetDashboardStats');
+            const d = await res.json();
+
+            document.getElementById('statFirms').textContent = d.firms.total;
+            document.getElementById('statActiveFirms').textContent = `${d.firms.active} active`;
+
+            document.getElementById('statRevenue').textContent = formatCurrency(d.revenue.thisMonth.gross);
+            document.getElementById('statTax').innerHTML = `Tax: ${formatCurrency(d.revenue.thisMonth.tax)} | Net: ${formatCurrency(d.revenue.thisMonth.net)}`;
+
+            document.getElementById('statPendingInvoices').textContent = d.invoices.pending;
+            document.getElementById('statOverdue').textContent = `${d.invoices.overdue} overdue`;
+
+            const profit = d.profit.thisMonth;
+            document.getElementById('statProfit').textContent = formatCurrency(profit);
+            document.getElementById('statProfit').className = `mb-0 fw-bold ${profit >= 0 ? 'profit-positive' : 'profit-negative'}`;
+            document.getElementById('statExpenses').textContent = `Expenses: ${formatCurrency(d.expenses.thisMonth)}`;
+
+            // Year stats
+            document.getElementById('yearGrossRevenue').textContent = formatCurrency(d.revenue.thisYear.gross);
+            document.getElementById('yearTaxCollected').textContent = formatCurrency(d.revenue.thisYear.tax);
+            document.getElementById('yearNetRevenue').textContent = formatCurrency(d.revenue.thisYear.net);
+            const yp = d.profit.thisYear;
+            const ypEl = document.getElementById('yearProfit');
+            ypEl.textContent = formatCurrency(yp);
+            ypEl.className = `fw-bold fs-5 ${yp >= 0 ? 'profit-positive' : 'profit-negative'}`;
+
+            // Tax summary
+            const taxHtml = `
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>VAT This Month</span>
+                    <strong class="text-danger">${formatCurrency(d.revenue.thisMonth.tax)}</strong>
+                </li>
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>VAT This Year</span>
+                    <strong class="text-danger">${formatCurrency(d.revenue.thisYear.tax)}</strong>
+                </li>
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>Net Revenue (Month)</span>
+                    <strong class="text-success">${formatCurrency(d.revenue.thisMonth.net)}</strong>
+                </li>
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>Net Profit (Month)</span>
+                    <strong class="${profit >= 0 ? 'text-success' : 'text-danger'}">${formatCurrency(profit)}</strong>
+                </li>`;
+            document.getElementById('taxSummaryList').innerHTML = taxHtml;
+
+            // Sparkline
+            if (d.revenue.thisYear.gross > 0) {
+                const pct = Math.min((d.revenue.thisMonth.gross / (d.revenue.thisYear.gross / 12)) * 100, 100);
+                document.getElementById('revenueSparkline').style.width = pct + '%';
+            }
+        } catch (e) { console.error('KPI load error:', e); }
+    }
+
+    async function loadChartData() {
+        try {
+            const res = await fetch('/SuperAdmin/SuperAdminDashboard/GetMonthlyChartData');
+            const data = await res.json();
+
+            const labels = data.map(d => d.month);
+            const grossRev = data.map(d => d.grossRevenue);
+            const netRev = data.map(d => d.netRevenue);
+            const taxData = data.map(d => d.taxAmount);
+            const expenses = data.map(d => d.expenses);
+            const profit = data.map(d => d.profit);
+
+            const ctx = document.getElementById('revenueExpenseChart').getContext('2d');
+            if (revenueExpenseChart) revenueExpenseChart.destroy();
+
+            revenueExpenseChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Net Revenue', data: netRev, backgroundColor: 'rgba(25, 135, 84, 0.7)', borderRadius: 4, order: 2 },
+                        { label: 'VAT Tax', data: taxData, backgroundColor: 'rgba(220, 53, 69, 0.5)', borderRadius: 4, order: 3 },
+                        { label: 'Expenses', data: expenses, backgroundColor: 'rgba(255, 193, 7, 0.7)', borderRadius: 4, order: 4 },
+                        { label: 'Profit', data: profit, type: 'line', borderColor: '#0d6efd', backgroundColor: 'rgba(13, 110, 253, 0.1)', fill: true, tension: 0.4, borderWidth: 2, pointRadius: 3, order: 1 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        x: { stacked: false, grid: { display: false } },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { callback: v => '₱' + (v >= 1000 ? (v/1000).toFixed(0) + 'K' : v) }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}`
+                            }
+                        },
+                        legend: { position: 'bottom', labels: { padding: 16, usePointStyle: true } }
+                    }
+                }
+            });
+        } catch (e) { console.error('Chart load error:', e); }
+    }
+
+    async function loadRevenueBreakdown(period) {
+        try {
+            document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === period));
+
+            const res = await fetch(`/SuperAdmin/SuperAdminDashboard/GetRevenueBreakdown?period=${period}`);
+            const data = await res.json();
+
+            const colors = ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6f42c1', '#0dcaf0', '#fd7e14'];
+            const ctx = document.getElementById('revenueBreakdownChart').getContext('2d');
+            if (revenueBreakdownChart) revenueBreakdownChart.destroy();
+
+            if (data.length === 0) {
+                document.getElementById('revenueBreakdownLegend').innerHTML = '<p class="text-center text-muted small">No revenue data for this period</p>';
+                return;
+            }
+
+            revenueBreakdownChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.map(d => d.category),
+                    datasets: [{
+                        data: data.map(d => d.grossAmount),
+                        backgroundColor: colors.slice(0, data.length),
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '65%',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: { label: ctx => `${ctx.label}: ${formatCurrency(ctx.parsed)}` }
+                        }
+                    }
+                }
+            });
+
+            // Custom legend
+            let legendHtml = '';
+            data.forEach((d, i) => {
+                legendHtml += `
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div><span class="d-inline-block rounded-circle me-2" style="width:10px;height:10px;background:${colors[i]}"></span>
+                        <small>${d.category}</small></div>
+                        <div class="text-end">
+                            <small class="fw-bold">${formatCurrency(d.grossAmount)}</small>
+                            <small class="d-block text-muted">Tax: ${formatCurrency(d.taxAmount)}</small>
+                        </div>
+                    </div>`;
+            });
+            document.getElementById('revenueBreakdownLegend').innerHTML = legendHtml;
+        } catch (e) { console.error('Breakdown load error:', e); }
+    }
+
+    async function loadRecentPayments() {
+        try {
+            const res = await fetch('/SuperAdmin/SuperAdminDashboard/GetRecentPayments?take=8');
+            const data = await res.json();
+
+            if (data.length === 0) {
+                document.getElementById('recentPaymentsBody').innerHTML =
+                    '<tr><td colspan="6" class="text-center text-muted py-4"><i class="bi bi-inbox fs-3 d-block mb-2 opacity-25"></i>No payments yet</td></tr>';
+                return;
+            }
+
+            let html = '';
+            data.forEach(p => {
+                html += `<tr>
+                    <td class="fw-semibold">${escapeHtml(p.firmName)}</td>
+                    <td>${escapeHtml(p.invoiceNumber)}</td>
+                    <td class="text-success fw-bold">${formatCurrency(p.amount)}</td>
+                    <td><span class="tax-badge bg-danger-subtle text-danger">${formatCurrency(p.taxAmount)}</span></td>
+                    <td><span class="badge bg-secondary-subtle text-secondary">${escapeHtml(p.method)}</span></td>
+                    <td class="small text-muted">${formatDate(p.date)}</td>
+                </tr>`;
+            });
+            document.getElementById('recentPaymentsBody').innerHTML = html;
+        } catch (e) { console.error('Payments load error:', e); }
+    }
+
+    async function loadFirmsSummary() {
+        try {
+            const res = await fetch('/SuperAdmin/SuperAdminDashboard/GetFirmsSummary');
+            const data = await res.json();
+
+            if (data.length === 0) {
+                document.getElementById('firmsBody').innerHTML =
+                    '<tr><td colspan="3" class="text-center text-muted py-4">No firms registered</td></tr>';
+                return;
+            }
+
+            let html = '';
+            data.forEach(f => {
+                const plan = f.subscription ? f.subscription.planType : 'None';
+                const statusBg = f.status === 'Active' ? 'success' : f.status === 'Pending' ? 'warning' : 'secondary';
+                html += `<tr>
+                    <td class="fw-semibold">${escapeHtml(f.firmName)}</td>
+                    <td><span class="badge bg-primary-subtle text-primary">${escapeHtml(plan || 'None')}</span></td>
+                    <td><span class="badge bg-${statusBg}">${escapeHtml(f.status || 'N/A')}</span></td>
+                </tr>`;
+            });
+            document.getElementById('firmsBody').innerHTML = html;
+        } catch (e) { console.error('Firms load error:', e); }
+    }
+
+    function downloadReport() {
+        const type = document.getElementById('reportType').value;
+        const period = document.getElementById('reportPeriod').value;
+        const sortBy = document.getElementById('reportSort').value;
+        window.location.href = `/SuperAdmin/SuperAdminDashboard/DownloadReport?type=${type}&period=${period}&sortBy=${sortBy}`;
+    }
+
+    function formatCurrency(value) {
+        return '₱' + Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return 'N/A';
+        return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+</script>
+}
+
