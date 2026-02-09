@@ -65,6 +65,7 @@
                         <th>Submitted By</th>
                         <th>Folder</th>
                         <th>Date</th>
+                        <th>Status</th>
                         <th>AI Status</th>
                         <th>Actions</th>
                     </tr>
@@ -423,9 +424,7 @@
         const tbody = document.getElementById('documents-tbody');
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" class="text-center py-4">
-                    <div class="spinner-border text-primary" role="status"></div>
-                </td>
+                            <td colspan="8" class="text-center py-4">
             </tr>
         `;
 
@@ -437,7 +436,7 @@
                 if (data.documents.length === 0) {
                     tbody.innerHTML = `
                         <tr>
-                            <td colspan="7" class="text-center py-5">
+                            <td colspan="8" class="text-center py-5">
                                 <i class="bi bi-check-circle text-success" style="font-size: 3rem;"></i>
                                 <h5 class="mt-3 text-muted">No pending reviews</h5>
                                 <p class="text-muted">All documents have been reviewed</p>
@@ -462,6 +461,7 @@
                         <td>${doc.uploader?.name || 'Unknown'}</td>
                         <td>${doc.folder?.name || '<em class="text-muted">Root</em>'}</td>
                         <td>${formatDate(doc.createdAt)}</td>
+                        <td><span class="badge bg-warning text-dark">Pending Review</span></td>
                         <td>
                             ${doc.isDuplicate ? '<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle"></i> Duplicate</span>' : '<span class="badge bg-success"><i class="bi bi-check"></i> OK</span>'}
                         </td>
@@ -477,7 +477,7 @@
             console.error('Error loading documents:', error);
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="7" class="text-center py-4 text-danger">
+                    <td colspan="8" class="text-center py-4 text-danger">
                         Error loading documents. Please try again.
                     </td>
                 </tr>
@@ -564,8 +564,50 @@
                     versionsList.innerHTML = '<li class="list-group-item text-muted">No version history</li>';
                 }
 
-                // Checklist
+                // Checklist - prefer AI-generated checklist, fall back to DB checklist items
                 checklistItems = data.checklistItems || [];
+                
+                // If AI analysis has a checklist, merge/override with AI items
+                if (data.aiAnalysis && data.aiAnalysis.checklist && Array.isArray(data.aiAnalysis.checklist) && data.aiAnalysis.checklist.length > 0) {
+                    // Use AI-generated checklist items (they have item, status, detail)
+                    const aiChecklist = data.aiAnalysis.checklist;
+                    
+                    // If no DB checklist items yet, create items from AI checklist
+                    if (checklistItems.length === 0) {
+                        checklistItems = aiChecklist.map((ai, idx) => ({
+                            id: -(idx + 1), // negative IDs for AI-generated items
+                            itemName: ai.item,
+                            description: `AI: ${ai.detail || ''} [${(ai.status || 'warning').toUpperCase()}]`,
+                            isRequired: ai.status === 'fail',
+                            aiStatus: ai.status,
+                            aiDetail: ai.detail
+                        }));
+                    } else {
+                        // Merge: add AI status info to existing items + append any AI items not in DB
+                        const existingNames = checklistItems.map(c => c.itemName?.toLowerCase());
+                        let nextId = -1;
+                        aiChecklist.forEach(ai => {
+                            const match = checklistItems.find(c => 
+                                c.itemName?.toLowerCase().includes(ai.item?.toLowerCase()?.substring(0, 20)) ||
+                                ai.item?.toLowerCase().includes(c.itemName?.toLowerCase()?.substring(0, 20))
+                            );
+                            if (match) {
+                                match.aiStatus = ai.status;
+                                match.aiDetail = ai.detail;
+                            } else {
+                                checklistItems.push({
+                                    id: nextId--,
+                                    itemName: ai.item,
+                                    description: ai.detail || '',
+                                    isRequired: ai.status === 'fail',
+                                    aiStatus: ai.status,
+                                    aiDetail: ai.detail
+                                });
+                            }
+                        });
+                    }
+                }
+                
                 renderChecklist(checklistItems);
 
                 // Clear previous inputs
@@ -584,21 +626,43 @@
         const container = document.getElementById('checklistContainer');
 
         if (items.length === 0) {
-            container.innerHTML = '<p class="text-muted">No checklist items configured</p>';
+            container.innerHTML = '<p class="text-muted">No checklist items configured for this document type</p>';
             return;
         }
 
-        container.innerHTML = items.map(item => `
-            <div class="form-check mb-2 p-3 border rounded checklist-item" data-item-id="${item.id}">
-                <input class="form-check-input" type="checkbox" id="check_${item.id}">
-                <label class="form-check-label" for="check_${item.id}">
-                    <strong>${escapeHtml(item.itemName)}</strong>
-                    ${item.isRequired ? '<span class="badge bg-danger ms-1">Required</span>' : ''}
-                    ${item.description ? `<br><small class="text-muted">${escapeHtml(item.description)}</small>` : ''}
-                </label>
-                <input type="text" class="form-control form-control-sm mt-2" placeholder="Optional remarks..." id="check_remarks_${item.id}">
-            </div>
-        `).join('');
+        container.innerHTML = items.map(item => {
+            // AI status indicator
+            let aiIndicator = '';
+            if (item.aiStatus) {
+                const statusColors = { pass: 'success', fail: 'danger', warning: 'warning' };
+                const statusIcons = { pass: 'check-circle-fill', fail: 'x-circle-fill', warning: 'exclamation-triangle-fill' };
+                const statusLabels = { pass: 'AI: Pass', fail: 'AI: Fail', warning: 'AI: Warning' };
+                const color = statusColors[item.aiStatus] || 'secondary';
+                const icon = statusIcons[item.aiStatus] || 'question-circle';
+                const label = statusLabels[item.aiStatus] || 'AI: Unknown';
+                aiIndicator = `<span class="badge bg-${color} ms-2"><i class="bi bi-${icon} me-1"></i>${label}</span>`;
+            }
+            
+            // AI detail
+            let aiDetail = '';
+            if (item.aiDetail) {
+                aiDetail = `<br><small class="text-primary"><i class="bi bi-robot me-1"></i>${escapeHtml(item.aiDetail)}</small>`;
+            }
+
+            return `
+                <div class="form-check mb-2 p-3 border rounded checklist-item ${item.aiStatus === 'fail' ? 'border-danger bg-danger bg-opacity-10' : item.aiStatus === 'pass' ? 'border-success bg-success bg-opacity-10' : item.aiStatus === 'warning' ? 'border-warning bg-warning bg-opacity-10' : ''}" data-item-id="${item.id}">
+                    <input class="form-check-input" type="checkbox" id="check_${item.id}" ${item.aiStatus === 'pass' ? 'checked' : ''}>
+                    <label class="form-check-label" for="check_${item.id}">
+                        <strong>${escapeHtml(item.itemName)}</strong>
+                        ${item.isRequired ? '<span class="badge bg-danger ms-1">Required</span>' : ''}
+                        ${aiIndicator}
+                        ${item.description && !item.aiDetail ? `<br><small class="text-muted">${escapeHtml(item.description)}</small>` : ''}
+                        ${aiDetail}
+                    </label>
+                    <input type="text" class="form-control form-control-sm mt-2" placeholder="Optional remarks..." id="check_remarks_${item.id}">
+                </div>
+            `;
+        }).join('');
     }
 
     function getChecklistResults() {

@@ -219,7 +219,7 @@
                     <span class="ms-2">${escapeHtml(doc.originalFileName || doc.title)}</span>
                 </td>
                 <td>${escapeHtml(doc.documentType || doc.category || '-')}</td>
-                <td>${escapeHtml(doc.folderName || 'General')}</td>
+                <td>${escapeHtml(doc.folder ? doc.folder.name : 'General')}</td>
                 <td>${formatDate(doc.createdAt)}</td>
                 <td>${getStatusBadge(doc.status, doc.workflowStage)}</td>
                 <td>
@@ -227,7 +227,7 @@
                         <button class="btn btn-outline-primary" onclick="previewDocument(${doc.id}, '${escapeHtml(doc.fileExtension || '')}', '${escapeHtml(doc.originalFileName || doc.title)}')" title="Preview">
                             <i class="bi bi-eye"></i>
                         </button>
-                        ${(doc.status === 'Completed' || doc.status === 'Approved') ? `
+                        ${(doc.status === 'Completed' || doc.status === 'Approved' || doc.status === 'Rejected') ? `
                         <a href="/api/DocumentApi/${doc.id}/download" class="btn btn-outline-secondary" title="Download">
                             <i class="bi bi-download"></i>
                         </a>
@@ -349,7 +349,9 @@
         if (status === 'Rejected') return '<span class="badge bg-danger">Rejected</span>';
         if (workflowStage === 'StaffReview') return '<span class="badge bg-info">Staff Review</span>';
         if (workflowStage === 'AdminReview') return '<span class="badge bg-warning">Admin Review</span>';
-        return '<span class="badge bg-secondary">Pending</span>';
+        if (workflowStage === 'PendingAdminReview') return '<span class="badge bg-warning">Pending Admin Review</span>';
+        if (workflowStage === 'PendingStaffReview' || workflowStage === 'ClientUpload') return '<span class="badge bg-secondary">Pending Review</span>';
+        return '<span class="badge bg-secondary">Pending Review</span>';
     }
     
     function formatDate(dateStr) {

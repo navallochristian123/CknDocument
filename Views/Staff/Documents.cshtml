@@ -264,9 +264,10 @@
         if (status === 'Completed') return '<span class="badge bg-success">Approved</span>';
         if (status === 'Rejected') return '<span class="badge bg-danger">Rejected</span>';
         if (workflowStage === 'StaffReview') return '<span class="badge bg-warning text-dark">Pending Review</span>';
+        if (workflowStage === 'PendingStaffReview' || workflowStage === 'ClientUpload') return '<span class="badge bg-warning text-dark">Pending Review</span>';
         if (workflowStage === 'AdminReview') return '<span class="badge bg-info">Admin Review</span>';
-        if (workflowStage === 'ClientUpload') return '<span class="badge bg-warning text-dark">Pending Review</span>';
-        return '<span class="badge bg-secondary">Pending</span>';
+        if (workflowStage === 'PendingAdminReview') return '<span class="badge bg-info">Pending Admin Review</span>';
+        return '<span class="badge bg-secondary">Pending Review</span>';
     }
     
     function formatDate(dateStr) {

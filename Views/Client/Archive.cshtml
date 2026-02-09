@@ -175,9 +175,13 @@
                 <td>${formatDate(d.archivedAt)}</td>
                 <td><span class="text-truncate d-inline-block" style="max-width: 150px;">${escapeHtml(d.archiveReason || '-')}</span></td>
                 <td>
+                    ${d.archiveType === 'Rejected' ? `
                     <button class="btn btn-sm btn-outline-success" onclick="showRestoreModal(${d.archiveId}, '${escapeHtml(d.documentTitle)}')">
                         <i class="bi bi-arrow-counterclockwise"></i> Restore
                     </button>
+                    ` : `
+                    <span class="text-muted small"><i class="bi bi-lock me-1"></i>Archived</span>
+                    `}
                 </td>
             </tr>
         `).join('');

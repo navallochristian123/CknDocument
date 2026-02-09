@@ -67,6 +67,61 @@
             </div>
         </div>
 
+        <!-- AI Analysis Panel -->
+        <div class="card mb-3 border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h6 class="mb-0"><i class="bi bi-robot me-2"></i>AI Document Analysis</h6>
+            </div>
+            <div class="card-body" id="aiAnalysisPanel">
+                <div class="text-center py-3" id="aiLoading">
+                    <div class="spinner-border spinner-border-sm text-warning"></div>
+                    <p class="text-muted mt-2 mb-0 small">Loading AI analysis...</p>
+                </div>
+                <div id="aiContent" style="display: none;">
+                    <!-- AI Summary -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <strong class="small">Detected Type:</strong>
+                            <span class="badge bg-info" id="aiDocType">-</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <strong class="small">Confidence:</strong>
+                            <span id="aiConfidence" class="small">-</span>
+                        </div>
+                        <div class="mt-2">
+                            <strong class="small d-block mb-1">AI Summary:</strong>
+                            <p class="small text-muted mb-0" id="aiSummary">-</p>
+                        </div>
+                    </div>
+
+                    <!-- AI Checklist -->
+                    <div class="mb-3" id="aiChecklistSection" style="display: none;">
+                        <strong class="small d-block mb-2"><i class="bi bi-list-check me-1"></i>AI Checklist:</strong>
+                        <div id="aiChecklist" class="border rounded p-2" style="max-height: 200px; overflow-y: auto;"></div>
+                    </div>
+
+                    <!-- AI Issues -->
+                    <div class="mb-3" id="aiIssuesSection" style="display: none;">
+                        <strong class="small d-block mb-2"><i class="bi bi-exclamation-triangle me-1"></i>Issues Found:</strong>
+                        <div id="aiIssues" style="max-height: 200px; overflow-y: auto;"></div>
+                    </div>
+
+                    <!-- AI Missing Items -->
+                    <div class="mb-2" id="aiMissingSection" style="display: none;">
+                        <strong class="small d-block mb-2"><i class="bi bi-patch-question me-1"></i>Missing Items:</strong>
+                        <div id="aiMissing" style="max-height: 150px; overflow-y: auto;"></div>
+                    </div>
+
+                    <div class="text-end mt-2">
+                        <small class="text-muted" id="aiMeta">-</small>
+                    </div>
+                </div>
+                <div id="aiNoData" style="display: none;">
+                    <p class="text-muted small mb-0"><i class="bi bi-info-circle me-1"></i>No AI analysis available for this document.</p>
+                </div>
+            </div>
+        </div>
+
         <!-- Version History -->
         <div class="card">
             <div class="card-header">
@@ -253,6 +308,7 @@
                 documentData = data.document;
                 displayDocumentInfo(documentData);
                 loadVersions(docId);
+                loadAIAnalysis(docId);
             } else {
                 showError(data.message || 'Failed to load document');
             }
@@ -312,6 +368,88 @@
         } catch (error) {
             console.error('Error loading versions:', error);
         }
+    }
+
+    async function loadAIAnalysis(docId) {
+        try {
+            const response = await fetch(`/api/DocumentApi/${docId}/ai-analysis`);
+            const data = await response.json();
+
+            document.getElementById('aiLoading').style.display = 'none';
+
+            if (data.success && data.analysis) {
+                displayAIAnalysis(data.analysis);
+            } else {
+                document.getElementById('aiNoData').style.display = 'block';
+            }
+        } catch (error) {
+            console.error('Error loading AI analysis:', error);
+            document.getElementById('aiLoading').style.display = 'none';
+            document.getElementById('aiNoData').style.display = 'block';
+        }
+    }
+
+    function displayAIAnalysis(ai) {
+        document.getElementById('aiContent').style.display = 'block';
+        document.getElementById('aiDocType').textContent = ai.detectedDocumentType || 'Unknown';
+        
+        const conf = ai.confidence ? (ai.confidence * 100).toFixed(0) + '%' : '-';
+        const confEl = document.getElementById('aiConfidence');
+        confEl.textContent = conf;
+        if (ai.confidence >= 0.8) confEl.className = 'small text-success fw-bold';
+        else if (ai.confidence >= 0.5) confEl.className = 'small text-warning fw-bold';
+        else confEl.className = 'small text-danger fw-bold';
+
+        document.getElementById('aiSummary').textContent = ai.summary || 'No summary available';
+
+        // Render AI Checklist
+        if (ai.checklist && ai.checklist.length > 0) {
+            document.getElementById('aiChecklistSection').style.display = 'block';
+            document.getElementById('aiChecklist').innerHTML = ai.checklist.map(c => {
+                const statusIcon = c.status === 'pass' ? 'bi-check-circle-fill text-success' :
+                    c.status === 'fail' ? 'bi-x-circle-fill text-danger' : 'bi-exclamation-circle-fill text-warning';
+                return `<div class="d-flex align-items-start mb-1">
+                    <i class="bi ${statusIcon} me-2 mt-1 flex-shrink-0"></i>
+                    <div>
+                        <span class="small">${escapeHtml(c.item)}</span>
+                        ${c.detail ? `<br><small class="text-muted">${escapeHtml(c.detail)}</small>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // Render AI Issues
+        if (ai.issues && ai.issues.length > 0) {
+            document.getElementById('aiIssuesSection').style.display = 'block';
+            document.getElementById('aiIssues').innerHTML = ai.issues.map(i => {
+                const sevClass = i.severity === 'high' ? 'danger' : i.severity === 'medium' ? 'warning' : 'info';
+                return `<div class="alert alert-${sevClass} py-1 px-2 mb-1 small">
+                    <strong>${escapeHtml(i.severity?.toUpperCase() || 'INFO')}:</strong> ${escapeHtml(i.issue)}
+                    ${i.recommendation ? `<br><em class="small">${escapeHtml(i.recommendation)}</em>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        // Render Missing Items
+        if (ai.missingItems && ai.missingItems.length > 0) {
+            document.getElementById('aiMissingSection').style.display = 'block';
+            document.getElementById('aiMissing').innerHTML = ai.missingItems.map(m => {
+                const impClass = m.importance === 'critical' ? 'danger' : m.importance === 'important' ? 'warning' : 'secondary';
+                return `<div class="d-flex align-items-start mb-1">
+                    <span class="badge bg-${impClass} me-2 mt-1 flex-shrink-0">${escapeHtml(m.importance || 'info')}</span>
+                    <div>
+                        <span class="small">${escapeHtml(m.item)}</span>
+                        ${m.detail ? `<br><small class="text-muted">${escapeHtml(m.detail)}</small>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // Metadata
+        const meta = [];
+        if (ai.modelUsed) meta.push(ai.modelUsed);
+        if (ai.processedAt) meta.push(formatDate(ai.processedAt));
+        document.getElementById('aiMeta').textContent = meta.join(' | ');
     }
 
     async function loadChecklist(docId) {

@@ -21,6 +21,7 @@ public class ReviewApiController : ControllerBase
     private readonly DocumentWorkflowService _workflowService;
     private readonly NotificationService _notificationService;
     private readonly AuditLogService _auditLogService;
+    private readonly DocumentAIService _aiService;
     private readonly IWebHostEnvironment _environment;
     private readonly ILogger<ReviewApiController> _logger;
 
@@ -29,6 +30,7 @@ public class ReviewApiController : ControllerBase
         DocumentWorkflowService workflowService,
         NotificationService notificationService,
         AuditLogService auditLogService,
+        DocumentAIService aiService,
         IWebHostEnvironment environment,
         ILogger<ReviewApiController> logger)
     {
@@ -36,6 +38,7 @@ public class ReviewApiController : ControllerBase
         _workflowService = workflowService;
         _notificationService = notificationService;
         _auditLogService = auditLogService;
+        _aiService = aiService;
         _environment = environment;
         _logger = logger;
     }
@@ -82,6 +85,7 @@ public class ReviewApiController : ControllerBase
             totalFileSize = d.TotalFileSize,
             currentVersion = d.CurrentVersion,
             isDuplicate = d.IsDuplicate,
+            isAIProcessed = d.IsAIProcessed,
             uploader = d.Uploader != null ? new { id = d.Uploader.UserID, name = d.Uploader.FullName } : null,
             folder = d.Folder != null ? new { id = d.Folder.FolderId, name = d.Folder.FolderName } : null,
             assignedStaff = d.AssignedStaff != null ? new { id = d.AssignedStaff.UserID, name = d.AssignedStaff.FullName } : null,
@@ -228,18 +232,107 @@ public class ReviewApiController : ControllerBase
         if (document == null)
             return NotFound(new { success = false, message = "Document not found" });
 
-        // Get checklist items for the firm
-        var checklistItems = await _context.DocumentChecklistItems
-            .Where(c => c.FirmId == firmId && c.IsActive == true)
-            .OrderBy(c => c.DisplayOrder)
-            .Select(c => new
+        // Get AI analysis data first (needed for checklist filtering)
+        object? aiAnalysis = null;
+        string? detectedDocType = document.DocumentType;
+        try
+        {
+            var analysis = await _context.DocumentAIAnalyses
+                .Where(a => a.DocumentId == documentId && a.IsProcessed)
+                .OrderByDescending(a => a.ProcessedAt)
+                .FirstOrDefaultAsync();
+
+            if (analysis != null)
             {
-                id = c.ChecklistItemId,
-                itemName = c.ItemName,
-                description = c.Description,
-                isRequired = c.IsRequired
-            })
-            .ToListAsync();
+                detectedDocType = analysis.DetectedDocumentType ?? document.DocumentType;
+                
+                // Auto-create checklist items for this document type if they don't exist
+                if (!string.IsNullOrEmpty(detectedDocType))
+                {
+                    await _aiService.EnsureChecklistItemsExistAsync(firmId, detectedDocType);
+                }
+                
+                aiAnalysis = new
+                {
+                    detectedDocumentType = analysis.DetectedDocumentType,
+                    confidence = (analysis.Confidence ?? 0) / 100.0,
+                    summary = analysis.Summary,
+                    checklist = string.IsNullOrEmpty(analysis.ChecklistJson) ? null : System.Text.Json.JsonSerializer.Deserialize<object>(analysis.ChecklistJson),
+                    issues = string.IsNullOrEmpty(analysis.IssuesJson) ? null : System.Text.Json.JsonSerializer.Deserialize<object>(analysis.IssuesJson),
+                    missingItems = string.IsNullOrEmpty(analysis.MissingItemsJson) ? null : System.Text.Json.JsonSerializer.Deserialize<object>(analysis.MissingItemsJson),
+                    modelUsed = analysis.ModelUsed,
+                    processedAt = analysis.ProcessedAt,
+                    tokensUsed = analysis.TokensUsed
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error loading AI analysis for document {DocumentId}", documentId);
+        }
+
+        // Get checklist items filtered by detected document type
+        // Priority: type-specific items first; if none exist, fall back to generic items
+        List<object> checklistItems;
+        
+        if (!string.IsNullOrEmpty(detectedDocType))
+        {
+            // First check if type-specific items exist
+            var typeSpecificItems = await _context.DocumentChecklistItems
+                .Where(c => c.FirmId == firmId && c.IsActive == true && c.DocumentType == detectedDocType)
+                .OrderBy(c => c.DisplayOrder)
+                .Select(c => new
+                {
+                    id = c.ChecklistItemId,
+                    itemName = c.ItemName,
+                    description = c.Description,
+                    documentType = c.DocumentType,
+                    isRequired = c.IsRequired
+                })
+                .ToListAsync();
+
+            if (typeSpecificItems.Any())
+            {
+                // Type-specific items exist - use only those
+                checklistItems = typeSpecificItems.Cast<object>().ToList();
+            }
+            else
+            {
+                // No type-specific items - fall back to generic items
+                checklistItems = await _context.DocumentChecklistItems
+                    .Where(c => c.FirmId == firmId && c.IsActive == true && 
+                               (c.DocumentType == null || c.DocumentType == ""))
+                    .OrderBy(c => c.DisplayOrder)
+                    .Select(c => new
+                    {
+                        id = c.ChecklistItemId,
+                        itemName = c.ItemName,
+                        description = c.Description,
+                        documentType = c.DocumentType,
+                        isRequired = c.IsRequired
+                    })
+                    .Cast<object>()
+                    .ToListAsync();
+            }
+        }
+        else
+        {
+            // No detected type - use generic items
+            checklistItems = await _context.DocumentChecklistItems
+                .Where(c => c.FirmId == firmId && c.IsActive == true && 
+                           (c.DocumentType == null || c.DocumentType == ""))
+                .OrderBy(c => c.DisplayOrder)
+                .Select(c => new
+                {
+                    id = c.ChecklistItemId,
+                    itemName = c.ItemName,
+                    description = c.Description,
+                    documentType = c.DocumentType,
+                    isRequired = c.IsRequired
+                })
+                .Cast<object>()
+                .ToListAsync();
+        }
 
         return Ok(new
         {
@@ -297,7 +390,8 @@ public class ReviewApiController : ControllerBase
                     })
                 })
             },
-            checklistItems = checklistItems
+            checklistItems = checklistItems,
+            aiAnalysis = aiAnalysis
         });
     }
 

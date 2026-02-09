@@ -46,6 +46,7 @@ public class LawFirmDMSDbContext : DbContext
       public DbSet<Report> Reports { get; set; } = null!;
       public DbSet<DocumentChecklistItem> DocumentChecklistItems { get; set; } = null!;
       public DbSet<DocumentChecklistResult> DocumentChecklistResults { get; set; } = null!;
+      public DbSet<DocumentAIAnalysis> DocumentAIAnalyses { get; set; } = null!;
 
       protected override void OnModelCreating(ModelBuilder modelBuilder)
       {
@@ -402,6 +403,24 @@ public class LawFirmDMSDbContext : DbContext
                   entity.HasOne(r => r.ChecklistItem)
                     .WithMany(i => i.Results)
                     .HasForeignKey(r => r.ChecklistItemId);
+            });
+
+            // DocumentAIAnalysis configuration
+            modelBuilder.Entity<DocumentAIAnalysis>(entity =>
+            {
+                  entity.HasIndex(e => e.DocumentId);
+                  entity.Property(e => e.IsProcessed).HasDefaultValue(false);
+                  entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETDATE()");
+
+                  entity.HasOne(a => a.Document)
+                    .WithMany(d => d.AIAnalyses)
+                    .HasForeignKey(a => a.DocumentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                  entity.HasOne(a => a.Firm)
+                    .WithMany()
+                    .HasForeignKey(a => a.FirmId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
       }
 }

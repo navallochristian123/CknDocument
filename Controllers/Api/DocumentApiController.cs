@@ -158,16 +158,24 @@ public class DocumentApiController : ControllerBase
             _context.DocumentVersions.Add(version);
             await _context.SaveChangesAsync();
 
-            // Process with AI
-            using (var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+            // Process with AI (non-blocking - upload succeeds even if AI fails)
+            try
             {
-                var aiResult = await _aiService.ProcessDocumentAsync(document.DocumentID, fileStream, dto.File.FileName);
-                
-                // Ensure checklist items exist for detected document type
-                if (!string.IsNullOrEmpty(aiResult.DetectedDocumentType))
+                using (var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
                 {
-                    await _aiService.EnsureChecklistItemsExistAsync(firmId, aiResult.DetectedDocumentType);
+                    var aiResult = await _aiService.ProcessDocumentAsync(document.DocumentID, fileStream, dto.File.FileName);
+                    
+                    // Ensure checklist items exist for detected document type
+                    if (aiResult.Success && !string.IsNullOrEmpty(aiResult.DetectedDocumentType))
+                    {
+                        await _aiService.EnsureChecklistItemsExistAsync(firmId, aiResult.DetectedDocumentType);
+                    }
                 }
+                _logger.LogInformation("AI processing completed for document {DocumentId}", document.DocumentID);
+            }
+            catch (Exception aiEx)
+            {
+                _logger.LogWarning(aiEx, "AI processing failed for document {DocumentId}, upload will continue without AI analysis", document.DocumentID);
             }
 
             // Assign to staff for review
@@ -289,9 +297,11 @@ public class DocumentApiController : ControllerBase
                     reviewStatus = r.ReviewStatus,
                     remarks = r.Remarks,
                     reviewerRole = r.ReviewerRole,
-                    reviewer = r.Reviewer?.FullName,
+                    reviewerName = r.Reviewer?.FullName,
+                    reviewerEmail = r.Reviewer?.Email,
                     reviewedAt = r.ReviewedAt,
-                    isChecklistComplete = r.IsChecklistComplete
+                    isChecklistComplete = r.IsChecklistComplete,
+                    checklistScore = r.ChecklistScore
                 })
             }
         });
@@ -424,9 +434,30 @@ public class DocumentApiController : ControllerBase
             if (role == "Client" && document.UploadedBy != userId)
                 return StatusCode(403, new { success = false, message = "You don't have permission to archive this document" });
 
-            // Only completed or approved documents can be archived by clients
-            if (role == "Client" && document.Status != "Completed" && document.Status != "Approved")
-                return BadRequest(new { success = false, message = "Only approved or completed documents can be archived" });
+            // Clients can archive approved, completed, OR rejected documents
+            if (role == "Client" && document.Status != "Completed" && document.Status != "Approved" && document.Status != "Rejected")
+                return BadRequest(new { success = false, message = "Only approved, completed, or rejected documents can be archived" });
+
+            // Check for existing non-restored archive
+            var existingArchive = await _context.Archives
+                .FirstOrDefaultAsync(a => a.DocumentID == id && a.IsRestored != true);
+            
+            if (existingArchive != null)
+            {
+                // For rejected docs that were auto-archived, just update the document status to Archived
+                // since the archive record already exists
+                if (document.Status == "Rejected" && existingArchive.ArchiveType == "Rejected")
+                {
+                    document.WorkflowStage = "Archived";
+                    document.Status = "Archived";
+                    document.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+                    
+                    return Ok(new { success = true, message = "Document archived successfully", archiveId = existingArchive.ArchiveID });
+                }
+                
+                return BadRequest(new { success = false, message = "This document is already archived" });
+            }
 
             var archive = await _workflowService.ArchiveDocumentAsync(id, userId, dto?.Reason ?? "Archived by user", "Manual");
 
@@ -434,8 +465,14 @@ public class DocumentApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error archiving document {Id}", id);
-            return StatusCode(500, new { success = false, message = "An error occurred while archiving the document" });
+            _logger.LogError(ex, "Error archiving document {Id}. InnerException: {Inner}", id, ex.InnerException?.Message);
+            var errorMsg = "An error occurred while archiving the document";
+#if DEBUG
+            errorMsg = $"{errorMsg}: {ex.Message}";
+            if (ex.InnerException != null)
+                errorMsg += $" | Inner: {ex.InnerException.Message}";
+#endif
+            return StatusCode(500, new { success = false, message = errorMsg });
         }
     }
 
@@ -576,10 +613,10 @@ public class DocumentApiController : ControllerBase
     }
 
     /// <summary>
-    /// Get AI analysis for a document
+    /// Get AI analysis for a document (full OpenAI analysis)
     /// </summary>
     [HttpGet("{id}/ai-analysis")]
-    [Authorize(Policy = "AdminOrStaff")]
+    [Authorize(Policy = "FirmMember")]
     public async Task<IActionResult> GetAIAnalysis(int id)
     {
         var firmId = GetFirmId();
@@ -590,37 +627,68 @@ public class DocumentApiController : ControllerBase
         if (document == null)
             return NotFound(new { success = false, message = "Document not found" });
 
-        // Get AI analysis from the AI service
-        var analysis = await _aiService.AnalyzeDocumentAsync(id);
+        // Get stored AI analysis
+        var aiAnalysis = await _aiService.GetAnalysisAsync(id);
 
-        if (!analysis.Success)
+        if (aiAnalysis != null && aiAnalysis.IsProcessed)
         {
+            // Parse stored JSON
+            List<AIChecklistItem>? checklist = null;
+            List<AIDocumentIssue>? issues = null;
+            List<AIMissingItem>? missingItems = null;
+
+            try
+            {
+                if (!string.IsNullOrEmpty(aiAnalysis.ChecklistJson))
+                    checklist = System.Text.Json.JsonSerializer.Deserialize<List<AIChecklistItem>>(aiAnalysis.ChecklistJson);
+                if (!string.IsNullOrEmpty(aiAnalysis.IssuesJson))
+                    issues = System.Text.Json.JsonSerializer.Deserialize<List<AIDocumentIssue>>(aiAnalysis.IssuesJson);
+                if (!string.IsNullOrEmpty(aiAnalysis.MissingItemsJson))
+                    missingItems = System.Text.Json.JsonSerializer.Deserialize<List<AIMissingItem>>(aiAnalysis.MissingItemsJson);
+            }
+            catch { /* ignore parse errors */ }
+
             return Ok(new
             {
-                success = false,
-                message = analysis.ErrorMessage ?? "Failed to analyze document"
+                success = true,
+                documentId = id,
+                analysis = new
+                {
+                    detectedDocumentType = aiAnalysis.DetectedDocumentType,
+                    confidence = (aiAnalysis.Confidence ?? 0) / 100.0,
+                    summary = aiAnalysis.Summary,
+                    checklist = checklist ?? new List<AIChecklistItem>(),
+                    issues = issues ?? new List<AIDocumentIssue>(),
+                    missingItems = missingItems ?? new List<AIMissingItem>(),
+                    isProcessed = true,
+                    processedAt = aiAnalysis.ProcessedAt,
+                    modelUsed = aiAnalysis.ModelUsed
+                },
+                isDuplicate = document.IsDuplicate,
+                duplicateInfo = document.IsDuplicate == true ? $"Possible duplicate of document #{document.DuplicateOfDocumentId}" : null
             });
         }
 
-        // Convert issues to API format
-        var issues = analysis.Issues.Select(i => new
-        {
-            type = i.Type == "error" ? "Error" : i.Type == "warning" ? "Warning" : "Info",
-            message = i.Message,
-            severity = i.Type == "error" ? "High" : i.Type == "warning" ? "Medium" : "Low",
-            location = "Document"
-        }).ToList();
-
+        // Fallback to basic analysis
+        var analysis = await _aiService.AnalyzeDocumentAsync(id);
         return Ok(new
         {
-            success = true,
+            success = analysis.Success,
             documentId = id,
-            documentType = analysis.DocumentType,
-            confidence = analysis.Confidence,
-            isConfidential = analysis.IsConfidential,
+            analysis = new
+            {
+                detectedDocumentType = analysis.DocumentType,
+                confidence = (analysis.Confidence) / 100.0,
+                summary = analysis.Summary ?? "AI analysis not yet completed.",
+                checklist = analysis.AIChecklist,
+                issues = analysis.AIIssues,
+                missingItems = analysis.AIMissingItems,
+                isProcessed = false,
+                modelUsed = (string?)null,
+                processedAt = (DateTime?)null
+            },
             isDuplicate = analysis.IsDuplicate,
             duplicateInfo = analysis.IsDuplicate ? $"Possible duplicate of document #{analysis.DuplicateOfDocumentId}" : null,
-            issues = issues,
             keywords = analysis.Keywords
         });
     }

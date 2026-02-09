@@ -251,11 +251,11 @@
     let currentDocumentId = null;
     
     const statusBadges = {
-        'Pending': '<span class="badge bg-warning">Pending</span>',
+        'Pending': '<span class="badge bg-warning">Pending Review</span>',
         'UnderReview': '<span class="badge bg-info">Under Review</span>',
         'Approved': '<span class="badge bg-success">Approved</span>',
         'Rejected': '<span class="badge bg-danger">Rejected</span>',
-        'Completed': '<span class="badge bg-success">Completed</span>',
+        'Completed': '<span class="badge bg-success">Approved</span>',
         'Archived': '<span class="badge bg-secondary">Archived</span>'
     };
     
@@ -360,7 +360,7 @@
                     </div>
                 </td>
                 <td><span class="badge bg-light text-dark">${escapeHtml(doc.documentType || 'Unknown')}</span></td>
-                <td>${doc.folderName ? escapeHtml(doc.folderName) : '<span class="text-muted">Root</span>'}</td>
+                <td>${doc.folder ? escapeHtml(doc.folder.name) : '<span class="text-muted">Root</span>'}</td>
                 <td>${statusBadges[doc.status] || '<span class="badge bg-secondary">Unknown</span>'}</td>
                 <td>v${doc.currentVersion || 1}</td>
                 <td>${formatDate(doc.createdAt)}</td>
@@ -371,7 +371,7 @@
                     <a href="/api/DocumentApi/${doc.id}/download" class="btn btn-sm btn-outline-success" title="Download">
                         <i class="bi bi-download"></i>
                     </a>
-                    ${doc.workflowStage !== 'Archived' ? `
+                    ${['Completed','Approved','Rejected'].includes(doc.status) && doc.workflowStage !== 'Archived' ? `
                         <button class="btn btn-sm btn-outline-danger" onclick="showArchiveModal(${doc.id})" title="Archive">
                             <i class="bi bi-archive"></i>
                         </button>
@@ -461,12 +461,15 @@
                 <div class="card-body py-2">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <strong>${r.reviewerName || 'Unknown'}</strong>
-                            <span class="badge ${r.reviewStatus === 'Approved' ? 'bg-success' : 'bg-danger'} ms-2">${r.reviewStatus}</span>
+                            <strong>${escapeHtml(r.reviewerName || 'Unknown')}</strong>
+                            <span class="badge bg-secondary ms-1">${escapeHtml(r.reviewerRole || '')}</span>
+                            <span class="badge ${r.reviewStatus === 'Approved' ? 'bg-success' : 'bg-danger'} ms-1">${r.reviewStatus}</span>
                         </div>
                         <small class="text-muted">${formatDate(r.reviewedAt)}</small>
                     </div>
+                    ${r.reviewerEmail ? `<small class="text-muted d-block"><i class="bi bi-envelope me-1"></i>${escapeHtml(r.reviewerEmail)}</small>` : ''}
                     ${r.remarks ? `<p class="mb-0 mt-1 small">${escapeHtml(r.remarks)}</p>` : ''}
+                    ${r.checklistScore !== undefined && r.checklistScore !== null ? `<small class="text-muted"><i class="bi bi-list-check me-1"></i>Checklist Score: ${r.checklistScore}</small>` : ''}
                 </div>
             </div>
         `).join('');

@@ -103,6 +103,48 @@ BEGIN
     PRINT 'Added CreatedAt column';
 END
 
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Archive') AND name = 'VersionNumber')
+BEGIN
+    ALTER TABLE Archive ADD VersionNumber INT NULL;
+    PRINT 'Added VersionNumber column';
+END
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Archive') AND name = 'ArchiveType')
+BEGIN
+    ALTER TABLE Archive ADD ArchiveType NVARCHAR(50) NULL;
+    PRINT 'Added ArchiveType column';
+END
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Archive') AND name = 'OriginalRetentionDate')
+BEGIN
+    ALTER TABLE Archive ADD OriginalRetentionDate DATETIME NULL;
+    PRINT 'Added OriginalRetentionDate column';
+END
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Archive') AND name = 'ArchivedBy')
+BEGIN
+    ALTER TABLE Archive ADD ArchivedBy INT NULL;
+    PRINT 'Added ArchivedBy column';
+END
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Archive') AND name = 'IsRestored')
+BEGIN
+    ALTER TABLE Archive ADD IsRestored BIT NULL DEFAULT 0;
+    PRINT 'Added IsRestored column';
+END
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Archive') AND name = 'RestoredAt')
+BEGIN
+    ALTER TABLE Archive ADD RestoredAt DATETIME NULL;
+    PRINT 'Added RestoredAt column';
+END
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Archive') AND name = 'RestoredBy')
+BEGIN
+    ALTER TABLE Archive ADD RestoredBy INT NULL;
+    PRINT 'Added RestoredBy column';
+END
+
 -- Make Reason column larger if needed (255 to 500)
 IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Archive') AND name = 'Reason' AND max_length = 255)
 BEGIN

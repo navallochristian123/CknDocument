@@ -97,6 +97,7 @@ public class Document : BaseEntity, IAuditableEntity
     public virtual ICollection<DocumentSignature> Signatures { get; set; } = new List<DocumentSignature>();
     public virtual ICollection<Archive> Archives { get; set; } = new List<Archive>();
     public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
+    public virtual ICollection<DocumentAIAnalysis> AIAnalyses { get; set; } = new List<DocumentAIAnalysis>();
 
     // IAuditableEntity implementation
     [MaxLength(100)]

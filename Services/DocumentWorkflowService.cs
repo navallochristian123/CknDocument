@@ -800,27 +800,41 @@ public class DocumentWorkflowService
         document.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
-        // Notify client
-        if (document.UploadedBy.HasValue)
+        // Notify client (non-blocking - archive succeeds even if notification fails)
+        try
         {
-            await _notificationService.NotifyAsync(
-                document.UploadedBy.Value,
-                "Document Archived",
-                $"Your document '{document.Title}' has been archived. Reason: {reason}",
-                "DocumentArchived",
-                documentId,
-                $"/Document/Details/{documentId}");
+            if (document.UploadedBy.HasValue)
+            {
+                await _notificationService.NotifyAsync(
+                    document.UploadedBy.Value,
+                    "Document Archived",
+                    $"Your document '{document.Title}' has been archived. Reason: {reason}",
+                    "DocumentArchived",
+                    documentId,
+                    $"/Document/Details/{documentId}");
+            }
+        }
+        catch (Exception notifEx)
+        {
+            _logger.LogWarning(notifEx, "Failed to send notification for archive of document {DocumentId}", documentId);
         }
 
-        // Audit log
-        await _auditLogService.LogAsync(
-            "ArchiveDocument",
-            "Document",
-            documentId,
-            $"Document archived: {document.Title}. Reason: {reason}",
-            null,
-            $"{{\"reason\":\"{reason}\",\"archiveType\":\"{archiveType}\"}}",
-            "DocumentArchive");
+        // Audit log (non-blocking)
+        try
+        {
+            await _auditLogService.LogAsync(
+                "ArchiveDocument",
+                "Document",
+                documentId,
+                $"Document archived: {document.Title}. Reason: {reason}",
+                null,
+                $"{{\"reason\":\"{reason}\",\"archiveType\":\"{archiveType}\"}}",
+                "DocumentArchive");
+        }
+        catch (Exception auditEx)
+        {
+            _logger.LogWarning(auditEx, "Failed to log audit for archive of document {DocumentId}", documentId);
+        }
 
         return archive;
     }
@@ -849,11 +863,14 @@ public class DocumentWorkflowService
             .Include(d => d.Folder)
             .Include(d => d.Versions.OrderByDescending(v => v.VersionNumber).Take(1))
             .Where(d => d.FirmID == firmId &&
-                        (d.WorkflowStage == STAGE_PENDING_STAFF_REVIEW || d.WorkflowStage == STAGE_STAFF_REVIEW));
+                        (d.WorkflowStage == STAGE_CLIENT_UPLOAD || 
+                         d.WorkflowStage == STAGE_PENDING_STAFF_REVIEW || 
+                         d.WorkflowStage == STAGE_STAFF_REVIEW));
 
         if (staffId.HasValue)
         {
-            query = query.Where(d => d.AssignedStaffId == staffId);
+            // For assigned filter, include unassigned documents as well (ClientUpload stage)
+            query = query.Where(d => d.AssignedStaffId == staffId || d.AssignedStaffId == null);
         }
 
         return await query.OrderByDescending(d => d.CreatedAt).ToListAsync();
