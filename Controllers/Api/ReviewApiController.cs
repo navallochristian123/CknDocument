@@ -642,6 +642,43 @@ public class ReviewApiController : ControllerBase
                 await _context.SaveChangesAsync();
             }
 
+            // Handle approved version selection (if admin selected a specific version)
+            if (dto.ApprovedVersionId.HasValue)
+            {
+                var versions = await _context.DocumentVersions
+                    .Where(v => v.DocumentId == documentId)
+                    .ToListAsync();
+                    
+                foreach (var v in versions)
+                {
+                    v.IsCurrentVersion = (v.VersionId == dto.ApprovedVersionId.Value);
+                }
+                await _context.SaveChangesAsync();
+                
+                await _auditLogService.LogAsync(
+                    "AdminSelectVersion",
+                    "Document",
+                    documentId,
+                    $"Admin selected version {versions.FirstOrDefault(v => v.VersionId == dto.ApprovedVersionId.Value)?.VersionNumber} as approved version",
+                    null, null, "Workflow");
+            }
+
+            // Send notification to client if requested
+            if (dto.NotifyClient && document.UploadedBy.HasValue)
+            {
+                var notificationMessage = string.IsNullOrEmpty(dto.Remarks) 
+                    ? "Your document has been approved."
+                    : $"Your document has been approved. Admin remarks: {dto.Remarks}";
+                    
+                await _notificationService.NotifyAsync(
+                    document.UploadedBy.Value,
+                    "Document Approved",
+                    notificationMessage,
+                    "DocumentApproved",
+                    documentId,
+                    $"/Documents/View/{documentId}");
+            }
+
             return Ok(new
             {
                 success = true,
@@ -842,4 +879,6 @@ public class AdminReviewDto
     public int? RetentionMonths { get; set; }
     public int? RetentionDays { get; set; }
     public List<ChecklistResultDto>? ChecklistResults { get; set; }
+    public bool NotifyClient { get; set; } = true;
+    public int? ApprovedVersionId { get; set; }
 }

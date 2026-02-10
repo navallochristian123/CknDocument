@@ -574,42 +574,108 @@ public class DocumentApiController : ControllerBase
     }
 
     /// <summary>
-    /// View document (inline, no download) - for staff viewing
+    /// Upload a new version of a document (Staff/Admin can upload new versions)
     /// </summary>
-    [HttpGet("{id}/view")]
-    public async Task<IActionResult> ViewDocument(int id)
+    [HttpPost("{id}/upload-version")]
+    [Authorize(Policy = "FirmMember")]
+    public async Task<IActionResult> UploadVersion(int id, [FromForm] UploadVersionDto dto)
     {
-        var userId = GetCurrentUserId();
-        var firmId = GetFirmId();
-        var role = GetUserRole();
+        try
+        {
+            var userId = GetCurrentUserId();
+            var firmId = GetFirmId();
+            var role = GetUserRole();
 
-        var document = await _context.Documents
-            .Include(d => d.Versions)
-            .FirstOrDefaultAsync(d => d.DocumentID == id && d.FirmID == firmId);
+            // Only Staff and Admin can upload new versions
+            if (role == "Client")
+                return Forbid();
 
-        if (document == null)
-            return NotFound();
+            if (dto.File == null || dto.File.Length == 0)
+                return BadRequest(new { success = false, message = "No file provided" });
 
-        // Check access permissions
-        if (role == "Client" && document.UploadedBy != userId)
-            return Forbid();
+            if (string.IsNullOrWhiteSpace(dto.ChangeDescription))
+                return BadRequest(new { success = false, message = "Change description is required" });
 
-        var version = document.Versions.FirstOrDefault(v => v.IsCurrentVersion == true)
-            ?? document.Versions.OrderByDescending(v => v.VersionNumber).FirstOrDefault();
+            var document = await _context.Documents
+                .Include(d => d.Versions)
+                .FirstOrDefaultAsync(d => d.DocumentID == id && d.FirmID == firmId);
 
-        if (version == null || string.IsNullOrEmpty(version.FilePath))
-            return NotFound();
+            if (document == null)
+                return NotFound(new { success = false, message = "Document not found" });
 
-        if (!System.IO.File.Exists(version.FilePath))
-            return NotFound();
+            // Determine next version number
+            var currentMaxVersion = document.Versions.Any() 
+                ? document.Versions.Max(v => v.VersionNumber) 
+                : 0;
+            var newVersionNumber = currentMaxVersion + 1;
 
-        var fileBytes = await System.IO.File.ReadAllBytesAsync(version.FilePath);
-        var contentType = version.MimeType ?? "application/octet-stream";
+            // Save file
+            var uploadPath = Path.Combine(_environment.ContentRootPath, "Uploads", firmId.ToString(), document.UploadedBy.ToString() ?? "0");
+            Directory.CreateDirectory(uploadPath);
 
-        // Set Content-Disposition to inline (view in browser, not download)
-        Response.Headers.ContentDisposition = $"inline; filename=\"{version.OriginalFileName}\"";
+            var extension = Path.GetExtension(dto.File.FileName).ToLower();
+            var uniqueFileName = $"{Guid.NewGuid()}{extension}";
+            var filePath = Path.Combine(uploadPath, uniqueFileName);
 
-        return File(fileBytes, contentType);
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await dto.File.CopyToAsync(stream);
+            }
+
+            // Set all existing versions as not current
+            foreach (var v in document.Versions)
+            {
+                v.IsCurrentVersion = false;
+            }
+
+            // Create new version
+            var uploaderName = await _context.Users
+                .Where(u => u.UserID == userId)
+                .Select(u => u.FullName)
+                .FirstOrDefaultAsync() ?? role;
+
+            var newVersion = new DocumentVersion
+            {
+                DocumentId = id,
+                VersionNumber = newVersionNumber,
+                FilePath = filePath,
+                OriginalFileName = dto.File.FileName,
+                FileSize = dto.File.Length,
+                MimeType = dto.File.ContentType,
+                ChangeDescription = dto.ChangeDescription,
+                ChangedBy = dto.ChangedBy ?? uploaderName,
+                UploadedBy = userId,
+                IsCurrentVersion = true,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.DocumentVersions.Add(newVersion);
+            document.CurrentVersion = newVersionNumber;
+            document.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            // Log audit
+            await _auditLogService.LogAsync(
+                role == "Admin" ? "AdminEditDocument" : "StaffEditDocument",
+                "Document",
+                id,
+                $"{role} uploaded new version {newVersionNumber}: {dto.ChangeDescription}",
+                null, null, "Workflow");
+
+            return Ok(new
+            {
+                success = true,
+                message = $"Version {newVersionNumber} created successfully",
+                versionId = newVersion.VersionId,
+                versionNumber = newVersionNumber
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error uploading new version for document {DocumentId}", id);
+            return StatusCode(500, new { success = false, message = "An error occurred while uploading the new version" });
+        }
     }
 
     /// <summary>
@@ -692,6 +758,167 @@ public class DocumentApiController : ControllerBase
             keywords = analysis.Keywords
         });
     }
+
+    /// <summary>
+    /// Get audit trail for a document
+    /// </summary>
+    [HttpGet("{id}/audit-trail")]
+    public async Task<IActionResult> GetAuditTrail(int id)
+    {
+        try
+        {
+            var firmId = GetFirmId();
+            var userId = GetCurrentUserId();
+            var role = GetUserRole();
+
+            var document = await _context.Documents
+                .FirstOrDefaultAsync(d => d.DocumentID == id && d.FirmID == firmId);
+
+            if (document == null)
+                return NotFound(new { success = false, message = "Document not found" });
+
+            // Check permissions
+            if (role == "Client" && document.UploadedBy != userId)
+                return Forbid();
+
+            // Get audit logs for this document
+            var auditTrail = await _context.AuditLogs
+                .Include(a => a.User)
+                .Where(a => a.EntityType == "Document" && a.EntityID == id)
+                .OrderByDescending(a => a.Timestamp)
+                .Take(100)
+                .Select(a => new
+                {
+                    action = a.Action,
+                    description = a.Description,
+                    timestamp = a.Timestamp,
+                    userName = a.User != null ? a.User.FullName : "System",
+                    actionCategory = a.ActionCategory
+                })
+                .ToListAsync();
+
+            return Ok(new { success = true, auditTrail });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading audit trail for document {DocumentId}", id);
+            return Ok(new { success = false, message = "Error loading audit trail", auditTrail = new List<object>() });
+        }
+    }
+
+    /// <summary>
+    /// Get text content of a document for viewing
+    /// </summary>
+    [HttpGet("{id}/text-content")]
+    public async Task<IActionResult> GetTextContent(int id, [FromQuery] int? versionId = null)
+    {
+        try
+        {
+            var firmId = GetFirmId();
+            var userId = GetCurrentUserId();
+            var role = GetUserRole();
+
+            var document = await _context.Documents
+                .Include(d => d.Versions)
+                .FirstOrDefaultAsync(d => d.DocumentID == id && d.FirmID == firmId);
+
+            if (document == null)
+                return NotFound(new { success = false, message = "Document not found" });
+
+            // Check permissions
+            if (role == "Client" && document.UploadedBy != userId)
+                return Forbid();
+
+            DocumentVersion? version;
+            if (versionId.HasValue)
+            {
+                version = document.Versions.FirstOrDefault(v => v.VersionId == versionId);
+            }
+            else
+            {
+                version = document.Versions.FirstOrDefault(v => v.IsCurrentVersion == true) 
+                    ?? document.Versions.OrderByDescending(v => v.VersionNumber).FirstOrDefault();
+            }
+
+            if (version == null || string.IsNullOrEmpty(version.FilePath))
+                return NotFound(new { success = false, message = "File not found" });
+
+            if (!System.IO.File.Exists(version.FilePath))
+                return NotFound(new { success = false, message = "File not found on server" });
+
+            // Extract text content
+            var textContent = await _aiService.ExtractTextFromFileAsync(version.FilePath, version.OriginalFileName ?? "document");
+
+            return Ok(new { 
+                success = true, 
+                content = textContent,
+                versionNumber = version.VersionNumber,
+                changedBy = version.ChangedBy
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error extracting text content for document {DocumentId}", id);
+            return Ok(new { success = false, message = "Error extracting text content" });
+        }
+    }
+
+    /// <summary>
+    /// View document inline (without downloading)
+    /// </summary>
+    [HttpGet("{id}/view")]
+    public async Task<IActionResult> ViewInline(int id, [FromQuery] int? versionId = null)
+    {
+        var userId = GetCurrentUserId();
+        var firmId = GetFirmId();
+        var role = GetUserRole();
+
+        var document = await _context.Documents
+            .Include(d => d.Versions)
+            .FirstOrDefaultAsync(d => d.DocumentID == id && d.FirmID == firmId);
+
+        if (document == null)
+            return NotFound();
+
+        // Check access permissions
+        if (role == "Client" && document.UploadedBy != userId)
+            return Forbid();
+
+        DocumentVersion? version;
+        if (versionId.HasValue)
+        {
+            version = document.Versions.FirstOrDefault(v => v.VersionId == versionId);
+        }
+        else
+        {
+            version = document.Versions.FirstOrDefault(v => v.IsCurrentVersion == true) 
+                ?? document.Versions.OrderByDescending(v => v.VersionNumber).FirstOrDefault();
+        }
+
+        if (version == null || string.IsNullOrEmpty(version.FilePath))
+            return NotFound();
+
+        if (!System.IO.File.Exists(version.FilePath))
+            return NotFound();
+
+        var fileBytes = await System.IO.File.ReadAllBytesAsync(version.FilePath);
+        var contentType = version.MimeType ?? "application/octet-stream";
+
+        // Set headers for inline viewing
+        Response.Headers.ContentDisposition = $"inline; filename=\"{Uri.EscapeDataString(version.OriginalFileName ?? "document")}\"";
+
+        // Log view action
+        await _auditLogService.LogAsync(
+            "DocumentView",
+            "Document",
+            id,
+            $"Viewed document inline: {document.Title} (Version {version.VersionNumber})",
+            null,
+            null,
+            "DocumentAccess");
+
+        return File(fileBytes, contentType);
+    }
 }
 
 // DTOs
@@ -715,4 +942,11 @@ public class DocumentUpdateDto
 public class DocumentArchiveDto
 {
     public string? Reason { get; set; }
+}
+
+public class UploadVersionDto
+{
+    public IFormFile? File { get; set; }
+    public string? ChangeDescription { get; set; }
+    public string? ChangedBy { get; set; }
 }

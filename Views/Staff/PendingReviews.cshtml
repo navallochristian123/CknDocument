@@ -140,11 +140,27 @@
 
                         <!-- File Actions -->
                         <div class="card mb-3">
+                            <div class="card-header bg-primary text-white">
+                                <h6 class="mb-0"><i class="bi bi-lightning-fill me-2"></i>Quick Actions</h6>
+                            </div>
                             <div class="card-body">
-                                <button type="button" class="btn btn-outline-primary w-100 mb-2" id="btnViewDocument" onclick="openDocumentViewer()">
-                                    <i class="bi bi-eye"></i> View Document
-                                </button>
-                                <!-- Download removed for staff - view only -->
+                                <div class="d-grid gap-2">
+                                    <button type="button" class="btn btn-primary" id="btnViewDocument" onclick="openDocumentViewer()">
+                                        <i class="bi bi-eye me-2"></i> View Document
+                                    </button>
+                                    <button type="button" class="btn btn-warning" onclick="scrollToEdit()">
+                                        <i class="bi bi-pencil-square me-2"></i> Edit & Upload New Version
+                                    </button>
+                                </div>
+                                <div class="mt-3 p-2 bg-light rounded small">
+                                    <strong><i class="bi bi-info-circle me-1"></i>Workflow:</strong>
+                                    <ol class="mb-0 ps-3 mt-1">
+                                        <li>View the document</li>
+                                        <li>Download & make corrections offline</li>
+                                        <li>Upload corrected version</li>
+                                        <li>Approve to send to Admin</li>
+                                    </ol>
+                                </div>
                             </div>
                         </div>
 
@@ -353,7 +369,7 @@
                             </div>
                             
                             <!-- Keywords/Entities -->
-                            <div class="card">
+                            <div class="card mb-3">
                                 <div class="card-header bg-info text-white py-2">
                                     <small class="fw-bold">Key Information Extracted</small>
                                 </div>
@@ -363,9 +379,31 @@
                                     </div>
                                 </div>
                             </div>
+                            
+                            <!-- Quick Edit Actions -->
+                            <div class="card bg-warning text-dark">
+                                <div class="card-body py-2">
+                                    <strong class="small"><i class="bi bi-pencil-square me-1"></i>Need to Edit?</strong>
+                                    <div class="d-grid gap-1 mt-2">
+                                        <button class="btn btn-sm btn-dark" onclick="downloadAndEdit()">
+                                            <i class="bi bi-download me-1"></i> Download to Edit
+                                        </button>
+                                        <small class="text-center">Edit offline, then upload new version</small>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <a href="#" class="btn btn-outline-secondary" id="viewerDownloadBtn">
+                    <i class="bi bi-download"></i> Download
+                </a>
+                <button type="button" class="btn btn-warning" onclick="downloadAndEdit()">
+                    <i class="bi bi-pencil"></i> Download & Edit
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -378,8 +416,8 @@
     let currentDocument = null;
     let checklistItems = [];
 
-    // Non-editable file types
-    const NON_EDITABLE_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png', '.gif'];
+    // All document types are now editable by staff (upload new version)
+    // Staff can upload corrected versions of any file type
 
     document.addEventListener('DOMContentLoaded', function() {
         loadStats();
@@ -515,35 +553,15 @@
                 // Store current document for viewer
                 currentDocument = doc;
 
-                // Check edit restrictions
-                const fileExt = (doc.fileExtension || '').toLowerCase();
-                const isNonEditable = NON_EDITABLE_EXTENSIONS.includes(fileExt);
-                const isConfidential = doc.isConfidential || false;
-
-                // Show/hide edit section based on restrictions
+                // Edit section - always available for staff (can upload corrected version of any file type)
                 const editAccordionItem = document.getElementById('editAccordionItem');
                 const passToAdminAlert = document.getElementById('passToAdminAlert');
                 const editRestrictionsCard = document.getElementById('editRestrictionsCard');
-                const editRestrictionReason = document.getElementById('editRestrictionReason');
-
-                if (isNonEditable || isConfidential) {
-                    // Hide edit option
-                    editAccordionItem.classList.add('d-none');
-                    passToAdminAlert.classList.remove('d-none');
-                    editRestrictionsCard.classList.remove('d-none');
-                    
-                    if (isNonEditable && isConfidential) {
-                        editRestrictionReason.textContent = 'PDF/Image files cannot be edited, and this document is marked as confidential.';
-                    } else if (isNonEditable) {
-                        editRestrictionReason.textContent = 'PDF and image files cannot be edited by staff. Forward to admin if changes are needed.';
-                    } else {
-                        editRestrictionReason.textContent = 'This document is marked as confidential and requires admin approval for any edits.';
-                    }
-                } else {
-                    editAccordionItem.classList.remove('d-none');
-                    passToAdminAlert.classList.add('d-none');
-                    editRestrictionsCard.classList.add('d-none');
-                }
+                
+                // Enable editing for all document types
+                editAccordionItem.classList.remove('d-none');
+                passToAdminAlert.classList.add('d-none');
+                editRestrictionsCard.classList.add('d-none');
 
                 // Versions
                 const versionsList = document.getElementById('versionsList');
@@ -827,6 +845,40 @@
         return div.innerHTML;
     }
 
+    function scrollToEdit() {
+        // Expand the edit accordion
+        const editCollapse = document.getElementById('editCollapse');
+        const bsCollapse = new bootstrap.Collapse(editCollapse, { toggle: false });
+        bsCollapse.show();
+        
+        // Scroll to the edit section
+        setTimeout(() => {
+            document.getElementById('editAccordion').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 300);
+    }
+
+    function downloadDocument() {
+        if (!currentDocumentId) return;
+        window.open(`/api/DocumentApi/${currentDocumentId}/download`, '_blank');
+    }
+
+    function downloadAndEdit() {
+        if (!currentDocumentId) return;
+        
+        // Download the document
+        window.open(`/api/DocumentApi/${currentDocumentId}/download`, '_blank');
+        
+        // Close viewer modal
+        const viewerModal = bootstrap.Modal.getInstance(document.getElementById('documentViewerModal'));
+        if (viewerModal) viewerModal.hide();
+        
+        // Show instruction and expand edit section
+        setTimeout(() => {
+            scrollToEdit();
+            alert('Document downloaded! Make your edits offline, then upload the corrected version using the form below.');
+        }, 500);
+    }
+
     // Document Viewer Functions
     function openDocumentViewer() {
         if (!currentDocument) return;
@@ -836,6 +888,9 @@
 
         // Set title
         document.getElementById('viewerDocTitle').textContent = currentDocument.title || currentDocument.originalFileName;
+
+        // Set download button URL
+        document.getElementById('viewerDownloadBtn').href = `/api/DocumentApi/${currentDocumentId}/download`;
 
         // Hide all viewers first
         document.getElementById('pdfViewer').classList.add('d-none');

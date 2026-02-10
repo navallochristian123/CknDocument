@@ -57,13 +57,27 @@
 
         <!-- Document Actions -->
         <div class="card mb-3">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="bi bi-lightning me-2"></i>Quick Actions</h6>
+            </div>
             <div class="card-body">
-                <a href="#" class="btn btn-outline-primary w-100 mb-2" id="btnViewDoc" target="_blank">
-                    <i class="bi bi-eye"></i> View / Preview Document
-                </a>
-                <a href="#" class="btn btn-outline-secondary w-100" id="btnDownloadDoc">
-                    <i class="bi bi-download"></i> Download Document
-                </a>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <button class="btn btn-primary w-100" onclick="openDocumentViewer()">
+                            <i class="bi bi-eye"></i> View Inline
+                        </button>
+                    </div>
+                    <div class="col-6">
+                        <a href="#" class="btn btn-outline-secondary w-100" id="btnDownloadDoc">
+                            <i class="bi bi-download"></i> Download
+                        </a>
+                    </div>
+                    <div class="col-12">
+                        <button class="btn btn-outline-info w-100" onclick="showVersionCompareModal()">
+                            <i class="bi bi-git me-1"></i> Compare All Versions
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -114,15 +128,31 @@
             </div>
         </div>
 
-        <!-- Version History -->
-        <div class="card mb-3">
-            <div class="card-header">
-                <h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>Version History</h6>
+        <!-- Version History with Full Details -->
+        <div class="card mb-3 border-primary">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>Version History & Changes</h6>
+                <span class="badge bg-light text-primary" id="versionCount">0</span>
+            </div>
+            <div class="card-body p-0" style="max-height: 350px; overflow-y: auto;">
+                <div id="versionsListLoading" class="text-center p-3">
+                    <div class="spinner-border spinner-border-sm"></div>
+                </div>
+                <ul class="list-group list-group-flush" id="versionsList"></ul>
+            </div>
+        </div>
+
+        <!-- Document Workflow Trail -->
+        <div class="card mb-3 border-success">
+            <div class="card-header bg-success text-white">
+                <h6 class="mb-0"><i class="bi bi-signpost-split me-2"></i>Workflow Trail</h6>
             </div>
             <div class="card-body p-0" style="max-height: 250px; overflow-y: auto;">
-                <ul class="list-group list-group-flush" id="versionsList">
-                    <li class="list-group-item text-center text-muted">Loading...</li>
-                </ul>
+                <div id="workflowTrailList" class="list-group list-group-flush">
+                    <div class="list-group-item text-center text-muted">
+                        <div class="spinner-border spinner-border-sm"></div> Loading...
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -177,10 +207,56 @@
                     </div>
                 </div>
 
-                <!-- Admin Remarks -->
+                <!-- Version Selection for Approval -->
+                <div class="card bg-light mb-3" id="versionSelectionCard" style="display: none;">
+                    <div class="card-body">
+                        <h6 class="card-title"><i class="bi bi-git me-2"></i>Select Version to Approve</h6>
+                        <p class="text-muted small mb-2">Multiple versions exist. Choose which version to approve as final.</p>
+                        <select class="form-select mb-3" id="approveVersionSelect">
+                            <!-- Options populated dynamically -->
+                        </select>
+                        
+                        <div class="accordion" id="adminEditAccordion">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#adminUploadCollapse">
+                                        <i class="bi bi-cloud-upload me-2"></i>Upload Corrected Version (Create New Version)
+                                    </button>
+                                </h2>
+                                <div id="adminUploadCollapse" class="accordion-collapse collapse">
+                                    <div class="accordion-body">
+                                        <p class="text-muted small">If both existing versions have issues, upload a corrected file to create a new version.</p>
+                                        <div class="mb-3">
+                                            <label class="form-label">Upload Corrected File</label>
+                                            <input type="file" class="form-control" id="adminEditFile">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Change Description <span class="text-danger">*</span></label>
+                                            <input type="text" class="form-control" id="adminEditDescription" placeholder="Describe corrections made...">
+                                        </div>
+                                        <button type="button" class="btn btn-warning" id="btnAdminUploadVersion">
+                                            <i class="bi bi-upload"></i> Upload & Create New Version
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin Remarks (Visible to Client) -->
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Admin Remarks <span class="text-muted">(Required for Rejection)</span></label>
-                    <textarea class="form-control" id="adminRemarks" rows="3" placeholder="Enter your remarks or notes about this document..."></textarea>
+                    <label class="form-label fw-bold">Admin Remarks <span class="text-muted">(Visible to Client - Required for Rejection)</span></label>
+                    <textarea class="form-control" id="adminRemarks" rows="3" placeholder="Enter remarks visible to client about document changes or reasons..."></textarea>
+                    <small class="text-info"><i class="bi bi-eye me-1"></i>Client will see these remarks and be notified of any changes.</small>
+                </div>
+
+                <!-- Notify Client Checkbox -->
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="notifyClient" checked>
+                    <label class="form-check-label" for="notifyClient">
+                        <i class="bi bi-bell me-1"></i>Notify client about this decision
+                    </label>
                 </div>
 
                 <!-- Decision Buttons -->
@@ -267,11 +343,134 @@
     </div>
 </div>
 
+<!-- Document Viewer Modal -->
+<div class="modal fade" id="documentViewerModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-eye me-2"></i>Document Preview - <span id="viewerDocTitle"></span></h5>
+                <div>
+                    <select class="form-select form-select-sm d-inline-block w-auto me-2" id="viewerVersionSelect">
+                        <option value="">Current Version</option>
+                    </select>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+            <div class="modal-body p-0" style="height: 75vh; overflow: auto;">
+                <div class="text-center py-5" id="viewerLoading">
+                    <div class="spinner-border text-primary"></div>
+                    <p class="mt-2">Loading document...</p>
+                </div>
+                <iframe id="documentIframe" class="w-100 h-100 border-0" style="display: none;"></iframe>
+                <div id="documentTextViewer" class="p-4" style="display: none; white-space: pre-wrap; font-family: monospace; background: #f8f9fa;"></div>
+                <div id="documentImageViewer" class="text-center p-4" style="display: none;">
+                    <img id="documentImage" style="max-width: 100%; max-height: 70vh;" />
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <div>
+                    <span class="badge bg-info me-2" id="viewerVersionLabel">v1</span>
+                    <small class="text-muted" id="viewerVersionInfo">-</small>
+                </div>
+                <div>
+                    <a href="#" class="btn btn-outline-secondary" id="btnDownloadFromViewer">
+                        <i class="bi bi-download"></i> Download
+                    </a>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Version Compare Modal - Side by Side -->
+<div class="modal fade" id="versionCompareModal" tabindex="-1">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title"><i class="bi bi-git me-2"></i>Version Comparison</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <!-- Version Selection Row -->
+                <div class="bg-light p-3 border-bottom">
+                    <div class="row align-items-center">
+                        <div class="col-md-5">
+                            <label class="form-label fw-bold">Version 1 (Original):</label>
+                            <select class="form-select" id="compareLeftVersion" onchange="loadCompareVersions()">
+                                <option value="">Select version...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 text-center">
+                            <i class="bi bi-arrow-left-right display-6 text-muted"></i>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label fw-bold">Version 2 (Modified):</label>
+                            <select class="form-select" id="compareRightVersion" onchange="loadCompareVersions()">
+                                <option value="">Select version...</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Side by Side Comparison -->
+                <div class="row g-0" style="height: calc(100vh - 200px);">
+                    <!-- Left Version -->
+                    <div class="col-6 border-end h-100">
+                        <div class="bg-primary text-white p-2 text-center">
+                            <span id="compareLeftLabel">Version 1</span>
+                            <small class="d-block" id="compareLeftInfo">Select a version</small>
+                        </div>
+                        <div id="compareLeftViewer" class="h-100 position-relative" style="overflow: auto;">
+                            <div class="text-center py-5">
+                                <i class="bi bi-file-earmark display-1 text-muted"></i>
+                                <p class="text-muted">Select a version to compare</p>
+                            </div>
+                        </div>
+                        <iframe id="compareLeftIframe" class="w-100 h-100 border-0" style="display: none;"></iframe>
+                        <div id="compareLeftImage" class="text-center p-4 h-100" style="display: none; overflow: auto;">
+                            <img id="compareLeftImg" style="max-width: 100%;" />
+                        </div>
+                    </div>
+                    
+                    <!-- Right Version -->
+                    <div class="col-6 h-100">
+                        <div class="bg-success text-white p-2 text-center">
+                            <span id="compareRightLabel">Version 2</span>
+                            <small class="d-block" id="compareRightInfo">Select a version</small>
+                        </div>
+                        <div id="compareRightViewer" class="h-100 position-relative" style="overflow: auto;">
+                            <div class="text-center py-5">
+                                <i class="bi bi-file-earmark display-1 text-muted"></i>
+                                <p class="text-muted">Select a version to compare</p>
+                            </div>
+                        </div>
+                        <iframe id="compareRightIframe" class="w-100 h-100 border-0" style="display: none;"></iframe>
+                        <div id="compareRightImage" class="text-center p-4 h-100" style="display: none; overflow: auto;">
+                            <img id="compareRightImg" style="max-width: 100%;" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light justify-content-between">
+                <div>
+                    <h6 class="mb-1"><i class="bi bi-clock-history me-2"></i>Version Timeline</h6>
+                    <div id="versionTimelineCompact" class="d-flex flex-wrap gap-2">
+                        <!-- Compact timeline will be populated -->
+                    </div>
+                </div>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
 <script>
     let documentData = null;
     let checklistItems = [];
     let checklistResults = {};
+    let documentVersions = [];
 
     document.addEventListener('DOMContentLoaded', function() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -281,6 +480,7 @@
             document.getElementById('documentId').value = docId;
             loadDocument(docId);
             loadChecklist(docId);
+            loadWorkflowTrail(docId);
         } else {
             showError('No document ID provided');
         }
@@ -288,6 +488,8 @@
         document.getElementById('btnApprove').addEventListener('click', approveDocument);
         document.getElementById('btnReject').addEventListener('click', showRejectConfirm);
         document.getElementById('confirmRejectBtn').addEventListener('click', rejectDocument);
+        document.getElementById('viewerVersionSelect').addEventListener('change', onViewerVersionChange);
+        document.getElementById('btnAdminUploadVersion').addEventListener('click', adminUploadNewVersion);
     });
 
     function getDocIdFromPath() {
@@ -338,7 +540,6 @@
         document.getElementById('docClient').textContent = doc.clientName || doc.folder?.clientName || doc.uploader?.name || '-';
 
         // Set action buttons
-        document.getElementById('btnViewDoc').href = `/api/DocumentApi/${doc.id}/view`;
         document.getElementById('btnDownloadDoc').href = `/api/DocumentApi/${doc.id}/download`;
     }
 
@@ -347,30 +548,137 @@
             const response = await fetch(`/api/DocumentApi/${docId}/versions`);
             const data = await response.json();
 
+            document.getElementById('versionsListLoading').style.display = 'none';
             const list = document.getElementById('versionsList');
+            
             if (data.success && data.versions?.length > 0) {
+                documentVersions = data.versions;
+                document.getElementById('versionCount').textContent = data.versions.length;
+                
                 list.innerHTML = data.versions.map((v, i) => `
-                    <li class="list-group-item ${i === 0 ? 'bg-light' : ''}">
-                        <div class="d-flex justify-content-between align-items-center">
+                    <li class="list-group-item ${i === 0 ? 'bg-light border-primary' : ''}">
+                        <div class="d-flex justify-content-between align-items-start">
                             <div>
-                                <strong>v${v.versionNumber}</strong>
-                                ${i === 0 ? '<span class="badge bg-primary ms-2">Current</span>' : ''}
-                                <br>
+                                <div class="d-flex align-items-center">
+                                    <strong>v${v.versionNumber}</strong>
+                                    ${i === 0 ? '<span class="badge bg-primary ms-2">Current</span>' : '<span class="badge bg-secondary ms-2">Previous</span>'}
+                                </div>
                                 <small class="text-muted">${formatDate(v.createdAt)}</small>
+                                <br>
+                                <small class="text-info fw-bold"><i class="bi bi-person me-1"></i>${escapeHtml(v.changedBy || 'Client')}</small>
+                                ${v.changeDescription ? `<br><small class="text-secondary">${escapeHtml(v.changeDescription)}</small>` : ''}
                             </div>
-                            <a href="/api/DocumentApi/${docId}/download?versionId=${v.versionId}" class="btn btn-sm btn-outline-secondary">
-                                <i class="bi bi-download"></i>
-                            </a>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="viewVersionInViewer(${v.versionId})">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                <a href="/api/DocumentApi/${docId}/download?versionId=${v.versionId}" class="btn btn-outline-secondary">
+                                    <i class="bi bi-download"></i>
+                                </a>
+                            </div>
                         </div>
-                        ${v.changeDescription ? `<small class="text-muted d-block mt-1">${escapeHtml(v.changeDescription)}</small>` : ''}
                     </li>
                 `).join('');
+                
+                // Populate version selectors
+                const versionOptions = data.versions.map(v => 
+                    `<option value="${v.versionId}">v${v.versionNumber} - ${v.changedBy || 'Client'} (${formatDate(v.createdAt)})</option>`
+                ).join('');
+                
+                document.getElementById('viewerVersionSelect').innerHTML = versionOptions;
+                document.getElementById('compareVersionSelect').innerHTML = '<option value="">Select a version...</option>' + versionOptions;
+                
+                // Show version selection if multiple versions exist
+                const versionSelectionCard = document.getElementById('versionSelectionCard');
+                const approveVersionSelect = document.getElementById('approveVersionSelect');
+                
+                if (data.versions.length > 1) {
+                    versionSelectionCard.style.display = 'block';
+                    approveVersionSelect.innerHTML = data.versions.map((v, i) => 
+                        `<option value="${v.versionId}" ${i === 0 ? 'selected' : ''}>
+                            v${v.versionNumber} - ${v.changedBy || 'Client'} - ${v.changeDescription || 'Initial upload'}
+                        </option>`
+                    ).join('');
+                } else {
+                    versionSelectionCard.style.display = 'none';
+                }
+                
             } else {
+                documentVersions = [];
                 list.innerHTML = '<li class="list-group-item text-muted">No versions found</li>';
+                document.getElementById('versionSelectionCard').style.display = 'none';
             }
         } catch (error) {
             console.error('Error loading versions:', error);
         }
+    }
+    
+    async function loadWorkflowTrail(docId) {
+        try {
+            const response = await fetch(`/api/DocumentApi/${docId}/audit-trail`);
+            const data = await response.json();
+            
+            const container = document.getElementById('workflowTrailList');
+            
+            if (data.success && data.auditTrail && data.auditTrail.length > 0) {
+                // Filter only workflow-related actions
+                const workflowActions = data.auditTrail.filter(a => 
+                    ['DocumentUpload', 'StaffApprove', 'StaffReject', 'StaffEditDocument', 'AdminApprove', 'AdminReject', 'Archive', 'Restore'].includes(a.action)
+                );
+                
+                if (workflowActions.length > 0) {
+                    container.innerHTML = workflowActions.map((entry, idx) => `
+                        <div class="list-group-item py-2 ${idx === 0 ? 'bg-light' : ''}">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <span class="badge ${getWorkflowBadgeClass(entry.action)} me-2">${getWorkflowLabel(entry.action)}</span>
+                                    <strong class="small text-primary">${escapeHtml(entry.userName || 'System')}</strong>
+                                    <br>
+                                    <small class="text-muted">${escapeHtml(entry.description || '')}</small>
+                                </div>
+                                <small class="text-muted">${formatDate(entry.timestamp)}</small>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<div class="list-group-item text-center text-muted small">No workflow actions recorded</div>';
+                }
+            } else {
+                container.innerHTML = '<div class="list-group-item text-center text-muted small">No workflow trail available</div>';
+            }
+        } catch (error) {
+            console.error('Error loading workflow trail:', error);
+            document.getElementById('workflowTrailList').innerHTML = 
+                '<div class="list-group-item text-center text-danger small">Error loading workflow trail</div>';
+        }
+    }
+    
+    function getWorkflowBadgeClass(action) {
+        const classes = {
+            'DocumentUpload': 'bg-info',
+            'StaffApprove': 'bg-success',
+            'StaffReject': 'bg-danger',
+            'StaffEditDocument': 'bg-warning text-dark',
+            'AdminApprove': 'bg-success',
+            'AdminReject': 'bg-danger',
+            'Archive': 'bg-secondary',
+            'Restore': 'bg-info'
+        };
+        return classes[action] || 'bg-secondary';
+    }
+    
+    function getWorkflowLabel(action) {
+        const labels = {
+            'DocumentUpload': 'Uploaded',
+            'StaffApprove': 'Staff Approved',
+            'StaffReject': 'Staff Rejected',
+            'StaffEditDocument': 'Staff Edited',
+            'AdminApprove': 'Admin Approved',
+            'AdminReject': 'Admin Rejected',
+            'Archive': 'Archived',
+            'Restore': 'Restored'
+        };
+        return labels[action] || action;
     }
 
     async function loadStaffReview(docId) {
@@ -614,6 +922,8 @@
     async function approveDocument() {
         const docId = document.getElementById('documentId').value;
         const remarks = document.getElementById('adminRemarks').value;
+        const notifyClient = document.getElementById('notifyClient').checked;
+        const selectedVersionId = document.getElementById('approveVersionSelect')?.value || null;
 
         // Prepare checklist results
         const checklistData = checklistItems.map(item => ({
@@ -631,7 +941,9 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     remarks: remarks,
-                    checklistResults: checklistData
+                    checklistResults: checklistData,
+                    notifyClient: notifyClient,
+                    approvedVersionId: selectedVersionId ? parseInt(selectedVersionId) : null
                 })
             });
 
@@ -716,6 +1028,73 @@
         }
     }
 
+    // Admin upload new version function
+    async function adminUploadNewVersion() {
+        const docId = document.getElementById('documentId').value;
+        const fileInput = document.getElementById('adminEditFile');
+        const description = document.getElementById('adminEditDescription').value;
+        
+        if (!fileInput.files || !fileInput.files[0]) {
+            alert('Please select a file to upload.');
+            return;
+        }
+        
+        if (!description.trim()) {
+            alert('Please provide a change description.');
+            document.getElementById('adminEditDescription').focus();
+            return;
+        }
+        
+        const btn = document.getElementById('btnAdminUploadVersion');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Uploading...';
+        
+        try {
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('changeDescription', description);
+            formData.append('changedBy', 'Admin');
+            
+            const response = await fetch(`/api/DocumentApi/${docId}/upload-version`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert(`Version ${data.versionNumber} created successfully. This version will be approved.`);
+                
+                // Reload versions and select the new one
+                await loadVersions(docId);
+                
+                // Clear the form
+                fileInput.value = '';
+                document.getElementById('adminEditDescription').value = '';
+                
+                // Collapse the accordion
+                const collapseEl = document.getElementById('adminUploadCollapse');
+                if (collapseEl) {
+                    bootstrap.Collapse.getInstance(collapseEl)?.hide();
+                }
+                
+                // Select the newly created version in the dropdown
+                const approveSelect = document.getElementById('approveVersionSelect');
+                if (approveSelect && data.versionId) {
+                    approveSelect.value = data.versionId;
+                }
+            } else {
+                alert('Error: ' + (data.message || 'Failed to upload new version'));
+            }
+        } catch (error) {
+            console.error('Error uploading new version:', error);
+            alert('Error uploading new version');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-upload"></i> Upload & Create New Version';
+        }
+    }
+
     function showError(message) {
         document.getElementById('loadingDoc').innerHTML = `
             <div class="alert alert-danger">
@@ -757,6 +1136,206 @@
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    // ===== DOCUMENT VIEWER FUNCTIONS =====
+    
+    function openDocumentViewer() {
+        if (!documentData) return;
+        
+        document.getElementById('viewerDocTitle').textContent = documentData.title || documentData.originalFileName || 'Document';
+        document.getElementById('viewerLoading').style.display = 'block';
+        document.getElementById('documentIframe').style.display = 'none';
+        document.getElementById('documentTextViewer').style.display = 'none';
+        document.getElementById('documentImageViewer').style.display = 'none';
+        
+        new bootstrap.Modal(document.getElementById('documentViewerModal')).show();
+        
+        loadDocumentInViewer(documentData.id, documentVersions[0]?.versionId);
+    }
+
+    function viewVersionInViewer(versionId) {
+        if (!documentData) return;
+        
+        document.getElementById('viewerDocTitle').textContent = documentData.title || documentData.originalFileName || 'Document';
+        document.getElementById('viewerLoading').style.display = 'block';
+        document.getElementById('documentIframe').style.display = 'none';
+        document.getElementById('documentTextViewer').style.display = 'none';
+        document.getElementById('documentImageViewer').style.display = 'none';
+        
+        document.getElementById('viewerVersionSelect').value = versionId;
+        
+        new bootstrap.Modal(document.getElementById('documentViewerModal')).show();
+        
+        loadDocumentInViewer(documentData.id, versionId);
+    }
+
+    function onViewerVersionChange() {
+        const versionId = document.getElementById('viewerVersionSelect').value;
+        if (documentData && versionId) {
+            loadDocumentInViewer(documentData.id, versionId);
+        }
+    }
+
+    async function loadDocumentInViewer(docId, versionId) {
+        document.getElementById('viewerLoading').style.display = 'block';
+        document.getElementById('documentIframe').style.display = 'none';
+        document.getElementById('documentTextViewer').style.display = 'none';
+        document.getElementById('documentImageViewer').style.display = 'none';
+        
+        const version = documentVersions.find(v => v.versionId == versionId) || documentVersions[0];
+        if (version) {
+            document.getElementById('viewerVersionLabel').textContent = `v${version.versionNumber}`;
+            document.getElementById('viewerVersionInfo').textContent = `${version.changedBy || 'Client'} - ${formatDate(version.createdAt)}`;
+            document.getElementById('btnDownloadFromViewer').href = `/api/DocumentApi/${docId}/download?versionId=${versionId}`;
+        }
+        
+        const extension = (documentData.fileExtension || '').toLowerCase();
+        const viewUrl = `/api/DocumentApi/${docId}/view?versionId=${versionId}`;
+        
+        try {
+            if (['.pdf'].includes(extension)) {
+                document.getElementById('documentIframe').src = viewUrl;
+                document.getElementById('viewerLoading').style.display = 'none';
+                document.getElementById('documentIframe').style.display = 'block';
+            } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'].includes(extension)) {
+                document.getElementById('documentImage').src = viewUrl;
+                document.getElementById('documentImage').onload = () => {
+                    document.getElementById('viewerLoading').style.display = 'none';
+                    document.getElementById('documentImageViewer').style.display = 'block';
+                };
+            } else {
+                const response = await fetch(`/api/DocumentApi/${docId}/text-content?versionId=${versionId}`);
+                const data = await response.json();
+                
+                if (data.success && data.content) {
+                    document.getElementById('documentTextViewer').textContent = data.content;
+                    document.getElementById('viewerLoading').style.display = 'none';
+                    document.getElementById('documentTextViewer').style.display = 'block';
+                } else {
+                    document.getElementById('documentTextViewer').innerHTML = `
+                        <div class="text-center py-5">
+                            <i class="bi bi-file-earmark-x display-1 text-muted"></i>
+                            <p class="mt-3">Preview not available for this file type.</p>
+                            <a href="${viewUrl}" class="btn btn-primary" target="_blank">
+                                <i class="bi bi-box-arrow-up-right"></i> Open in New Tab
+                            </a>
+                        </div>
+                    `;
+                    document.getElementById('viewerLoading').style.display = 'none';
+                    document.getElementById('documentTextViewer').style.display = 'block';
+                }
+            }
+        } catch (error) {
+            console.error('Error loading document:', error);
+            document.getElementById('documentTextViewer').innerHTML = `
+                <div class="text-center py-5 text-danger">
+                    <i class="bi bi-exclamation-triangle display-1"></i>
+                    <p class="mt-3">Error loading document preview.</p>
+                </div>
+            `;
+            document.getElementById('viewerLoading').style.display = 'none';
+            document.getElementById('documentTextViewer').style.display = 'block';
+        }
+    }
+
+    // ===== VERSION COMPARE FUNCTIONS =====
+    
+    function showVersionCompareModal() {
+        if (documentVersions.length === 0) {
+            alert('No versions available.');
+            return;
+        }
+        
+        // Populate version dropdowns
+        const versionOptions = documentVersions.map(v => 
+            `<option value="${v.versionId}">v${v.versionNumber} - ${v.changedBy || 'Client'} (${formatDate(v.createdAt)})</option>`
+        ).join('');
+        
+        document.getElementById('compareLeftVersion').innerHTML = '<option value="">Select version...</option>' + versionOptions;
+        document.getElementById('compareRightVersion').innerHTML = '<option value="">Select version...</option>' + versionOptions;
+        
+        // If we have 2+ versions, pre-select v1 (oldest) and latest
+        if (documentVersions.length >= 2) {
+            const oldestVersion = documentVersions[documentVersions.length - 1]; // oldest is last (sorted desc)
+            const newestVersion = documentVersions[0]; // newest is first
+            
+            document.getElementById('compareLeftVersion').value = oldestVersion.versionId;
+            document.getElementById('compareRightVersion').value = newestVersion.versionId;
+        }
+        
+        // Populate compact timeline
+        const timeline = document.getElementById('versionTimelineCompact');
+        timeline.innerHTML = documentVersions.map(v => `
+            <span class="badge ${v.isCurrentVersion ? 'bg-primary' : 'bg-secondary'} p-2">
+                v${v.versionNumber} - ${v.changedBy || 'Client'}
+                <small class="d-block">${v.changeDescription || 'Initial'}</small>
+            </span>
+        `).join('');
+        
+        new bootstrap.Modal(document.getElementById('versionCompareModal')).show();
+        
+        // Load pre-selected versions after modal opens
+        setTimeout(() => loadCompareVersions(), 300);
+    }
+
+    function loadCompareVersions() {
+        const leftVersionId = document.getElementById('compareLeftVersion').value;
+        const rightVersionId = document.getElementById('compareRightVersion').value;
+        
+        if (leftVersionId) {
+            loadVersionIntoComparePanel('left', leftVersionId);
+        }
+        if (rightVersionId) {
+            loadVersionIntoComparePanel('right', rightVersionId);
+        }
+    }
+
+    function loadVersionIntoComparePanel(side, versionId) {
+        const version = documentVersions.find(v => v.versionId == versionId);
+        if (!version) return;
+        
+        const labelEl = document.getElementById(`compare${capitalize(side)}Label`);
+        const infoEl = document.getElementById(`compare${capitalize(side)}Info`);
+        const viewerEl = document.getElementById(`compare${capitalize(side)}Viewer`);
+        const iframeEl = document.getElementById(`compare${capitalize(side)}Iframe`);
+        const imageContainerEl = document.getElementById(`compare${capitalize(side)}Image`);
+        const imgEl = document.getElementById(`compare${capitalize(side)}Img`);
+        
+        labelEl.textContent = `Version ${version.versionNumber}`;
+        infoEl.textContent = `${version.changedBy || 'Client'} - ${version.changeDescription || 'Initial upload'}`;
+        
+        const viewUrl = `/api/DocumentApi/${documentData.id}/view?versionId=${versionId}`;
+        const extension = (documentData.fileExtension || '').toLowerCase();
+        
+        // Hide all viewers
+        viewerEl.style.display = 'none';
+        iframeEl.style.display = 'none';
+        imageContainerEl.style.display = 'none';
+        
+        if (['.pdf'].includes(extension)) {
+            iframeEl.src = viewUrl;
+            iframeEl.style.display = 'block';
+        } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'].includes(extension)) {
+            imgEl.src = viewUrl;
+            imageContainerEl.style.display = 'block';
+        } else {
+            // For other files, show in iframe (text files) or show unsupported message
+            iframeEl.src = viewUrl;
+            iframeEl.style.display = 'block';
+        }
+    }
+
+    function capitalize(str) {
+        return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    function loadSelectedVersionPreview() {
+        // Not needed with new modal - keeping for compatibility
+    }
+
+    function viewSelectedVersion() {
+        // Not needed with new modal - keeping for compatibility
     }
 </script>
 }

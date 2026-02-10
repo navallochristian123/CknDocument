@@ -198,9 +198,9 @@
                         <!-- Reviews will be loaded here -->
                     </div>
                     
-                    <!-- Remarks (if rejected) -->
-                    <div id="remarksSection" class="alert alert-danger mt-3 d-none">
-                        <strong><i class="bi bi-exclamation-triangle"></i> Rejection Reason:</strong>
+                    <!-- Remarks (for approved/rejected documents) -->
+                    <div id="remarksSection" class="alert alert-info mt-3 d-none">
+                        <strong><i class="bi bi-chat-left-quote"></i> Admin Remarks:</strong>
                         <p id="docRemarks" class="mb-0 mt-2"></p>
                     </div>
                 </div>
@@ -398,10 +398,14 @@
                 document.getElementById('docDescription').textContent = doc.description || 'No description';
                 document.getElementById('downloadBtn').href = `/api/DocumentApi/${id}/download`;
                 
-                // Show remarks if rejected
+                // Show remarks if present (for both approved and rejected documents)
                 const remarksSection = document.getElementById('remarksSection');
-                if (doc.status === 'Rejected' && doc.currentRemarks) {
+                if (doc.currentRemarks) {
                     remarksSection.classList.remove('d-none');
+                    // Color based on status
+                    remarksSection.className = doc.status === 'Rejected' 
+                        ? 'alert alert-danger mt-3' 
+                        : 'alert alert-info mt-3';
                     document.getElementById('docRemarks').textContent = doc.currentRemarks;
                 } else {
                     remarksSection.classList.add('d-none');

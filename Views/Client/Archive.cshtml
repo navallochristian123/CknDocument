@@ -68,25 +68,78 @@
     </div>
 </div>
 
-<!-- Restore Confirmation Modal -->
+<!-- Retrieve Document Modal -->
 <div class="modal fade" id="restoreModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Restore Document</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-arrow-counterclockwise me-2"></i>Retrieve Document</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p>Are you sure you want to restore this document?</p>
-                <div class="alert alert-info">
-                    <strong id="restoreDocTitle">Document</strong> will be restored and require re-submission for review.
+                <div class="alert alert-info mb-3">
+                    <h6 class="mb-1"><i class="bi bi-file-earmark-text me-2"></i><span id="restoreDocTitle">Document</span></h6>
+                    <small class="text-muted">This document will be retrieved from archive.</small>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Original Status</label>
+                        <p class="mb-0"><span class="badge" id="originalStatusBadge">-</span></p>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Archive Type</label>
+                        <p class="mb-0"><span class="badge bg-secondary" id="archiveTypeBadge">-</span></p>
+                    </div>
+                </div>
+
+                <div class="card bg-light mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title"><i class="bi bi-question-circle me-2"></i>What happens when you retrieve this document?</h6>
+                        <ul class="mb-0 small" id="retrieveInfoList">
+                            <li>The document will be restored to its previous status</li>
+                            <li>You will be able to access and manage it again</li>
+                            <li>A record of this retrieval will be logged</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Document Audit Trail -->
+                <div class="card border-0 bg-light">
+                    <div class="card-header bg-transparent">
+                        <h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>Document History</h6>
+                    </div>
+                    <div class="card-body p-0" style="max-height: 200px; overflow-y: auto;">
+                        <div id="archiveAuditTrail" class="list-group list-group-flush">
+                            <div class="list-group-item text-center text-muted">
+                                <div class="spinner-border spinner-border-sm"></div> Loading...
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-success" id="confirmRestoreBtn">
-                    <i class="bi bi-arrow-counterclockwise"></i> Restore
+                    <i class="bi bi-arrow-counterclockwise me-1"></i> Retrieve Document
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Archive Details Modal -->
+<div class="modal fade" id="archiveDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-file-earmark-text me-2"></i>Archive Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="archiveDetailsBody">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -175,10 +228,17 @@
                 <td>${formatDate(d.archivedAt)}</td>
                 <td><span class="text-truncate d-inline-block" style="max-width: 150px;">${escapeHtml(d.archiveReason || '-')}</span></td>
                 <td>
-                    ${d.archiveType === 'Rejected' ? `
-                    <button class="btn btn-sm btn-outline-success" onclick="showRestoreModal(${d.archiveId}, '${escapeHtml(d.documentTitle)}')">
-                        <i class="bi bi-arrow-counterclockwise"></i> Restore
-                    </button>
+                    ${(d.archiveType === 'Rejected' || d.archiveType === 'Manual') ? `
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-success" onclick="showRetrieveModal(${d.archiveId}, '${escapeHtml(d.documentTitle)}', '${d.originalStatus || 'Unknown'}', '${d.archiveType}')">
+                            <i class="bi bi-arrow-counterclockwise"></i> Retrieve
+                        </button>
+                        <button class="btn btn-outline-info" onclick="viewArchiveDetails(${d.archiveId})">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                    ` : d.archiveType === 'Retention' || d.archiveType === 'AutoExpired' ? `
+                    <span class="text-muted small"><i class="bi bi-clock-history me-1"></i>Retention</span>
                     ` : `
                     <span class="text-muted small"><i class="bi bi-lock me-1"></i>Archived</span>
                     `}
@@ -187,10 +247,178 @@
         `).join('');
     }
 
-    function showRestoreModal(archiveId, title) {
+    function showRetrieveModal(archiveId, title, originalStatus, archiveType) {
         currentArchiveId = archiveId;
         document.getElementById('restoreDocTitle').textContent = title;
+        
+        // Set original status badge
+        const statusBadge = document.getElementById('originalStatusBadge');
+        statusBadge.textContent = originalStatus;
+        statusBadge.className = 'badge ' + getStatusBadgeClass(originalStatus);
+        
+        // Set archive type badge
+        document.getElementById('archiveTypeBadge').textContent = archiveType;
+        
+        // Update info based on archive type
+        const infoList = document.getElementById('retrieveInfoList');
+        if (archiveType === 'Rejected') {
+            infoList.innerHTML = `
+                <li>The document will return to <strong>Pending</strong> status</li>
+                <li>You can re-edit and resubmit the document</li>
+                <li>The document will go through the review process again</li>
+                <li>A record of this retrieval will be logged</li>
+            `;
+        } else {
+            infoList.innerHTML = `
+                <li>The document will return to its <strong>${originalStatus}</strong> status</li>
+                <li>You will be able to access and manage it normally</li>
+                <li>All version history will be preserved</li>
+                <li>A record of this retrieval will be logged</li>
+            `;
+        }
+        
+        // Load audit trail
+        loadArchiveAuditTrail(archiveId);
+        
         new bootstrap.Modal(document.getElementById('restoreModal')).show();
+    }
+    
+    function getStatusBadgeClass(status) {
+        const classes = {
+            'Pending': 'bg-warning text-dark',
+            'PendingReview': 'bg-warning text-dark',
+            'UnderReview': 'bg-info',
+            'StaffApproved': 'bg-primary',
+            'Approved': 'bg-success',
+            'Rejected': 'bg-danger',
+            'Completed': 'bg-success'
+        };
+        return classes[status] || 'bg-secondary';
+    }
+    
+    async function loadArchiveAuditTrail(archiveId) {
+        try {
+            const response = await fetch(`/api/ArchiveApi/${archiveId}/audit-trail`);
+            const data = await response.json();
+            
+            const container = document.getElementById('archiveAuditTrail');
+            
+            if (data.success && data.auditTrail && data.auditTrail.length > 0) {
+                container.innerHTML = data.auditTrail.map(entry => `
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <i class="bi ${getAuditIcon(entry.action)} me-2"></i>
+                                <strong>${escapeHtml(entry.action)}</strong>
+                                <br>
+                                <small class="text-muted">${escapeHtml(entry.description)}</small>
+                            </div>
+                            <div class="text-end">
+                                <small class="text-muted">${formatDate(entry.timestamp)}</small>
+                                <br>
+                                <small class="text-primary">${escapeHtml(entry.userName || 'System')}</small>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = '<div class="list-group-item text-center text-muted">No history available</div>';
+            }
+        } catch (error) {
+            console.error('Error loading audit trail:', error);
+            document.getElementById('archiveAuditTrail').innerHTML = 
+                '<div class="list-group-item text-center text-danger">Error loading history</div>';
+        }
+    }
+    
+    function getAuditIcon(action) {
+        const icons = {
+            'Upload': 'bi-cloud-upload text-primary',
+            'DocumentUpload': 'bi-cloud-upload text-primary',
+            'StaffApprove': 'bi-check-circle text-success',
+            'StaffReject': 'bi-x-circle text-danger',
+            'AdminApprove': 'bi-shield-check text-success',
+            'AdminReject': 'bi-shield-x text-danger',
+            'Archive': 'bi-archive text-warning',
+            'Restore': 'bi-arrow-counterclockwise text-info',
+            'Retrieve': 'bi-arrow-counterclockwise text-info',
+            'Edit': 'bi-pencil text-primary',
+            'Version': 'bi-clock-history text-info'
+        };
+        return icons[action] || 'bi-circle text-secondary';
+    }
+    
+    async function viewArchiveDetails(archiveId) {
+        try {
+            const response = await fetch(`/api/ArchiveApi/${archiveId}`);
+            const data = await response.json();
+            
+            const body = document.getElementById('archiveDetailsBody');
+            
+            if (data.success && data.archive) {
+                const a = data.archive;
+                body.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <dl>
+                                <dt>Document Title</dt>
+                                <dd>${escapeHtml(a.documentTitle)}</dd>
+                                <dt>Document Type</dt>
+                                <dd><span class="badge bg-secondary">${escapeHtml(a.documentType || 'Unknown')}</span></dd>
+                                <dt>Original Status</dt>
+                                <dd><span class="badge ${getStatusBadgeClass(a.originalStatus)}">${escapeHtml(a.originalStatus || '-')}</span></dd>
+                                <dt>Archive Type</dt>
+                                <dd><span class="badge bg-warning text-dark">${escapeHtml(a.archiveType)}</span></dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl>
+                                <dt>Archived Date</dt>
+                                <dd>${formatDate(a.archivedAt)}</dd>
+                                <dt>Archived By</dt>
+                                <dd>${escapeHtml(a.archivedByName || 'System')}</dd>
+                                <dt>Archive Reason</dt>
+                                <dd>${escapeHtml(a.archiveReason || 'No reason provided')}</dd>
+                                <dt>Original Folder</dt>
+                                <dd>${escapeHtml(a.originalFolderName || 'Root')}</dd>
+                            </dl>
+                        </div>
+                    </div>
+                    ${a.versions && a.versions.length > 0 ? `
+                    <hr>
+                    <h6><i class="bi bi-clock-history me-2"></i>Version History</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Version</th>
+                                    <th>Changed By</th>
+                                    <th>Description</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${a.versions.map(v => `
+                                    <tr>
+                                        <td><span class="badge bg-info">v${v.versionNumber}</span></td>
+                                        <td>${escapeHtml(v.changedBy || '-')}</td>
+                                        <td>${escapeHtml(v.changeDescription || '-')}</td>
+                                        <td>${formatDate(v.createdAt)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    ` : ''}
+                `;
+            } else {
+                body.innerHTML = '<div class="alert alert-danger">Error loading archive details</div>';
+            }
+            
+            new bootstrap.Modal(document.getElementById('archiveDetailsModal')).show();
+        } catch (error) {
+            console.error('Error loading archive details:', error);
+        }
     }
 
     document.getElementById('confirmRestoreBtn').addEventListener('click', async function() {

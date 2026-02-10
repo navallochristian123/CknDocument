@@ -446,15 +446,16 @@ public class ArchiveApiController : ControllerBase
             if (archive == null)
                 return NotFound(new { success = false, message = "Archive not found" });
 
-            // Check permissions - only admin can restore, or client for their own rejected docs
+            // Check permissions - only admin can restore, or client for their own rejected/manual archived docs
             if (role == "Client")
             {
                 if (archive.Document?.UploadedBy != userId)
                     return Forbid();
-                if (archive.ArchiveType != "Rejected")
-                    return BadRequest(new { success = false, message = "Clients can only restore their rejected documents" });
+                // Clients can restore their rejected or manually archived documents
+                if (archive.ArchiveType != "Rejected" && archive.ArchiveType != "Manual")
+                    return BadRequest(new { success = false, message = "Clients can only retrieve their rejected or manually archived documents" });
             }
-            else if (role != "Admin")
+            else if (role != "Admin" && role != "Staff")
             {
                 return Forbid();
             }
@@ -894,6 +895,58 @@ public class ArchiveApiController : ControllerBase
         {
             _logger.LogError(ex, "Error auto-archiving expired documents");
             return Ok(new { success = false, message = "Error: " + ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Get audit trail for a specific archive
+    /// </summary>
+    [HttpGet("{id}/audit-trail")]
+    public async Task<IActionResult> GetArchiveAuditTrail(int id)
+    {
+        try
+        {
+            var firmId = GetFirmId();
+            var role = GetUserRole();
+            var userId = GetCurrentUserId();
+
+            var archive = await _context.Archives
+                .Include(a => a.Document)
+                .FirstOrDefaultAsync(a => a.ArchiveID == id && 
+                                         a.Document != null && 
+                                         a.Document.FirmID == firmId &&
+                                         a.IsDeleted != true);
+
+            if (archive == null)
+                return NotFound(new { success = false, message = "Archive not found" });
+
+            // Check permissions for clients
+            if (role == "Client" && archive.Document?.UploadedBy != userId)
+                return Forbid();
+
+            // Get audit trail for this document
+            var auditTrail = await _context.AuditLogs
+                .Include(a => a.User)
+                .Where(a => (a.EntityType == "Document" && a.EntityID == archive.DocumentID) ||
+                           (a.EntityType == "Archive" && a.EntityID == id))
+                .OrderByDescending(a => a.Timestamp)
+                .Take(50)
+                .Select(a => new
+                {
+                    action = a.Action,
+                    description = a.Description,
+                    timestamp = a.Timestamp,
+                    userName = a.User != null ? a.User.FullName : "System",
+                    actionCategory = a.ActionCategory
+                })
+                .ToListAsync();
+
+            return Ok(new { success = true, auditTrail });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading audit trail");
+            return Ok(new { success = false, message = "Error loading audit trail", auditTrail = new List<object>() });
         }
     }
 }
