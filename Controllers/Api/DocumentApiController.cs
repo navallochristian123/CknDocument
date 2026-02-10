@@ -552,9 +552,14 @@ public class DocumentApiController : ControllerBase
     {
         var firmId = GetFirmId();
 
+        // Verify document belongs to this firm
+        var documentExists = await _context.Documents.AnyAsync(d => d.DocumentID == id && d.FirmID == firmId);
+        if (!documentExists)
+            return NotFound(new { success = false, message = "Document not found" });
+
         var versions = await _context.DocumentVersions
             .Include(v => v.Uploader)
-            .Where(v => v.Document != null && v.Document.DocumentID == id && v.Document.FirmID == firmId)
+            .Where(v => v.DocumentId == id)
             .OrderByDescending(v => v.VersionNumber)
             .Select(v => new
             {
@@ -918,6 +923,105 @@ public class DocumentApiController : ControllerBase
             "DocumentAccess");
 
         return File(fileBytes, contentType);
+    }
+
+    /// <summary>
+    /// Verify signature in a document using AI
+    /// </summary>
+    [HttpPost("{id}/verify-signature")]
+    public async Task<IActionResult> VerifySignature(int id)
+    {
+        try
+        {
+            var firmId = GetFirmId();
+
+            var document = await _context.Documents
+                .Include(d => d.Uploader)
+                .Include(d => d.Versions)
+                .FirstOrDefaultAsync(d => d.DocumentID == id && d.FirmID == firmId);
+
+            if (document == null)
+                return NotFound(new { success = false, message = "Document not found" });
+
+            // Get the current version's file
+            var version = document.Versions
+                .OrderByDescending(v => v.VersionNumber)
+                .FirstOrDefault(v => v.IsCurrentVersion == true) ?? 
+                document.Versions.OrderByDescending(v => v.VersionNumber).FirstOrDefault();
+
+            if (version == null || string.IsNullOrEmpty(version.FilePath))
+                return BadRequest(new { success = false, message = "Document file not found" });
+
+            if (!System.IO.File.Exists(version.FilePath))
+                return BadRequest(new { success = false, message = "Document file not found on disk" });
+
+            // Get expected signer name (the client who uploaded)
+            var expectedName = document.Uploader?.SignatureName ?? document.Uploader?.FullName ?? "";
+
+            using var fileStream = new FileStream(version.FilePath, FileMode.Open, FileAccess.Read);
+            var result = await _aiService.VerifySignatureAsync(id, fileStream, expectedName);
+
+            // Update document with signature verification status
+            document.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            await _auditLogService.LogAsync(
+                "SignatureVerification",
+                "Document",
+                id,
+                $"Signature verification: {result.VerificationStatus} ({result.ConfidenceScore}% confidence)",
+                null,
+                null,
+                "DocumentReview");
+
+            return Ok(new
+            {
+                success = true,
+                verification = new
+                {
+                    documentId = result.DocumentId,
+                    isVerified = result.IsVerified,
+                    confidenceScore = result.ConfidenceScore,
+                    signerNameDetected = result.SignerNameDetected,
+                    verificationStatus = result.VerificationStatus,
+                    message = result.Message
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error verifying signature for document {DocumentId}", id);
+            return StatusCode(500, new { success = false, message = "An error occurred during signature verification" });
+        }
+    }
+
+    /// <summary>
+    /// Get client's signature info for comparison/display
+    /// </summary>
+    [HttpGet("{id}/client-signature")]
+    public async Task<IActionResult> GetClientSignature(int id)
+    {
+        var firmId = GetFirmId();
+
+        var document = await _context.Documents
+            .Include(d => d.Uploader)
+            .FirstOrDefaultAsync(d => d.DocumentID == id && d.FirmID == firmId);
+
+        if (document == null)
+            return NotFound(new { success = false, message = "Document not found" });
+
+        var uploader = document.Uploader;
+        if (uploader == null)
+            return Ok(new { success = true, hasSignature = false });
+
+        return Ok(new
+        {
+            success = true,
+            hasSignature = !string.IsNullOrEmpty(uploader.SignaturePath),
+            signaturePath = uploader.SignaturePath,
+            signatureName = uploader.SignatureName,
+            clientName = uploader.FullName
+        });
     }
 }
 

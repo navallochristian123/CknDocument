@@ -291,6 +291,159 @@ public class SettingsApiController : ControllerBase
 
         return Ok(new { success = true, message = "Profile picture removed" });
     }
+
+    // ===== SIGNATURE MANAGEMENT =====
+
+    /// <summary>
+    /// Get current user's signature
+    /// </summary>
+    [HttpGet("signature")]
+    public async Task<IActionResult> GetSignature()
+    {
+        var userId = GetCurrentUserId();
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.UserID == userId);
+
+        if (user == null)
+            return NotFound(new { success = false, message = "User not found" });
+
+        return Ok(new
+        {
+            success = true,
+            signaturePath = user.SignaturePath,
+            signatureName = user.SignatureName,
+            hasSignature = !string.IsNullOrEmpty(user.SignaturePath)
+        });
+    }
+
+    /// <summary>
+    /// Upload or update signature image
+    /// </summary>
+    [HttpPost("signature")]
+    public async Task<IActionResult> UploadSignature([FromForm] IFormFile file)
+    {
+        var userId = GetCurrentUserId();
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.UserID == userId);
+
+        if (user == null)
+            return NotFound(new { success = false, message = "User not found" });
+
+        if (file == null || file.Length == 0)
+            return BadRequest(new { success = false, message = "No file provided" });
+
+        // Validate file type
+        var allowedExtensions = new[] { ".png", ".jpg", ".jpeg" };
+        var extension = Path.GetExtension(file.FileName).ToLower();
+        if (!allowedExtensions.Contains(extension))
+            return BadRequest(new { success = false, message = "Only PNG and JPG images are allowed" });
+
+        // Validate file size (max 2MB)
+        if (file.Length > 2 * 1024 * 1024)
+            return BadRequest(new { success = false, message = "File size must be less than 2MB" });
+
+        try
+        {
+            // Delete old signature if exists
+            if (!string.IsNullOrEmpty(user.SignaturePath))
+            {
+                var oldPath = Path.Combine(_environment.WebRootPath, user.SignaturePath.TrimStart('/'));
+                if (System.IO.File.Exists(oldPath))
+                    System.IO.File.Delete(oldPath);
+            }
+
+            // Save new signature
+            var signatureFolder = Path.Combine(_environment.WebRootPath, "images", "signatures");
+            Directory.CreateDirectory(signatureFolder);
+
+            var fileName = $"sig_{userId}_{Guid.NewGuid():N}{extension}";
+            var filePath = Path.Combine(signatureFolder, fileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            user.SignaturePath = $"/images/signatures/{fileName}";
+            user.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            await _auditLogService.LogAsync(
+                "SignatureUploaded",
+                "User",
+                userId,
+                "User uploaded signature image",
+                null, null, "UserSettings");
+
+            return Ok(new { success = true, message = "Signature uploaded successfully", signaturePath = user.SignaturePath });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error uploading signature for user {UserId}", userId);
+            return StatusCode(500, new { success = false, message = "Error uploading signature" });
+        }
+    }
+
+    /// <summary>
+    /// Save signature name for AI matching
+    /// </summary>
+    [HttpPost("signature-name")]
+    public async Task<IActionResult> SaveSignatureName([FromBody] SignatureNameDto dto)
+    {
+        var userId = GetCurrentUserId();
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.UserID == userId);
+
+        if (user == null)
+            return NotFound(new { success = false, message = "User not found" });
+
+        if (string.IsNullOrWhiteSpace(dto.Name))
+            return BadRequest(new { success = false, message = "Name is required" });
+
+        user.SignatureName = dto.Name.Trim();
+        user.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        await _auditLogService.LogAsync(
+            "SignatureNameSaved",
+            "User",
+            userId,
+            $"User saved signature name: {dto.Name}",
+            null, null, "UserSettings");
+
+        return Ok(new { success = true, message = "Signature name saved" });
+    }
+
+    /// <summary>
+    /// Delete signature
+    /// </summary>
+    [HttpDelete("signature")]
+    public async Task<IActionResult> DeleteSignature()
+    {
+        var userId = GetCurrentUserId();
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.UserID == userId);
+
+        if (user == null)
+            return NotFound(new { success = false, message = "User not found" });
+
+        if (!string.IsNullOrEmpty(user.SignaturePath))
+        {
+            var filePath = Path.Combine(_environment.WebRootPath, user.SignaturePath.TrimStart('/'));
+            if (System.IO.File.Exists(filePath))
+                System.IO.File.Delete(filePath);
+
+            user.SignaturePath = null;
+            user.SignatureName = null;
+            user.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            await _auditLogService.LogAsync(
+                "SignatureDeleted",
+                "User",
+                userId,
+                "User deleted their signature",
+                null, null, "UserSettings");
+        }
+
+        return Ok(new { success = true, message = "Signature deleted" });
+    }
 }
 
 // DTOs
@@ -314,4 +467,9 @@ public class ChangePasswordDto
     public string CurrentPassword { get; set; } = string.Empty;
     public string NewPassword { get; set; } = string.Empty;
     public string ConfirmPassword { get; set; } = string.Empty;
+}
+
+public class SignatureNameDto
+{
+    public string Name { get; set; } = string.Empty;
 }

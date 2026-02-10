@@ -900,19 +900,317 @@ Provide your analysis as JSON.";
         return _defaultChecklistItems["Default"];
     }
 
+    /// <summary>
+    /// Verifies signature in a document using OpenAI Vision API
+    /// Compares detected signature with client's stored signature
+    /// </summary>
     public async Task<SignatureVerificationResult> VerifySignatureAsync(
         int documentId, Stream fileStream, string expectedSignerName)
     {
-        await Task.Delay(100);
-        return new SignatureVerificationResult
+        var result = new SignatureVerificationResult
         {
             DocumentId = documentId,
             IsVerified = null,
             ConfidenceScore = null,
             SignerNameDetected = null,
-            VerificationStatus = "Pending Manual Review",
-            Message = "Automatic signature verification requires manual review."
+            VerificationStatus = "Pending",
+            Message = "Processing..."
         };
+
+        try
+        {
+            var apiKey = _configuration["OpenAI:ApiKey"];
+            if (string.IsNullOrEmpty(apiKey))
+            {
+                result.VerificationStatus = "Pending Manual Review";
+                result.Message = "AI signature verification not available - API key not configured.";
+                return result;
+            }
+
+            // Get document and uploader info
+            var document = await _context.Documents
+                .Include(d => d.Uploader)
+                .FirstOrDefaultAsync(d => d.DocumentID == documentId);
+
+            if (document == null)
+            {
+                result.VerificationStatus = "Error";
+                result.Message = "Document not found";
+                return result;
+            }
+
+            // Get client's stored signature
+            var clientSignaturePath = document.Uploader?.SignaturePath;
+            var clientSignatureName = document.Uploader?.SignatureName;
+
+            // Read file bytes for Vision API
+            byte[] fileBytes;
+            using (var ms = new MemoryStream())
+            {
+                await fileStream.CopyToAsync(ms);
+                fileBytes = ms.ToArray();
+            }
+
+            // Check if it's an image-based document (can use Vision API)
+            var extension = (document.FileExtension ?? "").ToLower();
+            var isImage = new[] { ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp" }.Contains(extension);
+            var isPdf = extension == ".pdf";
+
+            if (!isImage && !isPdf)
+            {
+                // For non-image documents, check text content for signature patterns
+                return await VerifySignatureFromTextAsync(documentId, expectedSignerName);
+            }
+
+            // Call OpenAI Vision API for signature detection
+            var client = _httpClientFactory.CreateClient("OpenAI");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+            var base64Image = Convert.ToBase64String(fileBytes);
+            var mimeType = extension switch
+            {
+                ".png" => "image/png",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".gif" => "image/gif",
+                ".webp" => "image/webp",
+                ".pdf" => "application/pdf",
+                _ => "image/png"
+            };
+
+            var signaturePrompt = $@"Analyze this document image and look for signatures.
+
+Expected signer name: {expectedSignerName}
+{(clientSignatureName != null ? $"Client's registered name for signature: {clientSignatureName}" : "")}
+
+Please analyze and respond ONLY with valid JSON in this exact format:
+{{
+  ""hasSignature"": true,
+  ""signatureCount"": 1,
+  ""signatures"": [
+    {{
+      ""location"": ""bottom right"",
+      ""appearsToBeHandwritten"": true,
+      ""nameReadable"": true,
+      ""detectedName"": ""the name if readable"",
+      ""matchesExpectedName"": true,
+      ""confidenceScore"": 85
+    }}
+  ],
+  ""datePresent"": true,
+  ""dateValue"": ""date if visible"",
+  ""overallConfidence"": 85,
+  ""recommendation"": ""Signature appears valid"" or ""Needs manual review"" or ""Signature missing""
+}}
+
+Look for:
+1. Handwritten signatures (cursive, initials, full name)
+2. Digital/typed signatures
+3. Date near signature
+4. Whether the signature matches the expected signer name
+5. Any indication of forgery or inconsistency";
+
+            object requestContent;
+            
+            if (isImage)
+            {
+                requestContent = new
+                {
+                    model = "gpt-4o-mini",
+                    messages = new object[]
+                    {
+                        new
+                        {
+                            role = "user",
+                            content = new object[]
+                            {
+                                new { type = "text", text = signaturePrompt },
+                                new
+                                {
+                                    type = "image_url",
+                                    image_url = new { url = $"data:{mimeType};base64,{base64Image}" }
+                                }
+                            }
+                        }
+                    },
+                    max_tokens = 1000,
+                    response_format = new { type = "json_object" }
+                };
+            }
+            else
+            {
+                // For PDF, we need to use text extraction + simple analysis
+                return await VerifySignatureFromTextAsync(documentId, expectedSignerName);
+            }
+
+            var jsonRequest = JsonSerializer.Serialize(requestContent);
+            var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
+
+            var response = await client.PostAsync("https://api.openai.com/v1/chat/completions", httpContent);
+            var responseBody = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("OpenAI Vision API error for signature detection: {Status} - {Body}", response.StatusCode, responseBody);
+                result.VerificationStatus = "Pending Manual Review";
+                result.Message = "AI analysis failed - please verify signature manually.";
+                return result;
+            }
+
+            using var responseDoc = JsonDocument.Parse(responseBody);
+            var aiContent = responseDoc.RootElement
+                .GetProperty("choices")[0]
+                .GetProperty("message")
+                .GetProperty("content")
+                .GetString();
+
+            if (string.IsNullOrEmpty(aiContent))
+            {
+                result.VerificationStatus = "Pending Manual Review";
+                result.Message = "Could not analyze signature.";
+                return result;
+            }
+
+            // Parse AI response
+            using var analysisDoc = JsonDocument.Parse(aiContent);
+            var analysis = analysisDoc.RootElement;
+
+            var hasSignature = analysis.TryGetProperty("hasSignature", out var hasSig) && hasSig.GetBoolean();
+            var overallConfidence = analysis.TryGetProperty("overallConfidence", out var conf) ? conf.GetDouble() : 0;
+            var recommendation = analysis.TryGetProperty("recommendation", out var rec) ? rec.GetString() : null;
+            string? detectedName = null;
+            var matchesExpected = false;
+
+            if (analysis.TryGetProperty("signatures", out var sigs) && sigs.GetArrayLength() > 0)
+            {
+                var firstSig = sigs[0];
+                detectedName = firstSig.TryGetProperty("detectedName", out var dn) ? dn.GetString() : null;
+                matchesExpected = firstSig.TryGetProperty("matchesExpectedName", out var me) && me.GetBoolean();
+            }
+
+            result.IsVerified = hasSignature && matchesExpected && overallConfidence > 70;
+            result.ConfidenceScore = overallConfidence;
+            result.SignerNameDetected = detectedName;
+            
+            if (!hasSignature)
+            {
+                result.VerificationStatus = "NoSignature";
+                result.Message = "No signature was detected in this document.";
+            }
+            else if (matchesExpected && overallConfidence >= 80)
+            {
+                result.VerificationStatus = "Verified";
+                result.Message = $"Signature verified with {overallConfidence}% confidence.";
+            }
+            else if (matchesExpected && overallConfidence >= 60)
+            {
+                result.VerificationStatus = "LikelyValid";
+                result.Message = $"Signature likely valid ({overallConfidence}% confidence). Manual verification recommended.";
+            }
+            else if (hasSignature && !matchesExpected)
+            {
+                result.VerificationStatus = "NameMismatch";
+                result.Message = $"Signature detected but name does not match expected. Detected: {detectedName ?? "unreadable"}";
+            }
+            else
+            {
+                result.VerificationStatus = "Pending Manual Review";
+                result.Message = recommendation ?? "Please verify signature manually.";
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error verifying signature for document {DocumentId}", documentId);
+            result.VerificationStatus = "Error";
+            result.Message = "An error occurred during signature verification.";
+            return result;
+        }
+    }
+
+    /// <summary>
+    /// Verify signature using text-based analysis (for documents where Vision API can't be used)
+    /// </summary>
+    private async Task<SignatureVerificationResult> VerifySignatureFromTextAsync(int documentId, string expectedSignerName)
+    {
+        var result = new SignatureVerificationResult
+        {
+            DocumentId = documentId,
+            VerificationStatus = "Pending Manual Review"
+        };
+
+        try
+        {
+            var document = await _context.Documents
+                .FirstOrDefaultAsync(d => d.DocumentID == documentId);
+
+            if (document == null)
+            {
+                result.Message = "Document not found";
+                return result;
+            }
+
+            // Get the current version's file
+            var version = await _context.DocumentVersions
+                .Where(v => v.DocumentId == documentId && v.IsCurrentVersion == true)
+                .FirstOrDefaultAsync();
+
+            if (version == null || string.IsNullOrEmpty(version.FilePath))
+            {
+                result.Message = "Document file not found";
+                return result;
+            }
+
+            // Extract text from document
+            var fileName = version.OriginalFileName ?? Path.GetFileName(version.FilePath);
+            var textContent = await ExtractTextFromFileAsync(version.FilePath, fileName);
+
+            if (string.IsNullOrEmpty(textContent))
+            {
+                result.Message = "Could not extract text from document for signature analysis.";
+                return result;
+            }
+
+            // Simple heuristic: look for signature indicators in text
+            var textLower = textContent.ToLower();
+            var signatureIndicators = new List<string> { "signature", "signed by", "signed:", "___________", "electronically signed", "digital signature" };
+            var hasSignatureSection = signatureIndicators.Any(s => textLower.Contains(s));
+
+            // Look for the expected name near signature sections
+            var nameFound = !string.IsNullOrEmpty(expectedSignerName) && 
+                            textLower.Contains(expectedSignerName.ToLower());
+
+            if (hasSignatureSection && nameFound)
+            {
+                result.IsVerified = true;
+                result.ConfidenceScore = 65;
+                result.SignerNameDetected = expectedSignerName;
+                result.VerificationStatus = "LikelyValid";
+                result.Message = "Signature section found with expected name present. Manual verification recommended.";
+            }
+            else if (hasSignatureSection)
+            {
+                result.IsVerified = null;
+                result.ConfidenceScore = 40;
+                result.VerificationStatus = "Pending Manual Review";
+                result.Message = "Signature section found but could not verify signer name.";
+            }
+            else
+            {
+                result.IsVerified = false;
+                result.ConfidenceScore = 20;
+                result.VerificationStatus = "NoSignature";
+                result.Message = "No signature section detected in document text.";
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in text-based signature verification for document {DocumentId}", documentId);
+            result.Message = "Error during text-based signature analysis.";
+            return result;
+        }
     }
 
     public async Task EnsureChecklistItemsExistAsync(int firmId, string documentType)

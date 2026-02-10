@@ -79,6 +79,18 @@ public class User : BaseEntity
 
     public bool? EmailConfirmed { get; set; } = false;
 
+    /// <summary>
+    /// Path to the user's signature image (for AI signature verification)
+    /// </summary>
+    [MaxLength(500)]
+    public string? SignaturePath { get; set; }
+
+    /// <summary>
+    /// User's full name as it appears on their signature (for AI matching)
+    /// </summary>
+    [MaxLength(200)]
+    public string? SignatureName { get; set; }
+
     // Computed property
     [NotMapped]
     public string FullName => $"{FirstName} {MiddleName} {LastName}".Trim();

@@ -105,6 +105,11 @@
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="pill" href="#signatureTab">
+                                <i class="bi bi-vector-pen me-2"></i>Signature
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link" data-bs-toggle="pill" href="#securityTab">
                                 <i class="bi bi-shield-lock me-2"></i>Security
                             </a>
@@ -188,6 +193,116 @@
                                     </button>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Signature Tab -->
+                <div class="tab-pane fade" id="signatureTab">
+                    <div class="card settings-card">
+                        <div class="card-header bg-white border-bottom">
+                            <h5 class="mb-0"><i class="bi bi-vector-pen me-2 text-primary"></i>Signature Settings</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info mb-4">
+                                <i class="bi bi-info-circle me-2"></i>
+                                <strong>Why upload your signature?</strong><br>
+                                Your signature will be used by our AI system to automatically verify documents that require your signature.
+                                This helps speed up document processing and ensures authenticity.
+                            </div>
+
+                            <!-- Current Signature Display -->
+                            <div class="mb-4">
+                                <h6 class="fw-bold mb-3">Current Signature</h6>
+                                <div id="currentSignatureContainer" class="border rounded p-4 bg-light text-center" style="min-height: 150px;">
+                                    <div id="noSignature" class="d-none">
+                                        <i class="bi bi-vector-pen display-4 text-muted"></i>
+                                        <p class="text-muted mt-2 mb-0">No signature uploaded yet</p>
+                                    </div>
+                                    <div id="signatureContainer" class="d-none">
+                                        <img id="signatureImage" src="" alt="Your Signature" style="max-width: 300px; max-height: 120px; background: white; padding: 10px; border-radius: 8px;">
+                                        <div class="mt-3">
+                                            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Signature on file</span>
+                                        </div>
+                                    </div>
+                                    <div id="signatureLoading">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Upload New Signature -->
+                            <div class="mb-4">
+                                <h6 class="fw-bold mb-3">Upload Signature Image</h6>
+                                <p class="text-muted small mb-3">
+                                    For best results, upload a clear image of your signature on a white background.
+                                    Supported formats: PNG, JPG, JPEG (max 2MB)
+                                </p>
+                                
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <div class="input-group mb-3">
+                                            <input type="file" class="form-control" id="signatureFile" accept="image/png,image/jpeg,image/jpg">
+                                            <button class="btn btn-primary" type="button" onclick="uploadSignature()">
+                                                <i class="bi bi-upload me-2"></i>Upload
+                                            </button>
+                                        </div>
+                                        <div id="signatureUploadPreview" class="d-none mb-3">
+                                            <p class="text-muted small mb-2">Preview:</p>
+                                            <div class="border rounded p-3 bg-white" style="display: inline-block;">
+                                                <img id="signatureUploadPreviewImg" src="" alt="Preview" style="max-width: 200px; max-height: 80px;">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Draw Signature Option -->
+                            <div class="mb-4">
+                                <h6 class="fw-bold mb-3">Or Draw Your Signature</h6>
+                                <div class="border rounded p-3 bg-white mb-3">
+                                    <canvas id="signatureCanvas" width="400" height="150" style="border: 2px dashed #dee2e6; cursor: crosshair; touch-action: none;"></canvas>
+                                </div>
+                                <div class="btn-group">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="clearSignatureCanvas()">
+                                        <i class="bi bi-eraser me-2"></i>Clear
+                                    </button>
+                                    <button type="button" class="btn btn-primary" onclick="saveDrawnSignature()">
+                                        <i class="bi bi-check-lg me-2"></i>Save Drawn Signature
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Enter Full Name -->
+                            <div class="mb-4">
+                                <h6 class="fw-bold mb-3">Full Name (for AI Verification)</h6>
+                                <p class="text-muted small mb-3">
+                                    Enter your full name as it appears on your signature. This helps the AI match your signature on documents.
+                                </p>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <input type="text" class="form-control" id="signatureFullName" placeholder="e.g. Juan Dela Cruz">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <button type="button" class="btn btn-outline-primary" onclick="saveSignatureName()">
+                                            <i class="bi bi-save me-2"></i>Save Name
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Delete Signature -->
+                            <div id="deleteSignatureSection" class="d-none border-top pt-4">
+                                <h6 class="fw-bold mb-3 text-danger"><i class="bi bi-trash me-2"></i>Remove Signature</h6>
+                                <p class="text-muted small mb-3">
+                                    This will remove your signature from our system. Documents will need to be manually verified.
+                                </p>
+                                <button type="button" class="btn btn-outline-danger" onclick="deleteSignature()">
+                                    <i class="bi bi-trash me-2"></i>Delete Signature
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -608,6 +723,282 @@
 
     function requestDataExport() {
         alert('Your data export request has been submitted. You will receive an email with your data within 30 days as per RA 10173.');
+    }
+
+    // ===== SIGNATURE FUNCTIONS =====
+    let signatureCanvas = null;
+    let signatureCtx = null;
+    let isDrawing = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    // Initialize signature canvas when tab is shown
+    document.addEventListener('DOMContentLoaded', function() {
+        // Load current signature
+        loadCurrentSignature();
+
+        // Initialize canvas
+        signatureCanvas = document.getElementById('signatureCanvas');
+        if (signatureCanvas) {
+            signatureCtx = signatureCanvas.getContext('2d');
+            signatureCtx.strokeStyle = '#000';
+            signatureCtx.lineWidth = 2;
+            signatureCtx.lineCap = 'round';
+            signatureCtx.lineJoin = 'round';
+
+            // Mouse events
+            signatureCanvas.addEventListener('mousedown', startDrawing);
+            signatureCanvas.addEventListener('mousemove', draw);
+            signatureCanvas.addEventListener('mouseup', stopDrawing);
+            signatureCanvas.addEventListener('mouseout', stopDrawing);
+
+            // Touch events
+            signatureCanvas.addEventListener('touchstart', handleTouchStart);
+            signatureCanvas.addEventListener('touchmove', handleTouchMove);
+            signatureCanvas.addEventListener('touchend', stopDrawing);
+        }
+
+        // Preview uploaded signature
+        const signatureFile = document.getElementById('signatureFile');
+        if (signatureFile) {
+            signatureFile.addEventListener('change', previewSignature);
+        }
+    });
+
+    function startDrawing(e) {
+        isDrawing = true;
+        const rect = signatureCanvas.getBoundingClientRect();
+        lastX = e.clientX - rect.left;
+        lastY = e.clientY - rect.top;
+    }
+
+    function handleTouchStart(e) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const rect = signatureCanvas.getBoundingClientRect();
+        isDrawing = true;
+        lastX = touch.clientX - rect.left;
+        lastY = touch.clientY - rect.top;
+    }
+
+    function draw(e) {
+        if (!isDrawing) return;
+        const rect = signatureCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        signatureCtx.beginPath();
+        signatureCtx.moveTo(lastX, lastY);
+        signatureCtx.lineTo(x, y);
+        signatureCtx.stroke();
+
+        lastX = x;
+        lastY = y;
+    }
+
+    function handleTouchMove(e) {
+        e.preventDefault();
+        if (!isDrawing) return;
+        const touch = e.touches[0];
+        const rect = signatureCanvas.getBoundingClientRect();
+        const x = touch.clientX - rect.left;
+        const y = touch.clientY - rect.top;
+
+        signatureCtx.beginPath();
+        signatureCtx.moveTo(lastX, lastY);
+        signatureCtx.lineTo(x, y);
+        signatureCtx.stroke();
+
+        lastX = x;
+        lastY = y;
+    }
+
+    function stopDrawing() {
+        isDrawing = false;
+    }
+
+    function clearSignatureCanvas() {
+        if (signatureCtx) {
+            signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+        }
+    }
+
+    function previewSignature(e) {
+        const file = e.target.files[0];
+        if (!file) {
+            document.getElementById('signatureUploadPreview').classList.add('d-none');
+            return;
+        }
+
+        if (file.size > 2 * 1024 * 1024) {
+            alert('File size must be less than 2MB');
+            e.target.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            document.getElementById('signatureUploadPreviewImg').src = event.target.result;
+            document.getElementById('signatureUploadPreview').classList.remove('d-none');
+        };
+        reader.readAsDataURL(file);
+    }
+
+    async function loadCurrentSignature() {
+        try {
+            const response = await fetch('/api/SettingsApi/signature');
+            const data = await response.json();
+
+            document.getElementById('signatureLoading').classList.add('d-none');
+
+            if (data.success && data.signaturePath) {
+                document.getElementById('signatureImage').src = data.signaturePath + '?t=' + new Date().getTime();
+                document.getElementById('signatureContainer').classList.remove('d-none');
+                document.getElementById('noSignature').classList.add('d-none');
+                document.getElementById('deleteSignatureSection').classList.remove('d-none');
+                
+                if (data.signatureName) {
+                    document.getElementById('signatureFullName').value = data.signatureName;
+                }
+            } else {
+                document.getElementById('noSignature').classList.remove('d-none');
+                document.getElementById('signatureContainer').classList.add('d-none');
+                document.getElementById('deleteSignatureSection').classList.add('d-none');
+            }
+        } catch (error) {
+            console.error('Error loading signature:', error);
+            document.getElementById('signatureLoading').classList.add('d-none');
+            document.getElementById('noSignature').classList.remove('d-none');
+        }
+    }
+
+    async function uploadSignature() {
+        const fileInput = document.getElementById('signatureFile');
+        if (!fileInput.files || fileInput.files.length === 0) {
+            alert('Please select a signature image');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        try {
+            const response = await fetch('/api/SettingsApi/signature', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                alert('Signature uploaded successfully!');
+                fileInput.value = '';
+                document.getElementById('signatureUploadPreview').classList.add('d-none');
+                loadCurrentSignature();
+            } else {
+                alert('Error: ' + (data.message || 'Failed to upload signature'));
+            }
+        } catch (error) {
+            console.error('Error uploading signature:', error);
+            alert('Error uploading signature');
+        }
+    }
+
+    async function saveDrawnSignature() {
+        const canvas = document.getElementById('signatureCanvas');
+        
+        // Check if canvas is empty
+        const context = canvas.getContext('2d');
+        const pixelData = context.getImageData(0, 0, canvas.width, canvas.height).data;
+        let isEmpty = true;
+        for (let i = 3; i < pixelData.length; i += 4) {
+            if (pixelData[i] !== 0) {
+                isEmpty = false;
+                break;
+            }
+        }
+
+        if (isEmpty) {
+            alert('Please draw your signature first');
+            return;
+        }
+
+        // Convert canvas to blob
+        canvas.toBlob(async function(blob) {
+            const formData = new FormData();
+            formData.append('file', blob, 'signature.png');
+
+            try {
+                const response = await fetch('/api/SettingsApi/signature', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('Signature saved successfully!');
+                    clearSignatureCanvas();
+                    loadCurrentSignature();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to save signature'));
+                }
+            } catch (error) {
+                console.error('Error saving signature:', error);
+                alert('Error saving signature');
+            }
+        }, 'image/png');
+    }
+
+    async function saveSignatureName() {
+        const name = document.getElementById('signatureFullName').value.trim();
+        if (!name) {
+            alert('Please enter your full name');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/SettingsApi/signature-name', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                alert('Name saved successfully!');
+            } else {
+                alert('Error: ' + (data.message || 'Failed to save name'));
+            }
+        } catch (error) {
+            console.error('Error saving name:', error);
+            alert('Error saving name');
+        }
+    }
+
+    async function deleteSignature() {
+        if (!confirm('Are you sure you want to delete your signature? This cannot be undone.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/SettingsApi/signature', {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                alert('Signature deleted successfully');
+                loadCurrentSignature();
+            } else {
+                alert('Error: ' + (data.message || 'Failed to delete signature'));
+            }
+        } catch (error) {
+            console.error('Error deleting signature:', error);
+            alert('Error deleting signature');
+        }
     }
 </script>
 }

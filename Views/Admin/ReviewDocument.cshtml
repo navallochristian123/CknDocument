@@ -1316,13 +1316,31 @@
         if (['.pdf'].includes(extension)) {
             iframeEl.src = viewUrl;
             iframeEl.style.display = 'block';
-        } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'].includes(extension)) {
+        } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.tif', '.tiff'].includes(extension)) {
             imgEl.src = viewUrl;
             imageContainerEl.style.display = 'block';
-        } else {
-            // For other files, show in iframe (text files) or show unsupported message
+        } else if (['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'].includes(extension)) {
+            // Office Documents - Use Google Docs Viewer
+            const fullUrl = window.location.origin + viewUrl;
+            const googleViewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(fullUrl)}&embedded=true`;
+            iframeEl.src = googleViewerUrl;
+            iframeEl.style.display = 'block';
+        } else if (['.txt', '.csv', '.json', '.xml', '.html', '.htm'].includes(extension)) {
+            // Text files - show in iframe
             iframeEl.src = viewUrl;
             iframeEl.style.display = 'block';
+        } else {
+            // Show fallback message in viewer div
+            viewerEl.style.display = 'flex';
+            viewerEl.innerHTML = `
+                <div class="text-center py-5">
+                    <i class="bi bi-file-earmark-x display-1 text-muted"></i>
+                    <p class="text-muted mt-3">Preview not available for this file type</p>
+                    <a href="/api/DocumentApi/${documentData.id}/download?versionId=${versionId}" class="btn btn-outline-primary">
+                        <i class="bi bi-download me-2"></i>Download
+                    </a>
+                </div>
+            `;
         }
     }
 
