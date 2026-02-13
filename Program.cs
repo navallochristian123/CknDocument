@@ -69,13 +69,21 @@ builder.Services.AddAuthorization(options =>
 
     // Law Firm-level policies
     options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+    options.AddPolicy("LawyerOnly", policy => policy.RequireRole("Lawyer"));
     options.AddPolicy("StaffOnly", policy => policy.RequireRole("Staff"));
     options.AddPolicy("ClientOnly", policy => policy.RequireRole("Client"));
     options.AddPolicy("AuditorOnly", policy => policy.RequireRole("Auditor"));
 
     // Combined policies
-    options.AddPolicy("AdminOrStaff", policy => policy.RequireRole("Admin", "Staff"));
-    options.AddPolicy("FirmMember", policy => policy.RequireRole("Admin", "Staff", "Client", "Auditor"));
+    options.AddPolicy("AdminOrLawyer", policy => policy.RequireRole("Admin", "Lawyer"));
+    options.AddPolicy("AdminOrStaff", policy => policy.RequireRole("Admin", "Lawyer", "Staff"));
+    options.AddPolicy("LawyerOrStaff", policy => policy.RequireRole("Lawyer", "Staff"));
+    options.AddPolicy("FirmMember", policy => policy.RequireRole("Admin", "Lawyer", "Staff", "Client", "Auditor"));
+    
+    // Content editing - only Lawyer can edit document content
+    options.AddPolicy("CanEditContent", policy => policy.RequireRole("Admin", "Lawyer"));
+    // Metadata editing - Staff can edit metadata
+    options.AddPolicy("CanEditMetadata", policy => policy.RequireRole("Admin", "Lawyer", "Staff"));
 });
 
 // ===========================================
@@ -153,10 +161,10 @@ app.UseAuthorization();
 // ROUTE MAPPING
 // ===========================================
 
-// Default route (all roles use clean URLs)
+// Default route - redirect to Auth/Login
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
+    pattern: "{controller=Auth}/{action=Login}/{id?}");
 
 app.MapRazorPages();
 

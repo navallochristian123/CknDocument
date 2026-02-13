@@ -42,6 +42,8 @@ public class Document : BaseEntity, IAuditableEntity
 
     public int? AssignedStaffId { get; set; }
 
+    public int? AssignedLawyerId { get; set; }
+
     public int? AssignedAdminId { get; set; }
 
     [MaxLength(500)]
@@ -65,11 +67,16 @@ public class Document : BaseEntity, IAuditableEntity
 
     public DateTime? StaffReviewedAt { get; set; }
 
+    public DateTime? LawyerReviewedAt { get; set; }
+
     public DateTime? AdminReviewedAt { get; set; }
 
     public DateTime? ApprovedAt { get; set; }
 
     public DateTime? RetentionExpiryDate { get; set; }
+
+    [MaxLength(500)]
+    public string? Tags { get; set; }
 
     // Navigation properties
     [ForeignKey("FirmID")]
@@ -83,6 +90,9 @@ public class Document : BaseEntity, IAuditableEntity
 
     [ForeignKey("AssignedStaffId")]
     public virtual User? AssignedStaff { get; set; }
+
+    [ForeignKey("AssignedLawyerId")]
+    public virtual User? AssignedLawyer { get; set; }
 
     [ForeignKey("AssignedAdminId")]
     public virtual User? AssignedAdmin { get; set; }

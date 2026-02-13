@@ -1,0 +1,331 @@
+@{
+    ViewData["Title"] = "Archived Documents";
+    Layout = "_LawyerLayout";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0">Archived Documents</h4>
+        <p class="text-muted mb-0">View archived and old version documents</p>
+    </div>
+</div>
+
+<!-- Archive Type Tabs -->
+<ul class="nav nav-tabs mb-4" id="archiveTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="archived-tab" data-bs-toggle="tab" data-bs-target="#archived" type="button" role="tab">
+            <i class="bi bi-archive me-1"></i> Archived
+            <span class="badge bg-secondary" id="archivedCount">0</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="versions-tab" data-bs-toggle="tab" data-bs-target="#versions" type="button" role="tab">
+            <i class="bi bi-clock-history me-1"></i> Old Versions
+            <span class="badge bg-info" id="versionsCount">0</span>
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="archiveTabContent">
+    <!-- Archived Documents Tab -->
+    <div class="tab-pane fade show active" id="archived" role="tabpanel">
+        <div class="card">
+            <div class="card-header bg-white">
+                <div class="row align-items-center g-3">
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" id="searchArchived" placeholder="Search archived documents...">
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="filterArchivedType">
+                            <option value="">All Types</option>
+                            <option value="Contract">Contract</option>
+                            <option value="Agreement">Agreement</option>
+                            <option value="Legal Brief">Legal Brief</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="sortArchived">
+                            <option value="archivedAt-desc">Newest First</option>
+                            <option value="archivedAt-asc">Oldest First</option>
+                            <option value="title-asc">Title A-Z</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 text-end">
+                        <button class="btn btn-outline-secondary" onclick="loadArchivedDocuments()">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Document</th>
+                                <th>Type</th>
+                                <th>Client</th>
+                                <th>Archived Date</th>
+                                <th>Reason</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="archivedTbody">
+                            <tr>
+                                <td colspan="6" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Old Versions Tab -->
+    <div class="tab-pane fade" id="versions" role="tabpanel">
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            When a new version is created, the previous version is automatically archived here.
+        </div>
+        <div class="card">
+            <div class="card-header bg-white">
+                <div class="row align-items-center g-3">
+                    <div class="col-md-5">
+                        <input type="text" class="form-control" id="searchVersions" placeholder="Search...">
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="sortVersions">
+                            <option value="archivedAt-desc">Newest First</option>
+                            <option value="archivedAt-asc">Oldest First</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Document</th>
+                                <th>Version</th>
+                                <th>Replaced By</th>
+                                <th>Archived Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="versionsTbody">
+                            <tr>
+                                <td colspan="5" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Document Modal -->
+<div class="modal fade" id="viewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Document Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <dl class="row">
+                    <dt class="col-sm-3">Title:</dt>
+                    <dd class="col-sm-9" id="viewTitle">-</dd>
+                    <dt class="col-sm-3">Type:</dt>
+                    <dd class="col-sm-9" id="viewType">-</dd>
+                    <dt class="col-sm-3">Client:</dt>
+                    <dd class="col-sm-9" id="viewClient">-</dd>
+                    <dt class="col-sm-3">Archived:</dt>
+                    <dd class="col-sm-9" id="viewArchivedAt">-</dd>
+                    <dt class="col-sm-3">Reason:</dt>
+                    <dd class="col-sm-9" id="viewReason">-</dd>
+                </dl>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let archivedDocs = [], versionDocs = [];
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadArchivedDocuments();
+        loadArchivedVersions();
+
+        document.getElementById('searchArchived').addEventListener('input', debounce(renderArchivedTable, 300));
+        document.getElementById('searchVersions').addEventListener('input', debounce(renderVersionsTable, 300));
+        document.getElementById('filterArchivedType').addEventListener('change', renderArchivedTable);
+        document.getElementById('sortArchived').addEventListener('change', renderArchivedTable);
+        document.getElementById('sortVersions').addEventListener('change', renderVersionsTable);
+    });
+
+    async function loadArchivedDocuments() {
+        try {
+            const response = await fetch('/api/ArchiveApi?type=archived');
+            const data = await response.json();
+            if (data.success) {
+                archivedDocs = data.archives;
+                document.getElementById('archivedCount').textContent = archivedDocs.length;
+                renderArchivedTable();
+            }
+        } catch (error) {
+            console.error('Error loading archived documents:', error);
+        }
+    }
+
+    async function loadArchivedVersions() {
+        try {
+            const response = await fetch('/api/ArchiveApi?type=version');
+            const data = await response.json();
+            if (data.success) {
+                versionDocs = data.archives;
+                document.getElementById('versionsCount').textContent = versionDocs.length;
+                renderVersionsTable();
+            }
+        } catch (error) {
+            console.error('Error loading archived versions:', error);
+        }
+    }
+
+    function renderArchivedTable() {
+        const tbody = document.getElementById('archivedTbody');
+        const search = document.getElementById('searchArchived').value.toLowerCase();
+        const typeFilter = document.getElementById('filterArchivedType').value;
+        const sort = document.getElementById('sortArchived').value;
+
+        let filtered = archivedDocs.filter(d => {
+            const matchSearch = d.documentTitle.toLowerCase().includes(search) || 
+                               (d.clientName || '').toLowerCase().includes(search);
+            const matchType = !typeFilter || d.documentType === typeFilter;
+            return matchSearch && matchType;
+        });
+
+        const [sortField, sortDir] = sort.split('-');
+        filtered.sort((a, b) => {
+            let aVal = sortField === 'title' ? a.documentTitle : a[sortField];
+            let bVal = sortField === 'title' ? b.documentTitle : b[sortField];
+            if (sortField === 'archivedAt') {
+                aVal = new Date(aVal || 0);
+                bVal = new Date(bVal || 0);
+            }
+            return sortDir === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
+        });
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted">No archived documents found</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(d => `
+            <tr>
+                <td>
+                    <i class="bi ${getFileIcon(d.fileExtension)} me-2"></i>
+                    <strong>${escapeHtml(d.documentTitle)}</strong>
+                </td>
+                <td><span class="badge bg-secondary">${d.documentType || 'Unknown'}</span></td>
+                <td>${d.clientName || '-'}</td>
+                <td>${formatDate(d.archivedAt)}</td>
+                <td><span class="text-truncate d-inline-block" style="max-width: 150px;">${escapeHtml(d.archiveReason || '-')}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewDocument(${d.archiveId})">
+                        <i class="bi bi-eye"></i> View
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function renderVersionsTable() {
+        const tbody = document.getElementById('versionsTbody');
+        const search = document.getElementById('searchVersions').value.toLowerCase();
+        const sort = document.getElementById('sortVersions').value;
+
+        let filtered = versionDocs.filter(d => d.documentTitle.toLowerCase().includes(search));
+
+        const [sortField, sortDir] = sort.split('-');
+        filtered.sort((a, b) => {
+            let aVal = new Date(a[sortField] || 0);
+            let bVal = new Date(b[sortField] || 0);
+            return sortDir === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
+        });
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-muted">No archived versions found</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(d => `
+            <tr>
+                <td>
+                    <i class="bi ${getFileIcon(d.fileExtension)} me-2"></i>
+                    <strong>${escapeHtml(d.documentTitle)}</strong>
+                </td>
+                <td><span class="badge bg-info">v${d.versionNumber || '1'}</span></td>
+                <td>v${(d.versionNumber || 1) + 1}</td>
+                <td>${formatDate(d.archivedAt)}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewDocument(${d.archiveId})">
+                        <i class="bi bi-eye"></i> View
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function viewDocument(archiveId) {
+        const doc = [...archivedDocs, ...versionDocs].find(d => d.archiveId === archiveId);
+        if (!doc) return;
+
+        document.getElementById('viewTitle').textContent = doc.documentTitle || '-';
+        document.getElementById('viewType').textContent = doc.documentType || '-';
+        document.getElementById('viewClient').textContent = doc.clientName || '-';
+        document.getElementById('viewArchivedAt').textContent = formatDate(doc.archivedAt);
+        document.getElementById('viewReason').textContent = doc.archiveReason || '-';
+
+        new bootstrap.Modal(document.getElementById('viewModal')).show();
+    }
+
+    function getFileIcon(ext) {
+        const icons = {
+            '.pdf': 'bi-file-pdf text-danger',
+            '.doc': 'bi-file-word text-primary',
+            '.docx': 'bi-file-word text-primary'
+        };
+        return icons[ext?.toLowerCase()] || 'bi-file-earmark text-secondary';
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+</script>
+}

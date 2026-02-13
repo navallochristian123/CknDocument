@@ -33,6 +33,13 @@ public class Firm : BaseEntity
     [MaxLength(500)]
     public string? LogoUrl { get; set; }
 
+    /// <summary>
+    /// Unique code for client registration verification
+    /// Clients must provide this code to register with the firm
+    /// </summary>
+    [MaxLength(20)]
+    public string? FirmCode { get; set; }
+
     // Navigation properties
     public virtual ICollection<User> Users { get; set; } = new List<User>();
     public virtual ICollection<Document> Documents { get; set; } = new List<Document>();

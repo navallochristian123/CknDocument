@@ -1,0 +1,285 @@
+@{
+    ViewData["Title"] = "All Documents";
+    Layout = "_LawyerLayout";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0">All Documents</h4>
+        <p class="text-muted mb-0">Browse all documents - <span id="documentCount">Loading...</span></p>
+    </div>
+    <a href="/Document/Upload" class="btn btn-primary">
+        <i class="bi bi-cloud-upload"></i> Upload Document
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-header bg-white">
+        <div class="row align-items-center g-2">
+            <div class="col-md-4">
+                <input type="text" class="form-control" id="searchInput" placeholder="Search documents...">
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="typeFilter">
+                    <option value="">All Types</option>
+                    <option value="Contract">Contract</option>
+                    <option value="Legal Brief">Legal Brief</option>
+                    <option value="Affidavit">Affidavit</option>
+                    <option value="Agreement">Agreement</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="statusFilter">
+                    <option value="">All Status</option>
+                    <option value="Pending">Pending Review</option>
+                    <option value="Completed">Approved</option>
+                    <option value="Rejected">Rejected</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="folderFilter">
+                    <option value="">All Folders</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-outline-secondary w-100" onclick="loadDocuments()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Document Name</th>
+                        <th>Type</th>
+                        <th>Folder</th>
+                        <th>Uploaded By</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="documentsTable">
+                    <tr>
+                        <td colspan="7" class="text-center py-4">
+                            <div class="spinner-border text-primary"></div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="previewModalTitle">Document Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="pdfViewer" style="display:none; height: 75vh;">
+                    <iframe id="previewFrame" src="" style="width:100%; height:100%; border:none;"></iframe>
+                </div>
+                <div id="imageViewer" style="display:none; height: 75vh; justify-content:center; align-items:center; background:#f5f5f5;">
+                    <img id="previewImage" src="" style="max-width:100%; max-height:100%; object-fit:contain;" />
+                </div>
+                <div id="unsupportedViewer" style="display:none; height: 50vh; justify-content:center; align-items:center; flex-direction:column;">
+                    <i class="bi bi-file-earmark display-1 text-muted"></i>
+                    <p class="mt-3 text-muted" id="unsupportedFileName"></p>
+                    <p class="text-muted">Preview not available for this file type</p>
+                    <a id="downloadLink" href="#" class="btn btn-primary">
+                        <i class="bi bi-download me-2"></i>Download File
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    const REFRESH_INTERVAL = 10000;
+    let allDocuments = [];
+    let folders = [];
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        loadDocuments();
+        loadFolders();
+        setInterval(loadDocuments, REFRESH_INTERVAL);
+        
+        document.getElementById('searchInput').addEventListener('input', filterDocuments);
+        document.getElementById('typeFilter').addEventListener('change', filterDocuments);
+        document.getElementById('statusFilter').addEventListener('change', filterDocuments);
+        document.getElementById('folderFilter').addEventListener('change', filterDocuments);
+    });
+    
+    async function loadFolders() {
+        try {
+            const response = await fetch('/api/FolderApi');
+            if (response.ok) {
+                const data = await response.json();
+                folders = data.folders || [];
+                const select = document.getElementById('folderFilter');
+                select.innerHTML = '<option value="">All Folders</option>' + 
+                    folders.map(f => `<option value="${f.folderId}">${escapeHtml(f.folderName)}</option>`).join('');
+            }
+        } catch (e) { console.error('Error loading folders:', e); }
+    }
+    
+    async function loadDocuments() {
+        try {
+            const response = await fetch('/api/DashboardApi/staff-recent?take=100');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    allDocuments = data.documents || [];
+                    filterDocuments();
+                }
+            }
+        } catch (e) {
+            console.error('Error loading documents:', e);
+            document.getElementById('documentsTable').innerHTML = `
+                <tr><td colspan="7" class="text-center text-danger py-4">Error loading documents</td></tr>
+            `;
+        }
+    }
+    
+    function filterDocuments() {
+        const search = document.getElementById('searchInput').value.toLowerCase();
+        const type = document.getElementById('typeFilter').value;
+        const status = document.getElementById('statusFilter').value;
+        const folderId = document.getElementById('folderFilter').value;
+        
+        let filtered = allDocuments.filter(doc => {
+            const matchesSearch = !search || 
+                doc.title?.toLowerCase().includes(search) || 
+                doc.originalFileName?.toLowerCase().includes(search) ||
+                doc.clientName?.toLowerCase().includes(search);
+            const matchesType = !type || doc.documentType === type;
+            const matchesStatus = !status || doc.status === status || 
+                (status === 'Pending' && !['Completed', 'Rejected'].includes(doc.status));
+            const matchesFolder = !folderId || doc.folderId == folderId;
+            return matchesSearch && matchesType && matchesStatus && matchesFolder;
+        });
+        
+        renderDocuments(filtered);
+    }
+    
+    function renderDocuments(documents) {
+        const tbody = document.getElementById('documentsTable');
+        document.getElementById('documentCount').textContent = `${documents.length} document${documents.length !== 1 ? 's' : ''}`;
+        
+        if (documents.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center py-5">
+                        <i class="bi bi-file-earmark-x display-4 text-muted"></i>
+                        <p class="text-muted mt-2">No documents found</p>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = documents.map(doc => `
+            <tr>
+                <td>
+                    <i class="bi ${getFileIcon(doc.fileExtension)}"></i>
+                    <span class="ms-2">${escapeHtml(doc.originalFileName || doc.title)}</span>
+                </td>
+                <td>${escapeHtml(doc.documentType || '-')}</td>
+                <td>${escapeHtml(doc.folderName || 'General')}</td>
+                <td>${escapeHtml(doc.clientName || '-')}</td>
+                <td>${formatDate(doc.createdAt)}</td>
+                <td>${getStatusBadge(doc.status, doc.workflowStage)}</td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary" onclick="previewDocument(${doc.id}, '${escapeHtml(doc.fileExtension || '')}', '${escapeHtml(doc.originalFileName || doc.title)}')" title="Preview">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <a href="/api/DocumentApi/${doc.id}/download" class="btn btn-outline-secondary" title="Download">
+                            <i class="bi bi-download"></i>
+                        </a>
+                        ${doc.workflowStage === 'StaffReview' ? `
+                        <a href="/Review/Review/${doc.id}" class="btn btn-outline-success" title="Review">
+                            <i class="bi bi-check-circle"></i>
+                        </a>
+                        ` : ''}
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+    
+    function previewDocument(docId, fileExt, fileName) {
+        const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+        const pdfViewer = document.getElementById('pdfViewer');
+        const imageViewer = document.getElementById('imageViewer');
+        const unsupportedViewer = document.getElementById('unsupportedViewer');
+        
+        document.getElementById('previewModalTitle').innerHTML = `<i class="bi bi-file-earmark me-2"></i>${escapeHtml(fileName)}`;
+        
+        pdfViewer.style.display = 'none';
+        imageViewer.style.display = 'none';
+        unsupportedViewer.style.display = 'none';
+        
+        const ext = (fileExt || '').toLowerCase();
+        
+        if (ext === '.pdf') {
+            pdfViewer.style.display = 'block';
+            document.getElementById('previewFrame').src = `/api/DocumentApi/${docId}/view#toolbar=0&navpanes=0`;
+        } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
+            imageViewer.style.display = 'flex';
+            document.getElementById('previewImage').src = `/api/DocumentApi/${docId}/view`;
+        } else {
+            unsupportedViewer.style.display = 'flex';
+            document.getElementById('unsupportedFileName').textContent = fileName;
+            document.getElementById('downloadLink').href = `/api/DocumentApi/${docId}/download`;
+        }
+        
+        modal.show();
+    }
+    
+    function getFileIcon(ext) {
+        const icons = {
+            '.pdf': 'bi-file-pdf text-danger',
+            '.doc': 'bi-file-word text-primary',
+            '.docx': 'bi-file-word text-primary',
+            '.xls': 'bi-file-excel text-success',
+            '.xlsx': 'bi-file-excel text-success',
+            '.jpg': 'bi-file-image text-info',
+            '.jpeg': 'bi-file-image text-info',
+            '.png': 'bi-file-image text-info'
+        };
+        return icons[ext?.toLowerCase()] || 'bi-file-earmark text-secondary';
+    }
+    
+    function getStatusBadge(status, workflowStage) {
+        if (status === 'Completed') return '<span class="badge bg-success">Approved</span>';
+        if (status === 'Rejected') return '<span class="badge bg-danger">Rejected</span>';
+        if (workflowStage === 'StaffReview') return '<span class="badge bg-warning text-dark">Pending Review</span>';
+        if (workflowStage === 'PendingStaffReview' || workflowStage === 'ClientUpload') return '<span class="badge bg-warning text-dark">Pending Review</span>';
+        if (workflowStage === 'AdminReview') return '<span class="badge bg-info">Admin Review</span>';
+        if (workflowStage === 'PendingAdminReview') return '<span class="badge bg-info">Pending Admin Review</span>';
+        return '<span class="badge bg-secondary">Pending Review</span>';
+    }
+    
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+}

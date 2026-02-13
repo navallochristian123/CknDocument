@@ -1,6 +1,6 @@
 @{
     ViewData["Title"] = "Review Document";
-    Layout = "_StaffLayout";
+    Layout = "_LawyerLayout";
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -11,7 +11,7 @@
                 <li class="breadcrumb-item active">Review Document</li>
             </ol>
         </nav>
-        <h4 class="mb-0 mt-2">Staff Document Review</h4>
+        <h4 class="mb-0 mt-2">Lawyer Document Review</h4>
     </div>
     <a href="/Review" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left"></i> Back to Reviews
@@ -68,8 +68,8 @@
                         </button>
                     </div>
                     <div class="col-6">
-                        <button class="btn btn-warning w-100" onclick="openMetadataEditor()">
-                            <i class="bi bi-tags"></i> Edit Metadata
+                        <button class="btn btn-info w-100 text-white" onclick="openDocumentEditor()">
+                            <i class="bi bi-pencil"></i> Edit Doc
                         </button>
                     </div>
                     <div class="col-6">
@@ -103,72 +103,57 @@
             </div>
         </div>
 
-        <!-- Metadata Verification Panel (Staff Focus) -->
-        <div class="card mb-3 border-success">
-            <div class="card-header bg-success text-white">
-                <h6 class="mb-0"><i class="bi bi-card-checklist me-2"></i>Metadata & Credentials Check</h6>
+        <!-- AI Analysis Panel -->
+        <div class="card mb-3 border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h6 class="mb-0"><i class="bi bi-robot me-2"></i>AI Document Analysis</h6>
             </div>
-            <div class="card-body" id="metadataCheckPanel">
-                <p class="text-muted small mb-3">
-                    <i class="bi bi-info-circle me-1"></i>
-                    Verify document metadata and tagging before forwarding to Lawyer.
-                </p>
-                <div id="metadataCheckContent">
-                    <div class="mb-2">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="small"><i class="bi bi-file-text me-1"></i>Document Title:</span>
-                            <span class="badge bg-light text-dark" id="metaTitle">-</span>
+            <div class="card-body" id="aiAnalysisPanel">
+                <div class="text-center py-3" id="aiLoading">
+                    <div class="spinner-border spinner-border-sm text-warning"></div>
+                    <p class="text-muted mt-2 mb-0 small">Loading AI analysis...</p>
+                </div>
+                <div id="aiContent" style="display: none;">
+                    <!-- AI Summary -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <strong class="small">Detected Type:</strong>
+                            <span class="badge bg-info" id="aiDocType">-</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <strong class="small">Confidence:</strong>
+                            <span id="aiConfidence" class="small">-</span>
+                        </div>
+                        <div class="mt-2">
+                            <strong class="small d-block mb-1">AI Summary:</strong>
+                            <p class="small text-muted mb-0" id="aiSummary">-</p>
                         </div>
                     </div>
-                    <div class="mb-2">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="small"><i class="bi bi-tag me-1"></i>Document Type:</span>
-                            <span class="badge bg-secondary" id="metaType">-</span>
-                        </div>
+
+                    <!-- AI Checklist -->
+                    <div class="mb-3" id="aiChecklistSection" style="display: none;">
+                        <strong class="small d-block mb-2"><i class="bi bi-list-check me-1"></i>AI Checklist:</strong>
+                        <div id="aiChecklist" class="border rounded p-2" style="max-height: 200px; overflow-y: auto;"></div>
                     </div>
-                    <div class="mb-2">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="small"><i class="bi bi-folder me-1"></i>Category:</span>
-                            <span class="badge bg-info" id="metaCategory">-</span>
-                        </div>
+
+                    <!-- AI Issues -->
+                    <div class="mb-3" id="aiIssuesSection" style="display: none;">
+                        <strong class="small d-block mb-2"><i class="bi bi-exclamation-triangle me-1"></i>Issues Found:</strong>
+                        <div id="aiIssues" style="max-height: 200px; overflow-y: auto;"></div>
                     </div>
-                    <div class="mb-2">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="small"><i class="bi bi-person me-1"></i>Client:</span>
-                            <span class="badge bg-primary" id="metaClient">-</span>
-                        </div>
+
+                    <!-- AI Missing Items -->
+                    <div class="mb-2" id="aiMissingSection" style="display: none;">
+                        <strong class="small d-block mb-2"><i class="bi bi-patch-question me-1"></i>Missing Items:</strong>
+                        <div id="aiMissing" style="max-height: 150px; overflow-y: auto;"></div>
                     </div>
-                    <div class="mb-2">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="small"><i class="bi bi-tags me-1"></i>Tags:</span>
-                            <span id="metaTags">-</span>
-                        </div>
+
+                    <div class="text-end mt-2">
+                        <small class="text-muted" id="aiMeta">-</small>
                     </div>
-                    <hr>
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="checkbox" id="chkMetaTitleCorrect">
-                        <label class="form-check-label small" for="chkMetaTitleCorrect">
-                            Document title is clear and accurate
-                        </label>
-                    </div>
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="checkbox" id="chkMetaTypeCorrect">
-                        <label class="form-check-label small" for="chkMetaTypeCorrect">
-                            Document type is correctly classified
-                        </label>
-                    </div>
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="checkbox" id="chkMetaCategoryCorrect">
-                        <label class="form-check-label small" for="chkMetaCategoryCorrect">
-                            Category is appropriate
-                        </label>
-                    </div>
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="checkbox" id="chkMetaTagsAdded">
-                        <label class="form-check-label small" for="chkMetaTagsAdded">
-                            Relevant tags have been added
-                        </label>
-                    </div>
+                </div>
+                <div id="aiNoData" style="display: none;">
+                    <p class="text-muted small mb-0"><i class="bi bi-info-circle me-1"></i>No AI analysis available for this document.</p>
                 </div>
             </div>
         </div>
@@ -208,10 +193,10 @@
             </div>
         </div>
 
-        <!-- Staff Decision -->
+        <!-- Lawyer Decision -->
         <div class="card border-info">
             <div class="card-header bg-info text-white">
-                <h6 class="mb-0"><i class="bi bi-person-check me-2"></i>Staff Review Decision</h6>
+                <h6 class="mb-0"><i class="bi bi-person-check me-2"></i>Lawyer Review Decision</h6>
             </div>
             <div class="card-body">
                 <input type="hidden" id="documentId">
@@ -227,16 +212,16 @@
                     </div>
                 </div>
 
-                <!-- Staff Remarks -->
+                <!-- Lawyer Remarks -->
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Review Remarks <span class="text-muted">(Required for Rejection)</span></label>
-                    <textarea class="form-control" id="staffRemarks" rows="3" placeholder="Enter your review remarks or notes..."></textarea>
+                    <label class="form-label fw-bold">Legal Review Remarks <span class="text-muted">(Required for Rejection)</span></label>
+                    <textarea class="form-control" id="staffRemarks" rows="3" placeholder="Enter your legal review remarks or findings..."></textarea>
                 </div>
 
-                <!-- Internal Notes (visible only to staff/admin) -->
+                <!-- Internal Notes for Admin -->
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Internal Notes <span class="text-muted">(Optional - Admin only)</span></label>
-                    <textarea class="form-control" id="internalNotes" rows="2" placeholder="Notes for admin review..."></textarea>
+                    <label class="form-label fw-bold">Internal Notes <span class="text-muted">(For Admin Review)</span></label>
+                    <textarea class="form-control" id="internalNotes" rows="2" placeholder="Notes regarding legal compliance, suggestions..."></textarea>
                 </div>
 
                 <!-- Decision Buttons -->
@@ -258,9 +243,9 @@
                     </div>
                 </div>
 
-                <div class="alert alert-info mt-3 mb-0 small">
+                <div class="alert alert-success mt-3 mb-0 small">
                     <i class="bi bi-lightbulb me-1"></i>
-                    <strong>Tip:</strong> Approved documents will be forwarded to Lawyer for content review.
+                    <strong>Tip:</strong> Approved documents will be forwarded to Admin for final verification.
                 </div>
             </div>
         </div>
@@ -350,8 +335,8 @@
                     <a href="#" class="btn btn-outline-secondary" id="btnDownloadFromViewer">
                         <i class="bi bi-download"></i> Download
                     </a>
-                    <button type="button" class="btn btn-warning" onclick="openMetadataEditor()">
-                        <i class="bi bi-tags"></i> Edit Metadata
+                    <button type="button" class="btn btn-info text-white" onclick="openDocumentEditorFromViewer()">
+                        <i class="bi bi-pencil"></i> Edit Document
                     </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
@@ -360,90 +345,70 @@
     </div>
 </div>
 
-<!-- Metadata Editor Modal (Staff Only) -->
-<div class="modal fade" id="metadataEditorModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+<!-- Document Editor Modal -->
+<div class="modal fade" id="documentEditorModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
         <div class="modal-content">
-            <div class="modal-header bg-warning text-dark">
-                <h5 class="modal-title"><i class="bi bi-tags me-2"></i>Edit Metadata - <span id="metaEditorDocTitle"></span></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Document - <span id="editorDocTitle"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" id="closeEditorBtn"></button>
             </div>
             <div class="modal-body">
-                <div class="alert alert-info mb-3">
+                <div class="alert alert-warning mb-3">
                     <i class="bi bi-info-circle me-2"></i>
-                    <strong>Metadata Editor:</strong> Update document classification, category, and tags. Content cannot be modified here.
+                    <strong>Edit Mode:</strong> Upload a corrected version of the document. This will create a new version (v<span id="nextVersionNumber">2</span>) while preserving the original.
                 </div>
                 
-                <form id="metadataForm">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Document Title</label>
-                            <input type="text" class="form-control" id="editMetaTitle" placeholder="Enter document title">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Document Type</label>
-                            <select class="form-select" id="editMetaType">
-                                <option value="">Select type...</option>
-                                <option value="Contract">Contract</option>
-                                <option value="Agreement">Agreement</option>
-                                <option value="Affidavit">Affidavit</option>
-                                <option value="Court Filing">Court Filing</option>
-                                <option value="Legal Brief">Legal Brief</option>
-                                <option value="Memorandum">Memorandum</option>
-                                <option value="Power of Attorney">Power of Attorney</option>
-                                <option value="Deed">Deed</option>
-                                <option value="Certificate">Certificate</option>
-                                <option value="ID Document">ID Document</option>
-                                <option value="Financial">Financial Document</option>
-                                <option value="Correspondence">Correspondence</option>
-                                <option value="Evidence">Evidence</option>
-                                <option value="Other">Other</option>
-                            </select>
+                <div class="row">
+                    <div class="col-lg-6">
+                        <!-- Current Document Preview -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="bi bi-file-earmark me-2"></i>Current Version</h6>
+                            </div>
+                            <div class="card-body text-center bg-light" style="min-height: 200px;">
+                                <div id="currentVersionPreview">
+                                    <i class="bi bi-file-earmark-text display-1 text-muted"></i>
+                                    <p class="mt-2 mb-0" id="currentVersionFileName">-</p>
+                                    <small class="text-muted" id="currentVersionInfo">-</small>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Category</label>
-                            <select class="form-select" id="editMetaCategory">
-                                <option value="">Select category...</option>
-                                <option value="Civil">Civil</option>
-                                <option value="Criminal">Criminal</option>
-                                <option value="Corporate">Corporate</option>
-                                <option value="Family">Family</option>
-                                <option value="Real Estate">Real Estate</option>
-                                <option value="Labor">Labor</option>
-                                <option value="Tax">Tax</option>
-                                <option value="Immigration">Immigration</option>
-                                <option value="Administrative">Administrative</option>
-                                <option value="General">General</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Priority</label>
-                            <select class="form-select" id="editMetaPriority">
-                                <option value="Normal">Normal</option>
-                                <option value="High">High</option>
-                                <option value="Urgent">Urgent</option>
-                                <option value="Low">Low</option>
-                            </select>
+                    <div class="col-lg-6">
+                        <!-- Upload New Version -->
+                        <div class="card mb-3 border-info">
+                            <div class="card-header bg-info text-white">
+                                <h6 class="mb-0"><i class="bi bi-cloud-upload me-2"></i>Upload New Version</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label class="form-label">Select Corrected Document</label>
+                                    <input type="file" class="form-control" id="editFileInput" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt">
+                                    <small class="text-muted">Allowed: PDF, Word, Excel, Images, Text</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">What was changed? <span class="text-danger">*</span></label>
+                                    <textarea class="form-control" id="editChangeDescription" rows="3" placeholder="Describe the corrections made (e.g., 'Fixed spelling errors on page 2', 'Corrected dates in section 3')..."></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Tags <span class="text-muted">(comma separated)</span></label>
-                        <input type="text" class="form-control" id="editMetaTags" placeholder="e.g., urgent, confidential, client-review">
-                        <small class="text-muted">Add relevant tags to help with document search and categorization.</small>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Description/Notes</label>
-                        <textarea class="form-control" id="editMetaDescription" rows="3" placeholder="Brief description or notes about the document..."></textarea>
-                    </div>
-                </form>
+                </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-warning" id="btnSaveMetadata">
-                    <i class="bi bi-save me-1"></i> Save Metadata
-                </button>
+            <div class="modal-footer justify-content-between">
+                <div>
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Original version will be preserved. All changes are recorded in the audit trail.
+                    </small>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-info text-white" id="btnSaveEditedDocument">
+                        <i class="bi bi-save me-1"></i> Save as New Version
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -532,7 +497,7 @@
         document.getElementById('btnReject').addEventListener('click', showRejectConfirm);
         document.getElementById('confirmRequestChangesBtn').addEventListener('click', requestChanges);
         document.getElementById('confirmRejectBtn').addEventListener('click', rejectDocument);
-        document.getElementById('btnSaveMetadata').addEventListener('click', saveMetadata);
+        document.getElementById('btnSaveEditedDocument').addEventListener('click', saveEditedDocument);
         document.getElementById('viewerVersionSelect').addEventListener('change', onViewerVersionChange);
         document.getElementById('compareVersion1').addEventListener('change', compareVersions);
         document.getElementById('compareVersion2').addEventListener('change', compareVersions);
@@ -584,10 +549,8 @@
         document.getElementById('docSubmitter').textContent = doc.uploaderName || '-';
         document.getElementById('docClient').textContent = doc.clientName || '-';
 
+        document.getElementById('btnViewDoc').href = `/api/DocumentApi/${doc.id}/preview`;
         document.getElementById('btnDownloadDoc').href = `/api/DocumentApi/${doc.id}/download`;
-        
-        // Update metadata check panel for Staff
-        updateMetadataCheckPanel();
     }
 
     async function loadVersions(docId) {
@@ -1146,89 +1109,74 @@
         }
     }
 
-    // Metadata Editor Functions (Staff Only - No Document Editing)
-    function openMetadataEditor() {
+    // Document Editor Functions
+    function openDocumentEditor() {
         if (!documentData) return;
         
-        document.getElementById('metaEditorDocTitle').textContent = documentData.title || documentData.originalFileName || 'Document';
-        document.getElementById('editMetaTitle').value = documentData.title || '';
-        document.getElementById('editMetaType').value = documentData.documentType || '';
-        document.getElementById('editMetaCategory').value = documentData.category || '';
-        document.getElementById('editMetaPriority').value = documentData.priority || 'Normal';
-        document.getElementById('editMetaTags').value = documentData.tags || '';
-        document.getElementById('editMetaDescription').value = documentData.description || '';
+        document.getElementById('editorDocTitle').textContent = documentData.title || documentData.originalFileName || 'Document';
+        document.getElementById('currentVersionFileName').textContent = documentData.originalFileName || 'Document';
+        document.getElementById('currentVersionInfo').textContent = `v${documentData.currentVersion || 1} - Current version`;
+        document.getElementById('editFileInput').value = '';
+        document.getElementById('editChangeDescription').value = '';
         
-        new bootstrap.Modal(document.getElementById('metadataEditorModal')).show();
+        new bootstrap.Modal(document.getElementById('documentEditorModal')).show();
     }
 
-    async function saveMetadata() {
+    function openDocumentEditorFromViewer() {
+        bootstrap.Modal.getInstance(document.getElementById('documentViewerModal')).hide();
+        setTimeout(() => openDocumentEditor(), 300);
+    }
+
+    async function saveEditedDocument() {
         const docId = document.getElementById('documentId').value;
-        const metadataPayload = {
-            title: document.getElementById('editMetaTitle').value.trim(),
-            documentType: document.getElementById('editMetaType').value,
-            category: document.getElementById('editMetaCategory').value,
-            priority: document.getElementById('editMetaPriority').value,
-            tags: document.getElementById('editMetaTags').value.trim(),
-            description: document.getElementById('editMetaDescription').value.trim()
-        };
+        const fileInput = document.getElementById('editFileInput');
+        const changeDescription = document.getElementById('editChangeDescription').value.trim();
         
-        if (!metadataPayload.title) {
-            alert('Please enter a document title.');
-            document.getElementById('editMetaTitle').focus();
+        if (!fileInput.files || fileInput.files.length === 0) {
+            alert('Please select a file to upload.');
             return;
         }
         
+        if (!changeDescription) {
+            alert('Please describe what was changed.');
+            document.getElementById('editChangeDescription').focus();
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        formData.append('changeDescription', changeDescription);
+        
         try {
-            const btn = document.getElementById('btnSaveMetadata');
+            const btn = document.getElementById('btnSaveEditedDocument');
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
             
-            const response = await fetch(`/api/DocumentApi/${docId}/metadata`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(metadataPayload)
+            const response = await fetch(`/api/ReviewApi/${docId}/edit`, {
+                method: 'POST',
+                body: formData
             });
             
             const data = await response.json();
             
             if (data.success) {
-                alert('Metadata updated successfully!');
-                bootstrap.Modal.getInstance(document.getElementById('metadataEditorModal')).hide();
+                alert(`Document updated! New version v${data.versionNumber} created.`);
+                bootstrap.Modal.getInstance(document.getElementById('documentEditorModal')).hide();
                 
-                // Update displayed info
-                documentData.title = metadataPayload.title;
-                documentData.documentType = metadataPayload.documentType;
-                documentData.category = metadataPayload.category;
-                documentData.tags = metadataPayload.tags;
-                displayDocumentInfo(documentData);
-                updateMetadataCheckPanel();
-                
-                // Reload audit trail
+                // Reload versions and audit trail
+                loadVersions(docId);
                 loadAuditTrail(docId);
             } else {
-                alert('Error: ' + (data.message || 'Failed to save metadata'));
+                alert('Error: ' + (data.message || 'Failed to save document'));
             }
         } catch (error) {
-            console.error('Error saving metadata:', error);
-            alert('Error saving metadata. Please try again.');
+            console.error('Error saving document:', error);
+            alert('Error saving document. Please try again.');
         } finally {
-            const btn = document.getElementById('btnSaveMetadata');
+            const btn = document.getElementById('btnSaveEditedDocument');
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-save me-1"></i> Save Metadata';
+            btn.innerHTML = '<i class="bi bi-save me-1"></i> Save as New Version';
         }
-    }
-
-    function updateMetadataCheckPanel() {
-        if (!documentData) return;
-        document.getElementById('metaTitle').textContent = documentData.title || '-';
-        document.getElementById('metaType').textContent = documentData.documentType || '-';
-        document.getElementById('metaCategory').textContent = documentData.category || '-';
-        document.getElementById('metaClient').textContent = documentData.clientName || '-';
-        
-        const tags = documentData.tags ? documentData.tags.split(',').map(t => 
-            `<span class="badge bg-secondary me-1">${t.trim()}</span>`
-        ).join('') : '<span class="text-muted small">No tags</span>';
-        document.getElementById('metaTags').innerHTML = tags;
     }
 
     // Version Compare Functions

@@ -575,4 +575,128 @@ public class SetupController : Controller
 
         return Json(new { Messages = messages });
     }
+
+    /// <summary>
+    /// Migrate database to add Lawyer role and convert existing Staff to Lawyer
+    /// Staff becomes Metadata Manager role
+    /// </summary>
+    [HttpGet]
+    [Route("/setup/migrate-lawyer-role")]
+    public async Task<IActionResult> MigrateLawyerRole()
+    {
+        var messages = new List<string>();
+
+        try
+        {
+            messages.Add("Starting Lawyer role migration...");
+
+            var roles = await _context.Roles.ToListAsync();
+            messages.Add($"Current roles: {string.Join(", ", roles.Select(r => $"{r.RoleName}(ID:{r.RoleID})"))}");
+
+            // Check if Lawyer role already exists
+            var lawyerRole = roles.FirstOrDefault(r => r.RoleName == "Lawyer");
+            if (lawyerRole != null)
+            {
+                messages.Add($"Lawyer role already exists (ID:{lawyerRole.RoleID})");
+            }
+            else
+            {
+                // Create Lawyer role
+                lawyerRole = new Role
+                {
+                    RoleName = "Lawyer",
+                    Description = "Lawyer - Document review, editing, and approval"
+                };
+                _context.Roles.Add(lawyerRole);
+                await _context.SaveChangesAsync();
+                messages.Add($"Created Lawyer role (ID:{lawyerRole.RoleID})");
+            }
+
+            // Update Staff role description to Metadata Manager
+            var staffRole = roles.FirstOrDefault(r => r.RoleName == "Staff");
+            if (staffRole != null)
+            {
+                staffRole.Description = "Staff - Metadata Manager - Can edit document metadata, tags, and status only";
+                messages.Add($"Updated Staff role description to Metadata Manager (ID:{staffRole.RoleID})");
+            }
+
+            await _context.SaveChangesAsync();
+
+            // Get the firm for new user
+            var firm = await _context.Firms.FirstOrDefaultAsync();
+
+            // Check if lawyer demo user already exists
+            var existingLawyer = await _context.Users.FirstOrDefaultAsync(u => u.Username == "lawyer");
+            if (existingLawyer != null)
+            {
+                messages.Add("Lawyer demo user already exists");
+            }
+            else if (firm != null)
+            {
+                // Create lawyer demo user
+                var lawyerUser = new User
+                {
+                    FirmID = firm.FirmID,
+                    FirstName = "Lawyer",
+                    MiddleName = "Demo",
+                    LastName = "User",
+                    Email = "lawyer@lawfirm.com",
+                    Username = "lawyer",
+                    PasswordHash = PasswordHelper.HashPassword("Lawyer@123456"),
+                    PhoneNumber = "09222222222",
+                    DateOfBirth = new DateTime(1990, 5, 20),
+                    Street = "456 Legal Avenue",
+                    City = "Quezon City",
+                    Province = "Metro Manila",
+                    ZipCode = "1100",
+                    Status = "Active",
+                    Department = "Legal",
+                    Position = "Associate Lawyer",
+                    BarNumber = "12345",
+                    EmailConfirmed = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.Users.Add(lawyerUser);
+                await _context.SaveChangesAsync();
+
+                // Assign Lawyer role
+                _context.UserRoles.Add(new UserRole
+                {
+                    UserID = lawyerUser.UserID,
+                    RoleID = lawyerRole.RoleID,
+                    AssignedAt = DateTime.UtcNow
+                });
+                await _context.SaveChangesAsync();
+
+                messages.Add($"Created lawyer demo user: lawyer / Lawyer@123456 (UserID:{lawyerUser.UserID})");
+            }
+
+            // Show final role state
+            var finalRoles = await _context.Roles.OrderBy(r => r.RoleID).ToListAsync();
+            messages.Add("=== Final Roles ===");
+            foreach (var role in finalRoles)
+            {
+                messages.Add($"  {role.RoleName} (ID:{role.RoleID}): {role.Description}");
+            }
+
+            // Show all demo accounts
+            messages.Add("=== Demo Accounts ===");
+            messages.Add("  superadmin / SuperAdmin@123 (SuperAdmin)");
+            messages.Add("  admin / Admin@123456 (Admin)");
+            messages.Add("  lawyer / Lawyer@123456 (Lawyer - can edit documents)");
+            messages.Add("  staff / Staff@123456 (Staff - Metadata Manager)");
+            messages.Add("  client / Client@123456 (Client)");
+            messages.Add("  auditor / Auditor@12345 (Auditor)");
+
+            messages.Add("Migration completed successfully!");
+        }
+        catch (Exception ex)
+        {
+            messages.Add($"ERROR: {ex.Message}");
+            if (ex.InnerException != null)
+                messages.Add($"INNER: {ex.InnerException.Message}");
+        }
+
+        return Json(new { Messages = messages });
+    }
 }

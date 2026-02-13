@@ -21,6 +21,15 @@
         <a class="nav-link active" href="#" data-filter="">All Users</a>
     </li>
     <li class="nav-item">
+        <a class="nav-link text-warning" href="#" data-filter="" data-status="Pending">
+            <i class="bi bi-hourglass-split"></i> Pending Approval
+            <span class="badge bg-warning text-dark" id="pendingCount">0</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="#" data-filter="Lawyer">Lawyers</a>
+    </li>
+    <li class="nav-item">
         <a class="nav-link" href="#" data-filter="Staff">Staff</a>
     </li>
     <li class="nav-item">
@@ -44,6 +53,7 @@
             <div class="col-md-3">
                 <select class="form-select" id="statusFilter">
                     <option value="">All Status</option>
+                    <option value="Pending">Pending Approval</option>
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
                     <option value="Locked">Locked</option>
@@ -92,6 +102,7 @@
                             var roleBadgeClass = role switch
                             {
                                 "Admin" => "bg-danger",
+                                "Lawyer" => "bg-primary",
                                 "Staff" => "bg-success",
                                 "Client" => "bg-purple",
                                 "Auditor" => "bg-info",
@@ -101,6 +112,7 @@
                             {
                                 "Active" => "bg-success",
                                 "Inactive" => "bg-secondary",
+                                "Pending" => "bg-warning text-dark",
                                 "Locked" => "bg-danger",
                                 _ => "bg-warning"
                             };
@@ -113,7 +125,7 @@
                             <tr data-user-id="@user.UserID" data-role="@role" data-status="@user.Status">
                                 <td>
                                     <div class="d-flex align-items-center">
-                                        <div class="avatar-circle me-2" style="background-color: @(role == "Staff" ? "#198754" : role == "Client" ? "#a855f7" : role == "Auditor" ? "#0dcaf0" : "#6c757d");">
+                                        <div class="avatar-circle me-2" style="background-color: @(role == "Lawyer" ? "#0d6efd" : role == "Staff" ? "#198754" : role == "Client" ? "#a855f7" : role == "Auditor" ? "#0dcaf0" : "#6c757d");">
                                             @initials
                                         </div>
                                         <div>
@@ -134,7 +146,16 @@
                                         <button type="button" class="btn btn-outline-secondary" onclick="editUser(@user.UserID)" title="Edit">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        @if (user.Status == "Active")
+                                        @if (user.Status == "Pending")
+                                        {
+                                            <button type="button" class="btn btn-success" onclick="confirmApprove(@user.UserID, '@user.FullName')" title="Approve">
+                                                <i class="bi bi-check-lg"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-outline-danger" onclick="confirmReject(@user.UserID, '@user.FullName')" title="Reject">
+                                                <i class="bi bi-x-lg"></i>
+                                            </button>
+                                        }
+                                        else if (user.Status == "Active")
                                         {
                                             <button type="button" class="btn btn-outline-danger" onclick="confirmDeactivate(@user.UserID, '@user.FullName')" title="Deactivate">
                                                 <i class="bi bi-person-x"></i>
@@ -187,6 +208,7 @@
                             {
                                 var roleIcon = role.RoleName switch
                                 {
+                                    "Lawyer" => "bi-briefcase",
                                     "Staff" => "bi-person-badge",
                                     "Client" => "bi-person",
                                     "Auditor" => "bi-clipboard-check",
@@ -194,6 +216,7 @@
                                 };
                                 var roleColor = role.RoleName switch
                                 {
+                                    "Lawyer" => "#0d6efd",
                                     "Staff" => "#198754",
                                     "Client" => "#a855f7",
                                     "Auditor" => "#0dcaf0",
@@ -543,6 +566,16 @@
             e.preventDefault();
             document.querySelectorAll('#userTabs .nav-link').forEach(t => t.classList.remove('active'));
             this.classList.add('active');
+            
+            // Handle pending status filter from tab
+            const pendingStatus = this.dataset.status;
+            if (pendingStatus === 'Pending') {
+                document.getElementById('statusFilter').value = 'Pending';
+                document.getElementById('roleFilter').value = '';
+            } else if (this.dataset.filter) {
+                document.getElementById('statusFilter').value = '';
+            }
+            
             filterUsers();
         });
     });
@@ -556,7 +589,10 @@
     function filterUsers() {
         const search = document.getElementById('searchInput').value.toLowerCase();
         const status = document.getElementById('statusFilter').value;
-        const role = document.getElementById('roleFilter').value || document.querySelector('#userTabs .nav-link.active').dataset.filter;
+        const activeTab = document.querySelector('#userTabs .nav-link.active');
+        const tabRole = activeTab.dataset.filter;
+        const tabStatus = activeTab.dataset.status;
+        const role = document.getElementById('roleFilter').value || tabRole;
 
         document.querySelectorAll('#usersTableBody tr[data-user-id]').forEach(row => {
             const name = row.querySelector('td:first-child').textContent.toLowerCase();
@@ -566,10 +602,21 @@
 
             const matchSearch = name.includes(search) || email.includes(search);
             const matchStatus = !status || rowStatus === status;
+            const matchTabStatus = !tabStatus || rowStatus === tabStatus;
             const matchRole = !role || rowRole === role;
 
-            row.style.display = matchSearch && matchStatus && matchRole ? '' : 'none';
+            row.style.display = matchSearch && matchStatus && matchTabStatus && matchRole ? '' : 'none';
         });
+    }
+    
+    // Update pending count
+    function updatePendingCount() {
+        const pendingCount = document.querySelectorAll('#usersTableBody tr[data-status="Pending"]').length;
+        const badge = document.getElementById('pendingCount');
+        if (badge) {
+            badge.textContent = pendingCount;
+            badge.style.display = pendingCount > 0 ? 'inline' : 'none';
+        }
     }
 
     // Password toggle
@@ -659,6 +706,34 @@
         new bootstrap.Modal(document.getElementById('confirmModal')).show();
     }
 
+    // Confirm approve (for pending registrations)
+    function confirmApprove(userId, userName) {
+        document.getElementById('confirmModalTitle').textContent = 'Approve Registration';
+        document.getElementById('confirmModalHeader').className = 'modal-header bg-success text-white';
+        document.getElementById('confirmModalMessage').innerHTML = `
+            <p>Are you sure you want to approve <strong>${userName}</strong>'s registration?</p>
+            <p class="mb-0 text-muted small">They will be notified and able to log in to their account.</p>
+        `;
+        document.getElementById('confirmForm').action = `/User/Activate/${userId}`;
+        document.getElementById('confirmBtn').className = 'btn btn-success';
+        document.getElementById('confirmBtn').innerHTML = '<i class="bi bi-check-lg me-1"></i>Approve';
+        new bootstrap.Modal(document.getElementById('confirmModal')).show();
+    }
+
+    // Confirm reject (for pending registrations)
+    function confirmReject(userId, userName) {
+        document.getElementById('confirmModalTitle').textContent = 'Reject Registration';
+        document.getElementById('confirmModalHeader').className = 'modal-header bg-danger text-white';
+        document.getElementById('confirmModalMessage').innerHTML = `
+            <p>Are you sure you want to reject <strong>${userName}</strong>'s registration?</p>
+            <p class="mb-0 text-muted small">Their account will be deactivated and they will not be able to log in.</p>
+        `;
+        document.getElementById('confirmForm').action = `/User/Delete/${userId}`;
+        document.getElementById('confirmBtn').className = 'btn btn-danger';
+        document.getElementById('confirmBtn').innerHTML = '<i class="bi bi-x-lg me-1"></i>Reject';
+        new bootstrap.Modal(document.getElementById('confirmModal')).show();
+    }
+
     // Toast notification
     function showToast(type, message) {
         // Using Bootstrap toast or custom implementation
@@ -667,6 +742,9 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
+        // Update pending count
+        updatePendingCount();
+        
         // Show any server-side toast messages
         @if (TempData["ToastType"] != null)
         {

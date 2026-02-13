@@ -1,6 +1,6 @@
 @{
     ViewData["Title"] = "Pending Reviews";
-    Layout = "_StaffLayout";
+    Layout = "_LawyerLayout";
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -158,7 +158,7 @@
                                         <li>View the document</li>
                                         <li>Download & make corrections offline</li>
                                         <li>Upload corrected version</li>
-                                        <li>Approve to send to Lawyer</li>
+                                        <li>Approve to send to Admin</li>
                                     </ol>
                                 </div>
                             </div>
@@ -288,21 +288,20 @@
                                     </div>
                                 </div>
 
-                                <!-- Pass to Lawyer Option (for non-editable docs) -->
+                                <!-- Pass to Admin Option (for non-editable docs) -->
                                 <div class="alert alert-info d-none mb-3" id="passToAdminAlert">
                                     <i class="bi bi-arrow-up-right-circle me-2"></i>
-                                    <strong>Staff Review Focus</strong>
-                                    <p class="mb-2 small">As Staff, you focus on metadata and document classification:</p>
+                                    <strong>Cannot Edit This Document</strong>
+                                    <p class="mb-2 small">This document type cannot be edited by staff. You can:</p>
                                     <ul class="mb-0 small">
-                                        <li>Verify document metadata is correct</li>
-                                        <li>Add appropriate tags and categories</li>
-                                        <li>Forward to Lawyer for content review</li>
+                                        <li>Approve and forward to Admin for editing</li>
+                                        <li>Reject and request client resubmission</li>
                                     </ul>
                                 </div>
 
                                 <div class="d-flex gap-2">
                                     <button type="button" class="btn btn-success flex-fill" id="btnApprove">
-                                        <i class="bi bi-check-lg"></i> Approve & Forward to Lawyer
+                                        <i class="bi bi-check-lg"></i> Approve & Forward to Admin
                                     </button>
                                     <button type="button" class="btn btn-danger" id="btnReject">
                                         <i class="bi bi-x-lg"></i> Reject
@@ -516,7 +515,7 @@
         `;
 
         try {
-            const response = await fetch(`/api/ReviewApi/pending?assignedToMe=${assignedOnly}`);
+            const response = await fetch(`/api/ReviewApi/lawyer/pending?assignedToMe=${assignedOnly}`);
             const data = await response.json();
 
             if (data.success) {
@@ -758,7 +757,7 @@
         }
 
         try {
-            const response = await fetch(`/api/ReviewApi/${documentId}/approve`, {
+            const response = await fetch(`/api/ReviewApi/${documentId}/lawyer-approve`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ remarks, internalNotes, checklistResults })
@@ -767,7 +766,7 @@
             const data = await response.json();
 
             if (data.success) {
-                alert('Document approved and forwarded to lawyer!');
+                alert('Document approved and forwarded to admin!');
                 bootstrap.Modal.getInstance(document.getElementById('reviewModal')).hide();
                 loadStats();
                 loadPendingDocuments(assignedToMe);
@@ -796,7 +795,7 @@
         }
 
         try {
-            const response = await fetch(`/api/ReviewApi/${documentId}/reject`, {
+            const response = await fetch(`/api/ReviewApi/${documentId}/lawyer-reject`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ remarks, checklistResults })
@@ -839,7 +838,7 @@
         formData.append('changeDescription', changeDescription);
 
         try {
-            const response = await fetch(`/api/ReviewApi/${documentId}/edit`, {
+            const response = await fetch(`/api/ReviewApi/${documentId}/lawyer-edit`, {
                 method: 'POST',
                 body: formData
             });

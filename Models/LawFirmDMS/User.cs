@@ -71,6 +71,24 @@ public class User : BaseEntity
     [MaxLength(100)]
     public string? Position { get; set; }
 
+    /// <summary>
+    /// Company or Organization name for clients
+    /// </summary>
+    [MaxLength(200)]
+    public string? CompanyName { get; set; }
+
+    /// <summary>
+    /// Purpose/reason for document management account (for pending verification)
+    /// </summary>
+    [MaxLength(1000)]
+    public string? Purpose { get; set; }
+
+    /// <summary>
+    /// Barangay for Philippine addresses
+    /// </summary>
+    [MaxLength(100)]
+    public string? Barangay { get; set; }
+
     public DateTime? LastLoginAt { get; set; }
 
     public int? FailedLoginAttempts { get; set; } = 0;

@@ -26,6 +26,23 @@
         </select>
         <span asp-validation-for="FirmId" class="field-validation-error"></span>
     </div>
+
+    <!-- Firm Verification Code -->
+    <div class="form-group">
+        <label class="form-label">Firm Verification Code <span style="color:#EF4444">*</span></label>
+        <input type="text" class="form-input @(ViewData.ModelState["FirmCode"]?.Errors.Any() == true ? "is-invalid" : "")" 
+               name="FirmCode" id="firmCode" value="@Model?.FirmCode" 
+               placeholder="Enter the verification code provided by the law firm" required maxlength="20" />
+        <span asp-validation-for="FirmCode" class="field-validation-error"></span>
+        <small class="text-muted">Contact your law firm to obtain this verification code.</small>
+    </div>
+
+    <!-- Company/Organization (Optional - Client Only) -->
+    <div class="form-group">
+        <label class="form-label">Company/Organization <span class="text-muted small">(Optional)</span></label>
+        <input type="text" class="form-input" name="CompanyName" id="companyName" value="@Model?.CompanyName" placeholder="Your company or organization name" maxlength="200" />
+        <span asp-validation-for="CompanyName" class="field-validation-error"></span>
+    </div>
     
     <!-- Name Fields -->
     <div class="field-row">
@@ -111,25 +128,46 @@
     <!-- Address -->
     <div class="form-group">
         <label class="form-label">Street Address <span style="color:#EF4444">*</span></label>
-        <input type="text" class="form-input" name="Street" id="street" value="@Model?.Street" placeholder="House/Unit No., Street, Barangay" required maxlength="255" />
+        <input type="text" class="form-input" name="Street" id="street" value="@Model?.Street" placeholder="House/Unit No., Street Name" required maxlength="255" />
         <span asp-validation-for="Street" class="field-validation-error"></span>
     </div>
     
+    <!-- Philippine Address Dropdowns -->
     <div class="field-row">
         <div class="form-group">
-            <label class="form-label">City <span style="color:#EF4444">*</span></label>
-            <input type="text" class="form-input" name="City" id="city" value="@Model?.City" placeholder="City" required maxlength="100" />
-            <span asp-validation-for="City" class="field-validation-error"></span>
-        </div>
-        <div class="form-group">
             <label class="form-label">Province <span style="color:#EF4444">*</span></label>
-            <input type="text" class="form-input" name="Province" id="province" value="@Model?.Province" placeholder="Province" required maxlength="100" />
+            <select class="form-select" name="Province" id="province" required>
+                <option value="">Select Province</option>
+            </select>
             <span asp-validation-for="Province" class="field-validation-error"></span>
         </div>
         <div class="form-group">
-            <label class="form-label">Zip Code</label>
-            <input type="text" class="form-input" name="ZipCode" id="zipCode" value="@Model?.ZipCode" placeholder="Zip" maxlength="10" />
+            <label class="form-label">City/Municipality <span style="color:#EF4444">*</span></label>
+            <select class="form-select" name="City" id="city" required disabled>
+                <option value="">Select City</option>
+            </select>
+            <span asp-validation-for="City" class="field-validation-error"></span>
         </div>
+        <div class="form-group">
+            <label class="form-label">Barangay</label>
+            <select class="form-select" name="Barangay" id="barangay" disabled>
+                <option value="">Select Barangay</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label class="form-label">Zip Code</label>
+        <input type="text" class="form-input" name="ZipCode" id="zipCode" value="@Model?.ZipCode" placeholder="Zip" maxlength="10" style="max-width: 150px;" />
+    </div>
+
+    <!-- Purpose/Reason for Account -->
+    <div class="form-group">
+        <label class="form-label">Purpose/Reason for Account <span style="color:#EF4444">*</span></label>
+        <textarea class="form-input" name="Purpose" id="purpose" rows="3" required maxlength="1000" 
+                  placeholder="Please describe why you need a document management account. This helps us verify your request.">@Model?.Purpose</textarea>
+        <span asp-validation-for="Purpose" class="field-validation-error"></span>
+        <small class="text-muted">Explain your document management needs and how you will use this account.</small>
     </div>
     
     <!-- Terms -->
@@ -349,5 +387,143 @@
         document.getElementById('phoneNumber').addEventListener('input', function() {
             this.value = this.value.replace(/[^0-9]/g, '').substring(0, 11);
         });
+
+        // Philippine Address Dropdowns using PSGC API
+        const PSGC_API = 'https://psgc.gitlab.io/api';
+        
+        async function loadProvinces() {
+            try {
+                const response = await fetch(`${PSGC_API}/provinces.json`);
+                const provinces = await response.json();
+                const select = document.getElementById('province');
+                select.innerHTML = '<option value="">Select Province</option>';
+                
+                // Sort provinces alphabetically
+                provinces.sort((a, b) => a.name.localeCompare(b.name));
+                
+                provinces.forEach(p => {
+                    const option = document.createElement('option');
+                    option.value = p.name;
+                    option.dataset.code = p.code;
+                    option.textContent = p.name;
+                    select.appendChild(option);
+                });
+                
+                // Add Metro Manila/NCR regions as well
+                const ncr = document.createElement('option');
+                ncr.value = 'Metro Manila';
+                ncr.dataset.code = '130000000';
+                ncr.textContent = 'Metro Manila (NCR)';
+                select.insertBefore(ncr, select.options[1]);
+                
+            } catch (e) {
+                console.error('Error loading provinces:', e);
+                // Fallback to text input
+                const select = document.getElementById('province');
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'form-input';
+                input.name = 'Province';
+                input.id = 'province';
+                input.required = true;
+                input.placeholder = 'Enter province';
+                select.parentNode.replaceChild(input, select);
+            }
+        }
+
+        async function loadCities(provinceCode, provinceName) {
+            const citySelect = document.getElementById('city');
+            const barangaySelect = document.getElementById('barangay');
+            
+            citySelect.innerHTML = '<option value="">Loading...</option>';
+            barangaySelect.innerHTML = '<option value="">Select Barangay</option>';
+            barangaySelect.disabled = true;
+            
+            try {
+                let cities = [];
+                
+                if (provinceName === 'Metro Manila') {
+                    // Load NCR cities/municipalities
+                    const response = await fetch(`${PSGC_API}/regions/130000000/cities-municipalities.json`);
+                    cities = await response.json();
+                } else if (provinceCode) {
+                    const response = await fetch(`${PSGC_API}/provinces/${provinceCode}/cities-municipalities.json`);
+                    cities = await response.json();
+                }
+                
+                citySelect.innerHTML = '<option value="">Select City/Municipality</option>';
+                cities.sort((a, b) => a.name.localeCompare(b.name));
+                
+                cities.forEach(c => {
+                    const option = document.createElement('option');
+                    option.value = c.name;
+                    option.dataset.code = c.code;
+                    option.textContent = c.name;
+                    citySelect.appendChild(option);
+                });
+                
+                citySelect.disabled = false;
+            } catch (e) {
+                console.error('Error loading cities:', e);
+                citySelect.innerHTML = '<option value="">Select City</option>';
+                citySelect.disabled = false;
+            }
+        }
+
+        async function loadBarangays(cityCode) {
+            const barangaySelect = document.getElementById('barangay');
+            barangaySelect.innerHTML = '<option value="">Loading...</option>';
+            
+            try {
+                const response = await fetch(`${PSGC_API}/cities-municipalities/${cityCode}/barangays.json`);
+                const barangays = await response.json();
+                
+                barangaySelect.innerHTML = '<option value="">Select Barangay (Optional)</option>';
+                barangays.sort((a, b) => a.name.localeCompare(b.name));
+                
+                barangays.forEach(b => {
+                    const option = document.createElement('option');
+                    option.value = b.name;
+                    option.textContent = b.name;
+                    barangaySelect.appendChild(option);
+                });
+                
+                barangaySelect.disabled = false;
+            } catch (e) {
+                console.error('Error loading barangays:', e);
+                barangaySelect.innerHTML = '<option value="">Select Barangay</option>';
+                barangaySelect.disabled = false;
+            }
+        }
+
+        document.getElementById('province').addEventListener('change', function() {
+            const selected = this.options[this.selectedIndex];
+            const code = selected.dataset.code;
+            const name = selected.value;
+            
+            if (code || name === 'Metro Manila') {
+                loadCities(code, name);
+            } else {
+                document.getElementById('city').innerHTML = '<option value="">Select City</option>';
+                document.getElementById('city').disabled = true;
+                document.getElementById('barangay').innerHTML = '<option value="">Select Barangay</option>';
+                document.getElementById('barangay').disabled = true;
+            }
+        });
+
+        document.getElementById('city').addEventListener('change', function() {
+            const selected = this.options[this.selectedIndex];
+            const code = selected.dataset.code;
+            
+            if (code) {
+                loadBarangays(code);
+            } else {
+                document.getElementById('barangay').innerHTML = '<option value="">Select Barangay</option>';
+                document.getElementById('barangay').disabled = true;
+            }
+        });
+
+        // Load provinces on page load
+        document.addEventListener('DOMContentLoaded', loadProvinces);
     </script>
 }

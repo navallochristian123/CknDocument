@@ -6,7 +6,7 @@ namespace CKNDocument.Controllers.LawFirm;
 
 /// <summary>
 /// Dashboard controller for Law Firm users
-/// Displays role-specific dashboards (Admin, Staff, Client, Auditor)
+/// Displays role-specific dashboards (Admin, Lawyer, Staff, Client, Auditor)
 /// </summary>
 [Authorize(Policy = "FirmMember")]
 public class DashboardController : Controller
@@ -25,6 +25,7 @@ public class DashboardController : Controller
         return role switch
         {
             "Admin" => View("~/Views/Admin/Dashboard.cshtml"),
+            "Lawyer" => View("~/Views/Lawyer/Dashboard.cshtml"),
             "Staff" => View("~/Views/Staff/Dashboard.cshtml"),
             "Client" => View("~/Views/Client/Dashboard.cshtml"),
             "Auditor" => View("~/Views/Auditor/Dashboard.cshtml"),
@@ -35,6 +36,11 @@ public class DashboardController : Controller
     public IActionResult AdminDashboard()
     {
         return View("~/Views/Admin/Dashboard.cshtml");
+    }
+
+    public IActionResult LawyerDashboard()
+    {
+        return View("~/Views/Lawyer/Dashboard.cshtml");
     }
 
     public IActionResult StaffDashboard()

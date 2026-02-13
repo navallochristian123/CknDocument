@@ -1,6 +1,6 @@
 @{
     ViewData["Title"] = "Dashboard";
-    Layout = "_StaffLayout";
+    Layout = "_LawyerLayout";
 }
 
 @section Styles {
@@ -357,9 +357,8 @@
     function getStatusBadge(status, workflowStage) {
         if (status === 'Completed') return '<span class="badge bg-success">Approved</span>';
         if (status === 'Rejected') return '<span class="badge bg-danger">Rejected</span>';
-        if (workflowStage === 'StaffReview' || workflowStage === 'PendingStaffReview') return '<span class="badge bg-warning">Needs Review</span>';
-        if (workflowStage === 'LawyerReview' || workflowStage === 'PendingLawyerReview') return '<span class="badge bg-primary">Lawyer Review</span>';
-        if (workflowStage === 'AdminReview' || workflowStage === 'PendingAdminReview') return '<span class="badge bg-info">Admin Review</span>';
+        if (workflowStage === 'StaffReview') return '<span class="badge bg-warning">Needs Review</span>';
+        if (workflowStage === 'AdminReview') return '<span class="badge bg-info">Admin Review</span>';
         return '<span class="badge bg-secondary">Pending</span>';
     }
     

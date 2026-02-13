@@ -163,6 +163,15 @@ public class AuthController : Controller
             }
 
             // Check account status
+            if (user.Status == "Pending")
+            {
+                await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, "Account pending verification");
+                TempData["ToastType"] = "warning";
+                TempData["ToastMessage"] = "Your account is still under verification. Please wait for admin approval. You will be notified once your account is activated.";
+                ViewData["Firms"] = await GetFirmsForDropdown();
+                return View("~/Views/Auth/Login.cshtml", request);
+            }
+
             if (user.Status != "Active")
             {
                 await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, $"Account inactive: {user.Status}");
@@ -324,6 +333,17 @@ public class AuthController : Controller
                 return View("~/Views/Auth/Register.cshtml", request);
             }
 
+            // Validate FirmCode - proof that client belongs to the law firm
+            if (string.IsNullOrWhiteSpace(firm.FirmCode) || 
+                !string.Equals(firm.FirmCode, request.FirmCode?.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                ModelState.AddModelError("FirmCode", "Invalid firm verification code. Please contact the law firm for the correct code.");
+                TempData["ToastType"] = "error";
+                TempData["ToastMessage"] = "Invalid firm verification code.";
+                ViewData["Firms"] = await GetFirmsForDropdown();
+                return View("~/Views/Auth/Register.cshtml", request);
+            }
+
             // Validate age (must be at least 18)
             var age = DateTime.Today.Year - request.DateOfBirth.Year;
             if (request.DateOfBirth > DateTime.Today.AddYears(-age)) age--;
@@ -360,10 +380,13 @@ public class AuthController : Controller
                 PhoneNumber = request.PhoneNumber.Trim(),
                 DateOfBirth = request.DateOfBirth,
                 Street = request.Street.Trim(),
+                Barangay = request.Barangay?.Trim(),
                 City = request.City.Trim(),
                 Province = request.Province.Trim(),
                 ZipCode = request.ZipCode?.Trim(),
-                Status = "Active",
+                CompanyName = request.CompanyName?.Trim(),
+                Purpose = request.Purpose.Trim(),
+                Status = "Pending", // Requires admin approval
                 EmailConfirmed = false,
                 FailedLoginAttempts = 0,
                 CreatedAt = DateTime.UtcNow
@@ -385,10 +408,10 @@ public class AuthController : Controller
             // Log registration
             await _auditLogService.LogRegistrationAsync(user.UserID, user.Email, request.FirmId);
 
-            _logger.LogInformation("New client registered: {Email}", user.Email);
+            _logger.LogInformation("New client registered (pending approval): {Email}", user.Email);
 
             TempData["ToastType"] = "success";
-            TempData["ToastMessage"] = "Registration successful! Please login with your credentials.";
+            TempData["ToastMessage"] = "Registration submitted successfully! Your account is pending verification. You will be notified once approved by the administrator.";
 
             return RedirectToAction("Login");
         }
@@ -706,6 +729,7 @@ public class AuthController : Controller
         {
             "superadmin" => "SuperAdmin",
             "admin" => "Admin",
+            "lawyer" => "Lawyer",
             "staff" => "Staff",
             "client" => "Client",
             "auditor" => "Auditor",
@@ -724,6 +748,7 @@ public class AuthController : Controller
         {
             "SuperAdmin" => RedirectToAction("Index", "SuperAdminDashboard"),
             "Admin" => RedirectToAction("Index", "Dashboard"),
+            "Lawyer" => RedirectToAction("Index", "Dashboard"),
             "Staff" => RedirectToAction("Index", "Dashboard"),
             "Client" => RedirectToAction("Index", "Dashboard"),
             "Auditor" => RedirectToAction("Index", "Dashboard"),

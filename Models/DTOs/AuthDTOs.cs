@@ -120,6 +120,25 @@ public class ClientRegisterRequestDto
     [Required(ErrorMessage = "Please select a law firm")]
     [Display(Name = "Law Firm")]
     public int FirmId { get; set; }
+
+    [Required(ErrorMessage = "Firm verification code is required")]
+    [StringLength(20, ErrorMessage = "Firm code cannot exceed 20 characters")]
+    [Display(Name = "Firm Verification Code")]
+    public string FirmCode { get; set; } = string.Empty;
+
+    // New fields for pending verification
+    [StringLength(200, ErrorMessage = "Company/Organization name cannot exceed 200 characters")]
+    [Display(Name = "Company/Organization")]
+    public string? CompanyName { get; set; }
+
+    [Required(ErrorMessage = "Please provide a reason for registration")]
+    [StringLength(1000, ErrorMessage = "Purpose cannot exceed 1000 characters")]
+    [Display(Name = "Purpose/Reason for Account")]
+    public string Purpose { get; set; } = string.Empty;
+
+    [StringLength(100, ErrorMessage = "Barangay cannot exceed 100 characters")]
+    [Display(Name = "Barangay")]
+    public string? Barangay { get; set; }
 }
 
 /// <summary>

@@ -503,6 +503,10 @@ public class DocumentApiController : ControllerBase
             document.Description = dto.Description;
         if (!string.IsNullOrEmpty(dto.Category))
             document.Category = dto.Category;
+        if (!string.IsNullOrEmpty(dto.DocumentType))
+            document.DocumentType = dto.DocumentType;
+        if (dto.Tags != null)
+            document.Tags = dto.Tags;
 
         document.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
@@ -1041,6 +1045,9 @@ public class DocumentUpdateDto
     public string? Title { get; set; }
     public string? Description { get; set; }
     public string? Category { get; set; }
+    public string? DocumentType { get; set; }
+    public string? Tags { get; set; }
+    public string? Priority { get; set; }
 }
 
 public class DocumentArchiveDto

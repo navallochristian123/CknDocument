@@ -154,15 +154,16 @@ public class DatabaseSeeder
             var roles = new List<Role>
             {
                 new Role { RoleName = "Admin", Description = "Law Firm Administrator - Full access to firm management" },
-                new Role { RoleName = "Staff", Description = "Law Firm Staff - Document processing and management" },
+                new Role { RoleName = "Lawyer", Description = "Lawyer - Document review, editing, and approval" },
                 new Role { RoleName = "Client", Description = "Client - Document upload and viewing" },
-                new Role { RoleName = "Auditor", Description = "Auditor - Read-only access for compliance review" }
+                new Role { RoleName = "Auditor", Description = "Auditor - Read-only access for compliance review" },
+                new Role { RoleName = "Staff", Description = "Staff - Metadata Manager - Can edit document metadata, tags, and status only" }
             };
 
             _context.Roles.AddRange(roles);
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("Roles seeded: Admin, Staff, Client, Auditor");
+            _logger.LogInformation("Roles seeded: Admin, Lawyer, Client, Auditor, Staff (Metadata Manager)");
         }
         catch (Exception ex)
         {
@@ -193,6 +194,7 @@ public class DatabaseSeeder
                 Address = "123 Legal Street, Metro Manila",
                 PhoneNumber = "09123456789",
                 Status = "Active",
+                FirmCode = "DEMO2024",
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -284,11 +286,12 @@ public class DatabaseSeeder
             }
 
             var adminRole = roles.FirstOrDefault(r => r.RoleName == "Admin");
+            var lawyerRole = roles.FirstOrDefault(r => r.RoleName == "Lawyer");
             var staffRole = roles.FirstOrDefault(r => r.RoleName == "Staff");
             var clientRole = roles.FirstOrDefault(r => r.RoleName == "Client");
             var auditorRole = roles.FirstOrDefault(r => r.RoleName == "Auditor");
 
-            if (adminRole == null || staffRole == null || clientRole == null || auditorRole == null)
+            if (adminRole == null || lawyerRole == null || staffRole == null || clientRole == null || auditorRole == null)
             {
                 _logger.LogWarning("Not all roles found, cannot seed users");
                 return;
@@ -304,8 +307,8 @@ public class DatabaseSeeder
                 MiddleName = "Demo",
                 LastName = "User",
                 Email = "admin@lawfirm.com",
-                Username = "admin",
-                PasswordHash = PasswordHelper.HashPassword("Admin@123456"),
+                Username = "admin_demo",
+                PasswordHash = PasswordHelper.HashPassword("User@123456"),
                 PhoneNumber = "09111111111",
                 DateOfBirth = new DateTime(1985, 1, 15),
                 Street = "123 Admin Street",
@@ -321,9 +324,37 @@ public class DatabaseSeeder
             _context.Users.Add(adminUser);
             await _context.SaveChangesAsync();
             _context.UserRoles.Add(new UserRole { UserID = adminUser.UserID, RoleID = adminRole.RoleID, AssignedAt = DateTime.UtcNow });
-            _logger.LogInformation("Admin user seeded: admin / Admin@123456");
+            _logger.LogInformation("Admin user seeded: admin_demo / User@123456");
 
-            // Staff User
+            // Lawyer User (can edit document content)
+            var lawyerUser = new User
+            {
+                FirmID = firm.FirmID,
+                FirstName = "Lawyer",
+                MiddleName = "Demo",
+                LastName = "User",
+                Email = "lawyer@lawfirm.com",
+                Username = "lawyer_demo",
+                PasswordHash = PasswordHelper.HashPassword("User@123456"),
+                PhoneNumber = "09222222222",
+                DateOfBirth = new DateTime(1990, 5, 20),
+                Street = "456 Legal Avenue",
+                City = "Quezon City",
+                Province = "Metro Manila",
+                ZipCode = "1100",
+                Status = "Active",
+                Department = "Legal",
+                Position = "Associate Lawyer",
+                BarNumber = "12345",
+                EmailConfirmed = true,
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.Users.Add(lawyerUser);
+            await _context.SaveChangesAsync();
+            _context.UserRoles.Add(new UserRole { UserID = lawyerUser.UserID, RoleID = lawyerRole.RoleID, AssignedAt = DateTime.UtcNow });
+            _logger.LogInformation("Lawyer user seeded: lawyer_demo / User@123456");
+
+            // Staff User (Metadata Manager - can only edit metadata, tags, status)
             var staffUser = new User
             {
                 FirmID = firm.FirmID,
@@ -331,25 +362,24 @@ public class DatabaseSeeder
                 MiddleName = "Demo",
                 LastName = "User",
                 Email = "staff@lawfirm.com",
-                Username = "staff",
-                PasswordHash = PasswordHelper.HashPassword("Staff@123456"),
-                PhoneNumber = "09222222222",
-                DateOfBirth = new DateTime(1990, 5, 20),
-                Street = "456 Staff Avenue",
-                City = "Quezon City",
+                Username = "staff_demo",
+                PasswordHash = PasswordHelper.HashPassword("User@123456"),
+                PhoneNumber = "09555555555",
+                DateOfBirth = new DateTime(1992, 7, 15),
+                Street = "789 Staff Street",
+                City = "Mandaluyong",
                 Province = "Metro Manila",
-                ZipCode = "1100",
+                ZipCode = "1550",
                 Status = "Active",
-                Department = "Legal",
-                Position = "Paralegal",
-                BarNumber = "12345",
+                Department = "Records",
+                Position = "Metadata Manager",
                 EmailConfirmed = true,
                 CreatedAt = DateTime.UtcNow
             };
             _context.Users.Add(staffUser);
             await _context.SaveChangesAsync();
             _context.UserRoles.Add(new UserRole { UserID = staffUser.UserID, RoleID = staffRole.RoleID, AssignedAt = DateTime.UtcNow });
-            _logger.LogInformation("Staff user seeded: staff / Staff@123456");
+            _logger.LogInformation("Staff user seeded: staff_demo / User@123456");
 
             // Client User
             var clientUser = new User
@@ -359,14 +389,17 @@ public class DatabaseSeeder
                 MiddleName = "Demo",
                 LastName = "User",
                 Email = "client@email.com",
-                Username = "client",
-                PasswordHash = PasswordHelper.HashPassword("Client@123456"),
+                Username = "client_demo",
+                PasswordHash = PasswordHelper.HashPassword("User@123456"),
                 PhoneNumber = "09333333333",
                 DateOfBirth = new DateTime(1988, 8, 10),
                 Street = "789 Client Road",
                 City = "Pasig",
                 Province = "Metro Manila",
+                Barangay = "Kapitolyo",
                 ZipCode = "1600",
+                CompanyName = "Demo Company Inc.",
+                Purpose = "Document management for legal matters",
                 Status = "Active",
                 EmailConfirmed = true,
                 CreatedAt = DateTime.UtcNow
@@ -374,7 +407,7 @@ public class DatabaseSeeder
             _context.Users.Add(clientUser);
             await _context.SaveChangesAsync();
             _context.UserRoles.Add(new UserRole { UserID = clientUser.UserID, RoleID = clientRole.RoleID, AssignedAt = DateTime.UtcNow });
-            _logger.LogInformation("Client user seeded: client / Client@123456");
+            _logger.LogInformation("Client user seeded: client_demo / User@123456");
 
             // Auditor User
             var auditorUser = new User
@@ -384,8 +417,8 @@ public class DatabaseSeeder
                 MiddleName = "Demo",
                 LastName = "User",
                 Email = "auditor@lawfirm.com",
-                Username = "auditor",
-                PasswordHash = PasswordHelper.HashPassword("Auditor@12345"),
+                Username = "auditor_demo",
+                PasswordHash = PasswordHelper.HashPassword("User@123456"),
                 PhoneNumber = "09444444444",
                 DateOfBirth = new DateTime(1982, 3, 25),
                 Street = "321 Auditor Lane",
@@ -402,16 +435,17 @@ public class DatabaseSeeder
             _context.Users.Add(auditorUser);
             await _context.SaveChangesAsync();
             _context.UserRoles.Add(new UserRole { UserID = auditorUser.UserID, RoleID = auditorRole.RoleID, AssignedAt = DateTime.UtcNow });
-            _logger.LogInformation("Auditor user seeded: auditor / Auditor@12345");
+            _logger.LogInformation("Auditor user seeded: auditor_demo / User@123456");
 
             await _context.SaveChangesAsync();
 
             _logger.LogInformation("All users seeded successfully:");
-            _logger.LogInformation("  SuperAdmin: superadmin / SuperAdmin@123");
-            _logger.LogInformation("  Admin:      admin / Admin@123456");
-            _logger.LogInformation("  Staff:      staff / Staff@123456");
-            _logger.LogInformation("  Client:     client / Client@123456");
-            _logger.LogInformation("  Auditor:    auditor / Auditor@12345");
+            _logger.LogInformation("  Admin:      admin_demo / User@123456");
+            _logger.LogInformation("  Lawyer:     lawyer_demo / User@123456");
+            _logger.LogInformation("  Staff:      staff_demo / User@123456 (Metadata Manager)");
+            _logger.LogInformation("  Client:     client_demo / User@123456");
+            _logger.LogInformation("  Auditor:    auditor_demo / User@123456");
+            _logger.LogInformation("  Firm Code:  DEMO2024 (for client registration)");
         }
         catch (Exception ex)
         {

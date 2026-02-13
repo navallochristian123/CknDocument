@@ -20,6 +20,9 @@ public class DocumentWorkflowService
     public const string STAGE_PENDING_STAFF_REVIEW = "PendingStaffReview";
     public const string STAGE_STAFF_REVIEW = "StaffReview";
     public const string STAGE_STAFF_REJECTED = "StaffRejected";
+    public const string STAGE_PENDING_LAWYER_REVIEW = "PendingLawyerReview";
+    public const string STAGE_LAWYER_REVIEW = "LawyerReview";
+    public const string STAGE_LAWYER_REJECTED = "LawyerRejected";
     public const string STAGE_PENDING_ADMIN_REVIEW = "PendingAdminReview";
     public const string STAGE_ADMIN_REVIEW = "AdminReview";
     public const string STAGE_ADMIN_REJECTED = "AdminRejected";
@@ -143,7 +146,54 @@ public class DocumentWorkflowService
     }
 
     /// <summary>
-    /// Staff approves document and forwards to admin
+    /// Assign document to a lawyer for review (after staff metadata review)
+    /// </summary>
+    public async Task<User?> AssignToLawyerAsync(int documentId, int firmId)
+    {
+        // Get all active lawyer members in the firm
+        var lawyerMembers = await _context.Users
+            .Include(u => u.UserRoles)
+            .ThenInclude(ur => ur.Role)
+            .Where(u => u.FirmID == firmId &&
+                        u.Status == "Active" &&
+                        u.UserRoles.Any(ur => ur.Role != null && ur.Role.RoleName == "Lawyer"))
+            .ToListAsync();
+
+        if (!lawyerMembers.Any())
+        {
+            _logger.LogWarning("No active lawyers found for firm {FirmId}", firmId);
+            return null;
+        }
+
+        // Get lawyer workload
+        var lawyerWorkload = await _context.Documents
+            .Where(d => d.FirmID == firmId &&
+                        d.AssignedLawyerId != null &&
+                        (d.WorkflowStage == STAGE_PENDING_LAWYER_REVIEW || d.WorkflowStage == STAGE_LAWYER_REVIEW))
+            .GroupBy(d => d.AssignedLawyerId)
+            .Select(g => new { LawyerId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.LawyerId!.Value, x => x.Count);
+
+        // Find lawyer with least workload
+        var selectedLawyer = lawyerMembers
+            .OrderBy(l => lawyerWorkload.GetValueOrDefault(l.UserID, 0))
+            .First();
+
+        // Update document assignment
+        var document = await _context.Documents.FindAsync(documentId);
+        if (document != null)
+        {
+            document.AssignedLawyerId = selectedLawyer.UserID;
+            document.WorkflowStage = STAGE_PENDING_LAWYER_REVIEW;
+            document.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
+
+        return selectedLawyer;
+    }
+
+    /// <summary>
+    /// Staff approves document and forwards to lawyer
     /// </summary>
     public async Task<DocumentReview> StaffApproveAsync(int documentId, int staffId, string? remarks, string? internalNotes, List<DocumentChecklistResult>? checklistResults)
     {
@@ -188,19 +238,19 @@ public class DocumentWorkflowService
         document.StaffReviewedAt = DateTime.UtcNow;
         document.UpdatedAt = DateTime.UtcNow;
 
-        // Assign to admin
-        var admin = await AssignToAdminAsync(documentId, document.FirmID);
+        // Assign to lawyer (new workflow: Staff → Lawyer → Admin)
+        var lawyer = await AssignToLawyerAsync(documentId, document.FirmID);
 
-        // Notify admin
-        if (admin != null)
+        // Notify lawyer
+        if (lawyer != null)
         {
             await _notificationService.NotifyAsync(
-                admin.UserID,
+                lawyer.UserID,
                 "New Document for Review",
-                $"Document '{document.Title}' has been forwarded for your review.",
+                $"Document '{document.Title}' has been reviewed by staff and forwarded for your review.",
                 "StaffApproved",
                 documentId,
-                $"/Review/Review/{documentId}");
+                $"/Lawyer/PendingReviews");
         }
 
         // Notify client
@@ -209,7 +259,7 @@ public class DocumentWorkflowService
             await _notificationService.NotifyAsync(
                 document.UploadedBy.Value,
                 "Document Reviewed by Staff",
-                $"Your document '{document.Title}' has been reviewed by staff and forwarded to admin for final approval.",
+                $"Your document '{document.Title}' has been reviewed by staff and forwarded to lawyer for review.",
                 "StaffApproved",
                 documentId,
                 $"/Document/Details/{documentId}");
@@ -303,6 +353,278 @@ public class DocumentWorkflowService
             "DocumentReview");
 
         return review;
+    }
+
+    /// <summary>
+    /// Lawyer approves document and forwards to admin
+    /// </summary>
+    public async Task<DocumentReview> LawyerApproveAsync(int documentId, int lawyerId, string? remarks, string? internalNotes, List<DocumentChecklistResult>? checklistResults)
+    {
+        var document = await _context.Documents
+            .Include(d => d.Uploader)
+            .FirstOrDefaultAsync(d => d.DocumentID == documentId);
+
+        if (document == null)
+            throw new InvalidOperationException("Document not found");
+
+        // Create review record
+        var review = new DocumentReview
+        {
+            DocumentId = documentId,
+            ReviewedBy = lawyerId,
+            ReviewStatus = STATUS_APPROVED,
+            Remarks = remarks,
+            InternalNotes = internalNotes,
+            ReviewedAt = DateTime.UtcNow,
+            ReviewerRole = "Lawyer",
+            IsChecklistComplete = checklistResults?.All(r => r.IsPassed == true) ?? true,
+            ChecklistScore = checklistResults?.Count(r => r.IsPassed == true) ?? 0,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.DocumentReviews.Add(review);
+        await _context.SaveChangesAsync();
+
+        // Add checklist results if provided
+        if (checklistResults != null && checklistResults.Any())
+        {
+            foreach (var result in checklistResults)
+            {
+                result.ReviewId = review.ReviewId;
+                result.CheckedAt = DateTime.UtcNow;
+                _context.DocumentChecklistResults.Add(result);
+            }
+            await _context.SaveChangesAsync();
+        }
+
+        // Update document workflow
+        document.LawyerReviewedAt = DateTime.UtcNow;
+        document.UpdatedAt = DateTime.UtcNow;
+
+        // Assign to admin
+        var admin = await AssignToAdminAsync(documentId, document.FirmID);
+
+        // Notify admin
+        if (admin != null)
+        {
+            await _notificationService.NotifyAsync(
+                admin.UserID,
+                "New Document for Final Review",
+                $"Document '{document.Title}' has been reviewed by lawyer and forwarded for your final approval.",
+                "LawyerApproved",
+                documentId,
+                $"/Admin/Review/{documentId}");
+        }
+
+        // Notify client
+        if (document.UploadedBy.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.UploadedBy.Value,
+                "Document Reviewed by Lawyer",
+                $"Your document '{document.Title}' has been reviewed by lawyer and forwarded to admin for final approval.",
+                "LawyerApproved",
+                documentId,
+                $"/Document/Details/{documentId}");
+        }
+
+        // Audit log
+        await _auditLogService.LogAsync(
+            "LawyerApprove",
+            "Document",
+            documentId,
+            $"Lawyer approved document: {document.Title}",
+            null,
+            $"{{\"remarks\":\"{remarks}\"}}",
+            "DocumentReview");
+
+        return review;
+    }
+
+    /// <summary>
+    /// Lawyer rejects document
+    /// </summary>
+    public async Task<DocumentReview> LawyerRejectAsync(int documentId, int lawyerId, string remarks, List<DocumentChecklistResult>? checklistResults)
+    {
+        var document = await _context.Documents
+            .Include(d => d.Uploader)
+            .FirstOrDefaultAsync(d => d.DocumentID == documentId);
+
+        if (document == null)
+            throw new InvalidOperationException("Document not found");
+
+        // Create review record
+        var review = new DocumentReview
+        {
+            DocumentId = documentId,
+            ReviewedBy = lawyerId,
+            ReviewStatus = STATUS_REJECTED,
+            Remarks = remarks,
+            ReviewedAt = DateTime.UtcNow,
+            ReviewerRole = "Lawyer",
+            IsChecklistComplete = false,
+            ChecklistScore = checklistResults?.Count(r => r.IsPassed == true) ?? 0,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.DocumentReviews.Add(review);
+        await _context.SaveChangesAsync();
+
+        // Add checklist results if provided
+        if (checklistResults != null && checklistResults.Any())
+        {
+            foreach (var result in checklistResults)
+            {
+                result.ReviewId = review.ReviewId;
+                result.CheckedAt = DateTime.UtcNow;
+                _context.DocumentChecklistResults.Add(result);
+            }
+            await _context.SaveChangesAsync();
+        }
+
+        // Update document
+        document.WorkflowStage = STAGE_LAWYER_REJECTED;
+        document.Status = STATUS_REJECTED;
+        document.CurrentRemarks = remarks;
+        document.LawyerReviewedAt = DateTime.UtcNow;
+        document.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        // Auto-archive rejected document
+        await AutoArchiveRejectedDocumentAsync(document, lawyerId, remarks, "Lawyer");
+
+        // Notify client
+        if (document.UploadedBy.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.UploadedBy.Value,
+                "Document Rejected by Lawyer",
+                $"Your document '{document.Title}' has been rejected by lawyer. Reason: {remarks}",
+                "LawyerRejected",
+                documentId,
+                $"/Document/Details/{documentId}");
+        }
+
+        // Notify staff who originally reviewed
+        if (document.AssignedStaffId.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.AssignedStaffId.Value,
+                "Document Rejected by Lawyer",
+                $"Document '{document.Title}' that you reviewed has been rejected by lawyer. Reason: {remarks}",
+                "LawyerRejected",
+                documentId,
+                $"/Staff/PendingReviews");
+        }
+
+        // Audit log
+        await _auditLogService.LogAsync(
+            "LawyerReject",
+            "Document",
+            documentId,
+            $"Lawyer rejected document: {document.Title}. Reason: {remarks}",
+            null,
+            $"{{\"remarks\":\"{remarks}\"}}",
+            "DocumentReview");
+
+        return review;
+    }
+
+    /// <summary>
+    /// Lawyer edits document (creates new version)
+    /// </summary>
+    public async Task<DocumentVersion> LawyerEditDocumentAsync(int documentId, int lawyerId, string filePath, string originalFileName, long fileSize, string? mimeType, string changeDescription)
+    {
+        var document = await _context.Documents
+            .Include(d => d.Uploader)
+            .Include(d => d.Versions)
+            .FirstOrDefaultAsync(d => d.DocumentID == documentId);
+
+        if (document == null)
+            throw new InvalidOperationException("Document not found");
+
+        // Mark current version as not current
+        var currentVersion = document.Versions.FirstOrDefault(v => v.IsCurrentVersion == true);
+        if (currentVersion != null)
+        {
+            currentVersion.IsCurrentVersion = false;
+        }
+
+        // Get file extension
+        var fileExtension = Path.GetExtension(originalFileName);
+
+        // Create new version
+        var newVersionNumber = (document.CurrentVersion ?? 1) + 1;
+        var newVersion = new DocumentVersion
+        {
+            DocumentId = documentId,
+            VersionNumber = newVersionNumber,
+            FilePath = filePath,
+            FileSize = fileSize,
+            UploadedBy = lawyerId,
+            OriginalFileName = originalFileName,
+            FileExtension = fileExtension,
+            MimeType = mimeType,
+            ChangeDescription = changeDescription,
+            ChangedBy = "Lawyer",
+            IsCurrentVersion = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.DocumentVersions.Add(newVersion);
+
+        // Update document
+        document.CurrentVersion = newVersionNumber;
+        document.TotalFileSize = fileSize;
+        document.FileExtension = fileExtension;
+        document.MimeType = mimeType;
+        document.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        // Notify client
+        if (document.UploadedBy.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.UploadedBy.Value,
+                "Document Updated by Lawyer",
+                $"Your document '{document.Title}' has been updated by a lawyer. New version: {newVersionNumber}. Changes: {changeDescription}",
+                "LawyerEdit",
+                documentId,
+                $"/Document/Details/{documentId}");
+        }
+
+        // Audit log
+        await _auditLogService.LogAsync(
+            "LawyerEdit",
+            "Document",
+            documentId,
+            $"Lawyer created new version {newVersionNumber}: {changeDescription}",
+            null,
+            $"{{\"version\":{newVersionNumber},\"changeDescription\":\"{changeDescription}\"}}",
+            "DocumentVersion");
+
+        return newVersion;
+    }
+
+    /// <summary>
+    /// Get pending documents for lawyer review
+    /// </summary>
+    public async Task<List<Document>> GetPendingLawyerReviewsAsync(int firmId, int? lawyerId = null)
+    {
+        var query = _context.Documents
+            .Include(d => d.Uploader)
+            .Include(d => d.Folder)
+            .Include(d => d.AssignedStaff)
+            .Include(d => d.AssignedLawyer)
+            .Where(d => d.FirmID == firmId &&
+                        (d.WorkflowStage == STAGE_PENDING_LAWYER_REVIEW || d.WorkflowStage == STAGE_LAWYER_REVIEW));
+
+        if (lawyerId.HasValue)
+        {
+            query = query.Where(d => d.AssignedLawyerId == lawyerId || d.AssignedLawyerId == null);
+        }
+
+        return await query.OrderByDescending(d => d.CreatedAt).ToListAsync();
     }
 
     /// <summary>

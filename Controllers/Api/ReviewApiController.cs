@@ -563,6 +563,237 @@ public class ReviewApiController : ControllerBase
         }
     }
 
+    // ===== LAWYER ENDPOINTS =====
+
+    /// <summary>
+    /// Get pending reviews for lawyer
+    /// </summary>
+    [HttpGet("lawyer/pending")]
+    [Authorize(Policy = "LawyerOnly")]
+    public async Task<IActionResult> GetLawyerPendingReviews([FromQuery] bool assignedToMe = false)
+    {
+        var userId = GetCurrentUserId();
+        var firmId = GetFirmId();
+
+        var documents = await _workflowService.GetPendingLawyerReviewsAsync(
+            firmId,
+            assignedToMe ? userId : null);
+
+        var result = documents.Select(d => new
+        {
+            id = d.DocumentID,
+            title = d.Title,
+            description = d.Description,
+            documentType = d.DocumentType,
+            status = d.Status,
+            workflowStage = d.WorkflowStage,
+            originalFileName = d.OriginalFileName,
+            fileExtension = d.FileExtension,
+            totalFileSize = d.TotalFileSize,
+            currentVersion = d.CurrentVersion,
+            isDuplicate = d.IsDuplicate,
+            isAIProcessed = d.IsAIProcessed,
+            uploader = d.Uploader != null ? new { id = d.Uploader.UserID, name = d.Uploader.FullName } : null,
+            folder = d.Folder != null ? new { id = d.Folder.FolderId, name = d.Folder.FolderName } : null,
+            assignedStaff = d.AssignedStaff != null ? new { id = d.AssignedStaff.UserID, name = d.AssignedStaff.FullName } : null,
+            assignedLawyer = d.AssignedLawyer != null ? new { id = d.AssignedLawyer.UserID, name = d.AssignedLawyer.FullName } : null,
+            createdAt = d.CreatedAt
+        });
+
+        return Ok(new { success = true, documents = result });
+    }
+
+    /// <summary>
+    /// Lawyer approves document
+    /// </summary>
+    [HttpPost("{documentId}/lawyer-approve")]
+    [Authorize(Policy = "LawyerOnly")]
+    public async Task<IActionResult> LawyerApprove(int documentId, [FromBody] LawyerReviewDto dto)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var firmId = GetFirmId();
+
+            var document = await _context.Documents
+                .FirstOrDefaultAsync(d => d.DocumentID == documentId && d.FirmID == firmId);
+
+            if (document == null)
+                return NotFound(new { success = false, message = "Document not found" });
+
+            // Verify document is in correct stage
+            var validStages = new[] { 
+                DocumentWorkflowService.STAGE_PENDING_LAWYER_REVIEW, 
+                DocumentWorkflowService.STAGE_LAWYER_REVIEW
+            };
+            
+            if (!validStages.Contains(document.WorkflowStage))
+            {
+                _logger.LogWarning("Document {DocumentId} has invalid stage {Stage} for lawyer approval", documentId, document.WorkflowStage);
+                return BadRequest(new { success = false, message = $"Document is not ready for lawyer review. Current stage: {document.WorkflowStage}" });
+            }
+
+            // Verify assignment (optional - lawyers can review any pending document in their firm)
+            // if (document.AssignedLawyerId != userId)
+            //     return BadRequest(new { success = false, message = "This document is not assigned to you" });
+
+            // Prepare checklist results
+            List<DocumentChecklistResult>? checklistResults = null;
+            if (dto.ChecklistResults != null && dto.ChecklistResults.Any())
+            {
+                checklistResults = dto.ChecklistResults.Select(r => new DocumentChecklistResult
+                {
+                    ChecklistItemId = r.ChecklistItemId,
+                    IsPassed = r.IsPassed,
+                    Remarks = r.Remarks
+                }).ToList();
+            }
+
+            var review = await _workflowService.LawyerApproveAsync(
+                documentId, userId, dto.Remarks, dto.InternalNotes, checklistResults);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Document approved and forwarded to admin",
+                reviewId = review.ReviewId
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error lawyer approving document {DocumentId}", documentId);
+            return StatusCode(500, new { success = false, message = "An error occurred while approving the document" });
+        }
+    }
+
+    /// <summary>
+    /// Lawyer rejects document
+    /// </summary>
+    [HttpPost("{documentId}/lawyer-reject")]
+    [Authorize(Policy = "LawyerOnly")]
+    public async Task<IActionResult> LawyerReject(int documentId, [FromBody] LawyerReviewDto dto)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var firmId = GetFirmId();
+
+            if (string.IsNullOrWhiteSpace(dto.Remarks))
+                return BadRequest(new { success = false, message = "Rejection remarks are required" });
+
+            var document = await _context.Documents
+                .FirstOrDefaultAsync(d => d.DocumentID == documentId && d.FirmID == firmId);
+
+            if (document == null)
+                return NotFound(new { success = false, message = "Document not found" });
+
+            // Verify document is in correct stage
+            var validStages = new[] { 
+                DocumentWorkflowService.STAGE_PENDING_LAWYER_REVIEW, 
+                DocumentWorkflowService.STAGE_LAWYER_REVIEW
+            };
+            
+            if (!validStages.Contains(document.WorkflowStage))
+            {
+                return BadRequest(new { success = false, message = $"Document is not ready for lawyer review. Current stage: {document.WorkflowStage}" });
+            }
+
+            // Prepare checklist results
+            List<DocumentChecklistResult>? checklistResults = null;
+            if (dto.ChecklistResults != null && dto.ChecklistResults.Any())
+            {
+                checklistResults = dto.ChecklistResults.Select(r => new DocumentChecklistResult
+                {
+                    ChecklistItemId = r.ChecklistItemId,
+                    IsPassed = r.IsPassed,
+                    Remarks = r.Remarks
+                }).ToList();
+            }
+
+            var review = await _workflowService.LawyerRejectAsync(
+                documentId, userId, dto.Remarks, checklistResults);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Document rejected",
+                reviewId = review.ReviewId
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error lawyer rejecting document {DocumentId}", documentId);
+            return StatusCode(500, new { success = false, message = "An error occurred while rejecting the document" });
+        }
+    }
+
+    /// <summary>
+    /// Lawyer edits document (creates new version)
+    /// </summary>
+    [HttpPost("{documentId}/lawyer-edit")]
+    [Authorize(Policy = "LawyerOnly")]
+    public async Task<IActionResult> LawyerEditDocument(int documentId, [FromForm] LawyerEditDocumentDto dto)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var firmId = GetFirmId();
+
+            if (dto.File == null || dto.File.Length == 0)
+                return BadRequest(new { success = false, message = "No file provided" });
+
+            if (string.IsNullOrWhiteSpace(dto.ChangeDescription))
+                return BadRequest(new { success = false, message = "Change description is required" });
+
+            var document = await _context.Documents
+                .FirstOrDefaultAsync(d => d.DocumentID == documentId && d.FirmID == firmId);
+
+            if (document == null)
+                return NotFound(new { success = false, message = "Document not found" });
+
+            // Verify document is assigned to this lawyer (optional)
+            // if (document.AssignedLawyerId != userId)
+            //     return BadRequest(new { success = false, message = "This document is not assigned to you" });
+
+            // Save file
+            var uploadPath = Path.Combine(_environment.ContentRootPath, "Uploads", firmId.ToString(), document.UploadedBy.ToString() ?? "0");
+            Directory.CreateDirectory(uploadPath);
+
+            var extension = Path.GetExtension(dto.File.FileName).ToLower();
+            var uniqueFileName = $"{Guid.NewGuid()}{extension}";
+            var filePath = Path.Combine(uploadPath, uniqueFileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await dto.File.CopyToAsync(stream);
+            }
+
+            var version = await _workflowService.LawyerEditDocumentAsync(
+                documentId,
+                userId,
+                filePath,
+                dto.File.FileName,
+                dto.File.Length,
+                dto.File.ContentType,
+                dto.ChangeDescription);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Document updated, new version created",
+                versionId = version.VersionId,
+                versionNumber = version.VersionNumber
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error lawyer editing document {DocumentId}", documentId);
+            return StatusCode(500, new { success = false, message = "An error occurred while editing the document" });
+        }
+    }
+
+    // ===== ADMIN ENDPOINTS =====
+
     /// <summary>
     /// Admin approves document
     /// </summary>
@@ -881,4 +1112,17 @@ public class AdminReviewDto
     public List<ChecklistResultDto>? ChecklistResults { get; set; }
     public bool NotifyClient { get; set; } = true;
     public int? ApprovedVersionId { get; set; }
+}
+
+public class LawyerReviewDto
+{
+    public string? Remarks { get; set; }
+    public string? InternalNotes { get; set; }
+    public List<ChecklistResultDto>? ChecklistResults { get; set; }
+}
+
+public class LawyerEditDocumentDto
+{
+    public IFormFile? File { get; set; }
+    public string? ChangeDescription { get; set; }
 }
