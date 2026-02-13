@@ -117,22 +117,19 @@ builder.Services.AddHostedService<RetentionArchiveBackgroundService>();
 var app = builder.Build();
 
 // ===========================================
-// DATABASE SEEDING (Development only)
+// DATABASE INITIALIZATION (All environments)
 // ===========================================
-if (app.Environment.IsDevelopment())
+using (var scope = app.Services.CreateScope())
 {
-    using (var scope = app.Services.CreateScope())
+    var seeder = scope.ServiceProvider.GetRequiredService<CKNDocument.Services.DatabaseSeeder>();
+    try
     {
-        var seeder = scope.ServiceProvider.GetRequiredService<CKNDocument.Services.DatabaseSeeder>();
-        try
-        {
-            await seeder.SeedAsync();
-        }
-        catch (Exception ex)
-        {
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-            logger.LogError(ex, "An error occurred while seeding the database.");
-        }
+        await seeder.SeedAsync();
+    }
+    catch (Exception ex)
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while seeding the database.");
     }
 }
 

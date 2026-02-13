@@ -644,15 +644,23 @@ public class AuthController : Controller
 
     private async Task<List<FirmDropdownDto>> GetFirmsForDropdown()
     {
-        return await _context.Firms
-            .Where(f => f.Status == "Active")
-            .OrderBy(f => f.FirmName)
-            .Select(f => new FirmDropdownDto
-            {
-                FirmId = f.FirmID,
-                FirmName = f.FirmName
-            })
-            .ToListAsync();
+        try
+        {
+            return await _context.Firms
+                .Where(f => f.Status == "Active")
+                .OrderBy(f => f.FirmName)
+                .Select(f => new FirmDropdownDto
+                {
+                    FirmId = f.FirmID,
+                    FirmName = f.FirmName
+                })
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading firms for dropdown");
+            return new List<FirmDropdownDto>();
+        }
     }
 
     private async Task SignInUser(int userId, string fullName, string email, string username, string role, int? firmId, bool rememberMe)

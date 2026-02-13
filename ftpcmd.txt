@@ -1,0 +1,10 @@
+open site54543.siteasp.net
+site54543
+5s-Q!2Sm7a@E
+lcd c:\Users\MECHREVO\CknDocument\publish
+cd wwwroot
+binary
+put CKNDocument.dll
+put CKNDocument.pdb
+delete app_offline.htm
+quit

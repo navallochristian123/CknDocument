@@ -30,10 +30,56 @@ public class DatabaseSeeder
         {
             _logger.LogInformation("Starting database seeding...");
 
-            // Ensure database is created
-            _logger.LogInformation("Creating LawFirmDMS database if not exists...");
-            var created = await _context.Database.EnsureCreatedAsync();
-            _logger.LogInformation("LawFirmDMS database created: {Created}", created);
+            // Try to create database/tables - EnsureCreated won't work if DB already exists
+            // So we use a different approach: try to create tables via raw SQL if they don't exist
+            _logger.LogInformation("Checking if tables exist...");
+
+            try
+            {
+                // First try EnsureCreated
+                var created = await _context.Database.EnsureCreatedAsync();
+                _logger.LogInformation("EnsureCreated result: {Created}", created);
+
+                if (!created)
+                {
+                    // Database exists but tables might not - try to create schema
+                    _logger.LogInformation("Database exists, checking if schema needs to be created...");
+                    var script = _context.Database.GenerateCreateScript();
+
+                    // Try to execute the script - it might fail if tables exist, that's OK
+                    try
+                    {
+                        // Check if Roles table exists first
+                        var tablesExist = await _context.Database.ExecuteSqlRawAsync(
+                            "SELECT CASE WHEN EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Roles') THEN 1 ELSE 0 END");
+
+                        // If tables don't exist, create them
+                        var conn = _context.Database.GetDbConnection();
+                        await conn.OpenAsync();
+
+                        using var cmd = conn.CreateCommand();
+                        cmd.CommandText = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo'";
+                        var tableCount = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+
+                        _logger.LogInformation("Found {TableCount} tables in database", tableCount);
+
+                        if (tableCount < 5)
+                        {
+                            _logger.LogInformation("Creating database schema...");
+                            await _context.Database.ExecuteSqlRawAsync(script);
+                            _logger.LogInformation("Schema created successfully");
+                        }
+                    }
+                    catch (Exception schemaEx)
+                    {
+                        _logger.LogWarning("Schema creation skipped (tables may already exist): {Message}", schemaEx.Message);
+                    }
+                }
+            }
+            catch (Exception dbEx)
+            {
+                _logger.LogError(dbEx, "Error during database creation: {Message}", dbEx.Message);
+            }
 
             // Seed in order
             await SeedSuperAdminAsync();
