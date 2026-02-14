@@ -83,233 +83,380 @@
     </div>
 </div>
 
-<!-- Document Review Modal -->
+<!-- Document Review Wizard Modal -->
 <div class="modal fade" id="reviewModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Review Document</h5>
+                <h5 class="modal-title"><i class="bi bi-clipboard-check me-2"></i>Document Review</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
+            
+            <!-- Wizard Steps Navigation -->
+            <div class="wizard-steps">
+                <div class="wizard-step active" data-step="1">
+                    <div class="step-number">1</div>
+                    <div class="step-label">View Document</div>
+                </div>
+                <div class="wizard-step" data-step="2">
+                    <div class="step-number">2</div>
+                    <div class="step-label">Edit/Upload</div>
+                </div>
+                <div class="wizard-step" data-step="3">
+                    <div class="step-number">3</div>
+                    <div class="step-label">Content Review</div>
+                </div>
+            </div>
+            
             <div class="modal-body">
-                <div class="row">
-                    <!-- Document Info -->
-                    <div class="col-lg-4">
-                        <div class="card mb-3">
-                            <div class="card-header">
-                                <h6 class="mb-0">Document Information</h6>
-                            </div>
-                            <div class="card-body">
-                                <dl class="row mb-0">
-                                    <dt class="col-sm-4">Title:</dt>
-                                    <dd class="col-sm-8" id="modalDocTitle">-</dd>
-                                    <dt class="col-sm-4">Type:</dt>
-                                    <dd class="col-sm-8" id="modalDocType">-</dd>
-                                    <dt class="col-sm-4">Category:</dt>
-                                    <dd class="col-sm-8" id="modalDocCategory">-</dd>
-                                    <dt class="col-sm-4">File:</dt>
-                                    <dd class="col-sm-8" id="modalDocFile">-</dd>
-                                    <dt class="col-sm-4">Size:</dt>
-                                    <dd class="col-sm-8" id="modalDocSize">-</dd>
-                                    <dt class="col-sm-4">Submitted:</dt>
-                                    <dd class="col-sm-8" id="modalDocDate">-</dd>
-                                    <dt class="col-sm-4">By:</dt>
-                                    <dd class="col-sm-8" id="modalDocUploader">-</dd>
-                                </dl>
-                            </div>
-                        </div>
-
-                        <!-- AI Analysis Results -->
-                        <div class="card mb-3" id="aiResultsCard">
-                            <div class="card-header bg-info bg-opacity-10">
-                                <h6 class="mb-0"><i class="bi bi-robot me-2"></i>AI Analysis</h6>
-                            </div>
-                            <div class="card-body">
-                                <div class="mb-2">
-                                    <small class="text-muted">Detected Type:</small>
-                                    <br><strong id="aiDetectedType">-</strong>
+                <input type="hidden" id="reviewDocumentId">
+                
+                <!-- Step 1: View Document & Staff Review Summary -->
+                <div class="wizard-page active" data-page="1">
+                    <div class="row">
+                        <!-- Left: Document Info & Staff Review Summary -->
+                        <div class="col-lg-4">
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="bi bi-file-earmark-text me-2"></i>Document Information</h6>
                                 </div>
-                                <div class="mb-2" id="duplicateWarning" style="display: none;">
-                                    <div class="alert alert-warning mb-0 py-2">
-                                        <i class="bi bi-exclamation-triangle me-1"></i>
-                                        <strong>Possible Duplicate</strong>
+                                <div class="card-body">
+                                    <dl class="row mb-0">
+                                        <dt class="col-sm-4">Title:</dt>
+                                        <dd class="col-sm-8" id="modalDocTitle">-</dd>
+                                        <dt class="col-sm-4">Type:</dt>
+                                        <dd class="col-sm-8" id="modalDocType">-</dd>
+                                        <dt class="col-sm-4">Category:</dt>
+                                        <dd class="col-sm-8" id="modalDocCategory">-</dd>
+                                        <dt class="col-sm-4">File:</dt>
+                                        <dd class="col-sm-8" id="modalDocFile">-</dd>
+                                        <dt class="col-sm-4">Size:</dt>
+                                        <dd class="col-sm-8" id="modalDocSize">-</dd>
+                                        <dt class="col-sm-4">Submitted:</dt>
+                                        <dd class="col-sm-8" id="modalDocDate">-</dd>
+                                        <dt class="col-sm-4">By:</dt>
+                                        <dd class="col-sm-8" id="modalDocUploader">-</dd>
+                                    </dl>
+                                </div>
+                            </div>
+                            
+                            <!-- Staff Review Summary -->
+                            <div class="card mb-3 staff-review-summary">
+                                <div class="card-header bg-success bg-opacity-10">
+                                    <h6 class="mb-0"><i class="bi bi-person-badge me-2"></i>Staff Review Summary</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="staffReviewSummary">
+                                        <p class="text-muted mb-0">Loading staff review...</p>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-
-                        <!-- File Actions -->
-                        <div class="card mb-3">
-                            <div class="card-header bg-primary text-white">
-                                <h6 class="mb-0"><i class="bi bi-lightning-fill me-2"></i>Quick Actions</h6>
-                            </div>
-                            <div class="card-body">
-                                <div class="d-grid gap-2">
-                                    <button type="button" class="btn btn-primary" id="btnViewDocument" onclick="openDocumentViewer()">
-                                        <i class="bi bi-eye me-2"></i> View Document
-                                    </button>
-                                    <button type="button" class="btn btn-warning" onclick="scrollToEdit()">
-                                        <i class="bi bi-pencil-square me-2"></i> Edit & Upload New Version
-                                    </button>
+                            
+                            <!-- AI Analysis Summary -->
+                            <div class="card mb-3">
+                                <div class="card-header bg-info bg-opacity-10">
+                                    <h6 class="mb-0"><i class="bi bi-robot me-2"></i>AI Analysis</h6>
                                 </div>
-                                <div class="mt-3 p-2 bg-light rounded small">
-                                    <strong><i class="bi bi-info-circle me-1"></i>Workflow:</strong>
-                                    <ol class="mb-0 ps-3 mt-1">
-                                        <li>View the document</li>
-                                        <li>Download & make corrections offline</li>
-                                        <li>Upload corrected version</li>
-                                        <li>Approve to send to Admin</li>
-                                    </ol>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Edit Restrictions Alert -->
-                        <div class="card mb-3 d-none" id="editRestrictionsCard">
-                            <div class="card-body">
-                                <div class="alert alert-warning mb-0" id="editRestrictionsAlert">
-                                    <i class="bi bi-lock me-2"></i>
-                                    <strong>Edit Restricted</strong>
-                                    <p class="mb-0 small" id="editRestrictionReason">-</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Versions -->
-                        <div class="card">
-                            <div class="card-header">
-                                <h6 class="mb-0">Version History</h6>
-                            </div>
-                            <div class="card-body p-0">
-                                <ul class="list-group list-group-flush" id="versionsList">
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Checklist & Review -->
-                    <div class="col-lg-8">
-                        <!-- Signature Verification Card -->
-                        <div class="card mb-3" id="signatureCard">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <h6 class="mb-0"><i class="bi bi-vector-pen me-2"></i>Signature Verification</h6>
-                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="verifySignature()">
-                                    <i class="bi bi-robot me-1"></i>AI Verify
-                                </button>
-                            </div>
-                            <div class="card-body">
-                                <div id="signatureStatus" class="text-center">
-                                    <i class="bi bi-hourglass text-muted" style="font-size: 2rem;"></i>
-                                    <p class="text-muted small mb-0 mt-2">Click "AI Verify" to check document signature</p>
-                                </div>
-                                <div id="signatureResult" class="d-none">
-                                    <div class="row">
-                                        <div class="col-6">
-                                            <small class="text-muted d-block">Status</small>
-                                            <span id="sigVerifyStatus" class="badge">-</span>
-                                        </div>
-                                        <div class="col-6">
-                                            <small class="text-muted d-block">Confidence</small>
-                                            <span id="sigConfidence">-</span>
-                                        </div>
+                                <div class="card-body">
+                                    <div class="mb-2">
+                                        <small class="text-muted">Detected Type:</small>
+                                        <br><strong id="aiDetectedType">-</strong>
                                     </div>
-                                    <div class="mt-2">
-                                        <small class="text-muted d-block">Detected Name</small>
-                                        <strong id="sigDetectedName">-</strong>
-                                    </div>
-                                    <div class="mt-2">
-                                        <small class="text-muted d-block">Message</small>
-                                        <span id="sigMessage" class="small">-</span>
-                                    </div>
-                                    <!-- Client's Reference Signature -->
-                                    <div id="clientSignatureRef" class="mt-3 d-none">
-                                        <small class="text-muted d-block mb-1">Client's Registered Signature:</small>
-                                        <div class="border rounded p-2 bg-light text-center">
-                                            <img id="clientSignatureImg" src="" alt="Client Signature" style="max-height: 60px;">
+                                    <div class="mb-2" id="duplicateWarning" style="display: none;">
+                                        <div class="alert alert-warning mb-0 py-2">
+                                            <i class="bi bi-exclamation-triangle me-1"></i>
+                                            <strong>Possible Duplicate</strong>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-
-                        <!-- Checklist -->
-                        <div class="card mb-3">
-                            <div class="card-header">
-                                <h6 class="mb-0"><i class="bi bi-list-check me-2"></i>Review Checklist</h6>
-                            </div>
-                            <div class="card-body">
-                                <div id="checklistContainer">
-                                    <p class="text-muted">Loading checklist...</p>
+                            
+                            <!-- Version History -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>Version History</h6>
                                 </div>
-                            </div>
-                        </div>
-
-                        <!-- Review Actions -->
-                        <div class="card">
-                            <div class="card-header">
-                                <h6 class="mb-0">Review Decision</h6>
-                            </div>
-                            <div class="card-body">
-                                <input type="hidden" id="reviewDocumentId">
-                                
-                                <div class="mb-3">
-                                    <label class="form-label">Remarks (visible to client)</label>
-                                    <textarea class="form-control" id="reviewRemarks" rows="3" placeholder="Enter remarks for the client..."></textarea>
-                                </div>
-
-                                <div class="mb-3">
-                                    <label class="form-label">Internal Notes (staff/admin only)</label>
-                                    <textarea class="form-control" id="reviewInternalNotes" rows="2" placeholder="Internal notes..."></textarea>
-                                </div>
-
-                                <!-- Minor Edit Option -->
-                                <div class="accordion mb-3" id="editAccordion">
-                                    <div class="accordion-item" id="editAccordionItem">
-                                        <h2 class="accordion-header">
-                                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#editCollapse" id="editAccordionBtn">
-                                                <i class="bi bi-pencil me-2"></i>Make Minor Edit (Upload New Version)
-                                            </button>
-                                        </h2>
-                                        <div id="editCollapse" class="accordion-collapse collapse" data-bs-parent="#editAccordion">
-                                            <div class="accordion-body">
-                                                <div class="mb-3">
-                                                    <label class="form-label">Upload Corrected File</label>
-                                                    <input type="file" class="form-control" id="editFile">
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label class="form-label">Change Description <span class="text-danger">*</span></label>
-                                                    <input type="text" class="form-control" id="editChangeDescription" placeholder="Describe what was changed...">
-                                                </div>
-                                                <button type="button" class="btn btn-warning" id="btnUploadNewVersion">
-                                                    <i class="bi bi-upload"></i> Upload New Version
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Pass to Admin Option (for non-editable docs) -->
-                                <div class="alert alert-info d-none mb-3" id="passToAdminAlert">
-                                    <i class="bi bi-arrow-up-right-circle me-2"></i>
-                                    <strong>Cannot Edit This Document</strong>
-                                    <p class="mb-2 small">This document type cannot be edited by staff. You can:</p>
-                                    <ul class="mb-0 small">
-                                        <li>Approve and forward to Admin for editing</li>
-                                        <li>Reject and request client resubmission</li>
+                                <div class="card-body p-0">
+                                    <ul class="list-group list-group-flush" id="versionsList">
                                     </ul>
                                 </div>
-
-                                <div class="d-flex gap-2">
-                                    <button type="button" class="btn btn-success flex-fill" id="btnApprove">
-                                        <i class="bi bi-check-lg"></i> Approve & Forward to Admin
+                            </div>
+                        </div>
+                        
+                        <!-- Right: Document Preview -->
+                        <div class="col-lg-8">
+                            <div class="card h-100">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0"><i class="bi bi-eye me-2"></i>Document Preview</h6>
+                                    <button type="button" class="btn btn-sm btn-primary" onclick="openDocumentViewer()">
+                                        <i class="bi bi-arrows-fullscreen me-1"></i>Full Screen
                                     </button>
-                                    <button type="button" class="btn btn-danger" id="btnReject">
-                                        <i class="bi bi-x-lg"></i> Reject
-                                    </button>
+                                </div>
+                                <div class="card-body p-0 bg-dark" style="min-height: 400px;">
+                                    <div id="step1PreviewContainer" class="h-100 d-flex align-items-center justify-content-center">
+                                        <div class="text-center text-white p-4">
+                                            <i class="bi bi-file-earmark-text" style="font-size: 4rem;"></i>
+                                            <p class="mt-3">Click to view document</p>
+                                            <button type="button" class="btn btn-primary" onclick="loadDocumentPreview()">
+                                                <i class="bi bi-eye me-2"></i>Load Preview
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <iframe id="step1PdfViewer" class="w-100 d-none" style="border: none; min-height: 450px;"></iframe>
+                                    <div id="step1ImageViewer" class="d-none h-100 d-flex align-items-center justify-content-center" style="min-height: 450px;">
+                                        <img id="step1ImagePreview" style="max-width: 100%; max-height: 450px; object-fit: contain;">
+                                    </div>
+                                    <div id="step1UnsupportedViewer" class="d-none h-100 d-flex align-items-center justify-content-center flex-column text-white" style="min-height: 450px;">
+                                        <i class="bi bi-file-earmark-x" style="font-size: 4rem;"></i>
+                                        <h5 class="mt-3">Preview not available</h5>
+                                        <p class="text-muted">Download to view this file format</p>
+                                        <a id="step1DownloadBtn" href="#" class="btn btn-primary mt-2">
+                                            <i class="bi bi-download me-2"></i>Download
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div>
+                
+                <!-- Step 2: Edit & Upload New Version -->
+                <div class="wizard-page" data-page="2">
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <div class="card mb-3">
+                                <div class="card-header bg-warning text-dark">
+                                    <h6 class="mb-0"><i class="bi bi-pencil-square me-2"></i>Edit Document</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="alert alert-info">
+                                        <i class="bi bi-info-circle me-2"></i>
+                                        <strong>Workflow:</strong> Download the document, make your corrections offline, then upload the corrected version.
+                                    </div>
+                                    
+                                    <div class="d-grid gap-2 mb-4">
+                                        <button type="button" class="btn btn-lg btn-primary" onclick="downloadForEdit()">
+                                            <i class="bi bi-download me-2"></i>Download Document for Editing
+                                        </button>
+                                    </div>
+                                    
+                                    <hr>
+                                    
+                                    <h6 class="mb-3"><i class="bi bi-upload me-2"></i>Upload Corrected Version</h6>
+                                    <div class="mb-3">
+                                        <label class="form-label">Select File <span class="text-danger">*</span></label>
+                                        <input type="file" class="form-control" id="editFile">
+                                        <small class="text-muted">Upload the corrected version of the document</small>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Change Description <span class="text-danger">*</span></label>
+                                        <textarea class="form-control" id="editChangeDescription" rows="3" placeholder="Describe what changes were made (e.g., corrected grammar, fixed formatting, updated signatures)..."></textarea>
+                                    </div>
+                                    <button type="button" class="btn btn-warning w-100" id="btnUploadNewVersion">
+                                        <i class="bi bi-cloud-upload me-2"></i>Upload New Version
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-6">
+                            <!-- Current Version Info -->
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="bi bi-file-earmark me-2"></i>Current Version</h6>
+                                </div>
+                                <div class="card-body">
+                                    <dl class="row mb-0">
+                                        <dt class="col-sm-4">Version:</dt>
+                                        <dd class="col-sm-8" id="currentVersionNumber">-</dd>
+                                        <dt class="col-sm-4">Uploaded By:</dt>
+                                        <dd class="col-sm-8" id="currentVersionBy">-</dd>
+                                        <dt class="col-sm-4">Date:</dt>
+                                        <dd class="col-sm-8" id="currentVersionDate">-</dd>
+                                    </dl>
+                                </div>
+                            </div>
+                            
+                            <!-- Staff Metadata Changes -->
+                            <div class="card mb-3">
+                                <div class="card-header bg-success bg-opacity-10">
+                                    <h6 class="mb-0"><i class="bi bi-list-check me-2"></i>Staff Metadata Changes</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="staffMetadataChanges">
+                                        <p class="text-muted mb-0">No changes recorded by staff</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Signature Verification -->
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0"><i class="bi bi-vector-pen me-2"></i>Signature Check</h6>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="verifySignature()">
+                                        <i class="bi bi-robot me-1"></i>AI Verify
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    <div id="signatureStatus" class="text-center">
+                                        <i class="bi bi-hourglass text-muted" style="font-size: 2rem;"></i>
+                                        <p class="text-muted small mb-0 mt-2">Click "AI Verify" to check signatures</p>
+                                    </div>
+                                    <div id="signatureResult" class="d-none">
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <small class="text-muted d-block">Status</small>
+                                                <span id="sigVerifyStatus" class="badge">-</span>
+                                            </div>
+                                            <div class="col-6">
+                                                <small class="text-muted d-block">Confidence</small>
+                                                <span id="sigConfidence">-</span>
+                                            </div>
+                                        </div>
+                                        <div class="mt-2">
+                                            <small class="text-muted d-block">Detected Name</small>
+                                            <strong id="sigDetectedName">-</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Step 3: Content Review Checklist -->
+                <div class="wizard-page" data-page="3">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <!-- Content Review Checklist -->
+                            <div class="card mb-3">
+                                <div class="card-header bg-primary text-white">
+                                    <h6 class="mb-0"><i class="bi bi-list-check me-2"></i>Content Review Checklist</h6>
+                                </div>
+                                <div class="card-body">
+                                    <p class="text-muted mb-3">Review the document content and verify each item below:</p>
+                                    
+                                    <!-- Legal Accuracy -->
+                                    <div class="mb-4">
+                                        <h6 class="text-primary border-bottom pb-2"><i class="bi bi-briefcase me-2"></i>Legal Accuracy</h6>
+                                        <div id="legalAccuracyChecklist">
+                                            <!-- Dynamically populated -->
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Document Quality -->
+                                    <div class="mb-4">
+                                        <h6 class="text-primary border-bottom pb-2"><i class="bi bi-file-text me-2"></i>Document Quality</h6>
+                                        <div id="docQualityChecklist">
+                                            <!-- Dynamically populated -->
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Compliance & Signatures -->
+                                    <div class="mb-4">
+                                        <h6 class="text-primary border-bottom pb-2"><i class="bi bi-shield-check me-2"></i>Compliance & Signatures</h6>
+                                        <div id="complianceChecklist">
+                                            <!-- Dynamically populated -->
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- AI-Generated Checklist (if any) -->
+                                    <div id="aiChecklistSection" class="mb-4 d-none">
+                                        <h6 class="text-info border-bottom pb-2"><i class="bi bi-robot me-2"></i>AI-Suggested Items</h6>
+                                        <div id="aiChecklistItems">
+                                            <!-- Dynamically populated -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Review Decision -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="bi bi-check2-square me-2"></i>Review Decision</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Remarks (visible to client)</label>
+                                        <textarea class="form-control" id="reviewRemarks" rows="3" placeholder="Enter remarks for the client..."></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Internal Notes (admin only)</label>
+                                        <textarea class="form-control" id="reviewInternalNotes" rows="2" placeholder="Internal notes for admin..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4">
+                            <!-- Review Summary -->
+                            <div class="card mb-3 sticky-top" style="top: 10px;">
+                                <div class="card-header bg-secondary text-white">
+                                    <h6 class="mb-0"><i class="bi bi-clipboard-data me-2"></i>Review Summary</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <small class="text-muted d-block">Checklist Progress</small>
+                                        <div class="progress mt-1" style="height: 20px;">
+                                            <div class="progress-bar bg-success" id="checklistProgress" role="progressbar" style="width: 0%">0%</div>
+                                        </div>
+                                    </div>
+                                    <div class="row text-center">
+                                        <div class="col-4">
+                                            <h4 class="text-success mb-0" id="checkedCount">0</h4>
+                                            <small class="text-muted">Verified</small>
+                                        </div>
+                                        <div class="col-4">
+                                            <h4 class="text-warning mb-0" id="pendingCount">0</h4>
+                                            <small class="text-muted">Pending</small>
+                                        </div>
+                                        <div class="col-4">
+                                            <h4 class="text-danger mb-0" id="requiredCount">0</h4>
+                                            <small class="text-muted">Required</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-footer">
+                                    <div class="d-grid gap-2">
+                                        <button type="button" class="btn btn-success" id="btnApprove">
+                                            <i class="bi bi-check-lg me-2"></i>Approve & Forward to Admin
+                                        </button>
+                                        <button type="button" class="btn btn-danger" id="btnReject">
+                                            <i class="bi bi-x-lg me-2"></i>Reject Document
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Quick Reference -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Guidelines</h6>
+                                </div>
+                                <div class="card-body small">
+                                    <ul class="mb-0 ps-3">
+                                        <li><strong>Legal Accuracy:</strong> Verify all legal terms and statements</li>
+                                        <li><strong>Formatting:</strong> Check proper layout and structure</li>
+                                        <li><strong>Signatures:</strong> Ensure required signatures are present</li>
+                                        <li><strong>Cross-references:</strong> Verify all document references</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Wizard Navigation Footer -->
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <div class="ms-auto">
+                    <button type="button" class="btn btn-outline-primary me-2" id="btnPrevStep" onclick="prevStep()" style="display: none;">
+                        <i class="bi bi-arrow-left me-1"></i>Previous
+                    </button>
+                    <button type="button" class="btn btn-primary" id="btnNextStep" onclick="nextStep()">
+                        Next<i class="bi bi-arrow-right ms-1"></i>
+                    </button>
                 </div>
             </div>
         </div>
@@ -463,9 +610,28 @@
     let currentDocumentId = null;
     let currentDocument = null;
     let checklistItems = [];
+    let currentStep = 1;
+    const totalSteps = 3;
+    let staffReviewData = null;
 
-    // All document types are now editable by staff (upload new version)
-    // Staff can upload corrected versions of any file type
+    // Lawyer Content Checklist Definition
+    const lawyerContentChecklist = {
+        legalAccuracy: [
+            { id: 'legal_terms', label: 'Legal terms are accurate and appropriate', description: 'Verify all legal terminology is correct for the document type' },
+            { id: 'legal_citations', label: 'Legal citations are correct', description: 'Check all statute, case, or regulation references' },
+            { id: 'legal_compliance', label: 'Document complies with legal requirements', description: 'Ensure document meets all applicable legal standards' }
+        ],
+        docQuality: [
+            { id: 'formatting', label: 'Document formatting is correct', description: 'Check margins, fonts, spacing, and layout' },
+            { id: 'spelling_grammar', label: 'Spelling and grammar are correct', description: 'Verify no spelling or grammatical errors' },
+            { id: 'client_info', label: 'Client information is accurate', description: 'Names, addresses, dates, and other client details are correct' }
+        ],
+        compliance: [
+            { id: 'signatures', label: 'Required signatures are present', description: 'All necessary signatures and initials are in place' },
+            { id: 'cross_refs', label: 'Cross-references are valid', description: 'Internal and external document references are accurate' },
+            { id: 'notarization', label: 'Notarization requirements met (if applicable)', description: 'Document is properly notarized if required' }
+        ]
+    };
 
     document.addEventListener('DOMContentLoaded', function() {
         loadStats();
@@ -488,8 +654,58 @@
         document.getElementById('btnApprove').addEventListener('click', approveDocument);
         document.getElementById('btnReject').addEventListener('click', rejectDocument);
         document.getElementById('btnUploadNewVersion').addEventListener('click', uploadNewVersion);
+        
+        // Reset wizard when modal is closed
+        document.getElementById('reviewModal').addEventListener('hidden.bs.modal', resetWizard);
     });
 
+    // ===== WIZARD NAVIGATION =====
+    function goToStep(step) {
+        if (step < 1 || step > totalSteps) return;
+        
+        currentStep = step;
+        
+        // Update step indicators
+        document.querySelectorAll('.wizard-step').forEach((el, idx) => {
+            el.classList.remove('active', 'completed');
+            if (idx + 1 < step) el.classList.add('completed');
+            if (idx + 1 === step) el.classList.add('active');
+        });
+        
+        // Update pages
+        document.querySelectorAll('.wizard-page').forEach((el, idx) => {
+            el.classList.remove('active');
+            if (idx + 1 === step) el.classList.add('active');
+        });
+        
+        // Update navigation buttons
+        document.getElementById('btnPrevStep').style.display = step > 1 ? 'inline-block' : 'none';
+        document.getElementById('btnNextStep').style.display = step < totalSteps ? 'inline-block' : 'none';
+        
+        // On step 3, render the content checklist
+        if (step === 3) {
+            renderContentChecklist();
+        }
+    }
+    
+    function nextStep() {
+        goToStep(currentStep + 1);
+    }
+    
+    function prevStep() {
+        goToStep(currentStep - 1);
+    }
+    
+    function resetWizard() {
+        currentStep = 1;
+        goToStep(1);
+        document.getElementById('step1PreviewContainer').classList.remove('d-none');
+        document.getElementById('step1PdfViewer').classList.add('d-none');
+        document.getElementById('step1ImageViewer').classList.add('d-none');
+        document.getElementById('step1UnsupportedViewer').classList.add('d-none');
+    }
+
+    // ===== STATS & DOCUMENTS =====
     async function loadStats() {
         try {
             const response = await fetch('/api/ReviewApi/stats');
@@ -508,11 +724,7 @@
 
     async function loadPendingDocuments(assignedOnly) {
         const tbody = document.getElementById('documents-tbody');
-        tbody.innerHTML = `
-            <tr>
-                            <td colspan="8" class="text-center py-4">
-            </tr>
-        `;
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4"><div class="spinner-border text-primary"></div></td></tr>`;
 
         try {
             const response = await fetch(`/api/ReviewApi/lawyer/pending?assignedToMe=${assignedOnly}`);
@@ -561,19 +773,15 @@
             }
         } catch (error) {
             console.error('Error loading documents:', error);
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="8" class="text-center py-4 text-danger">
-                        Error loading documents. Please try again.
-                    </td>
-                </tr>
-            `;
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-danger">Error loading documents. Please try again.</td></tr>`;
         }
     }
 
+    // ===== OPEN REVIEW MODAL =====
     async function openReviewModal(documentId) {
         currentDocumentId = documentId;
         document.getElementById('reviewDocumentId').value = documentId;
+        resetWizard();
 
         const modal = new bootstrap.Modal(document.getElementById('reviewModal'));
         modal.show();
@@ -584,6 +792,7 @@
 
             if (data.success) {
                 const doc = data.document;
+                currentDocument = doc;
 
                 // Populate document info
                 document.getElementById('modalDocTitle').textContent = doc.title || '-';
@@ -598,22 +807,14 @@
                 document.getElementById('aiDetectedType').textContent = doc.documentType || 'Not processed';
                 document.getElementById('duplicateWarning').style.display = doc.isDuplicate ? 'block' : 'none';
 
-                // Store current document for viewer
-                currentDocument = doc;
-
-                // Edit section - always available for staff (can upload corrected version of any file type)
-                const editAccordionItem = document.getElementById('editAccordionItem');
-                const passToAdminAlert = document.getElementById('passToAdminAlert');
-                const editRestrictionsCard = document.getElementById('editRestrictionsCard');
-                
-                // Enable editing for all document types
-                editAccordionItem.classList.remove('d-none');
-                passToAdminAlert.classList.add('d-none');
-                editRestrictionsCard.classList.add('d-none');
-
                 // Versions
                 const versionsList = document.getElementById('versionsList');
                 if (doc.versions && doc.versions.length > 0) {
+                    const currentVersion = doc.versions.find(v => v.isCurrentVersion) || doc.versions[0];
+                    document.getElementById('currentVersionNumber').textContent = `v${currentVersion.versionNumber}`;
+                    document.getElementById('currentVersionBy').textContent = currentVersion.changedBy || '-';
+                    document.getElementById('currentVersionDate').textContent = formatDate(currentVersion.createdAt);
+                    
                     versionsList.innerHTML = doc.versions.map(v => `
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             <div>
@@ -630,53 +831,19 @@
                     versionsList.innerHTML = '<li class="list-group-item text-muted">No version history</li>';
                 }
 
-                // Checklist - prefer AI-generated checklist, fall back to DB checklist items
-                checklistItems = data.checklistItems || [];
-                
-                // If AI analysis has a checklist, merge/override with AI items
-                if (data.aiAnalysis && data.aiAnalysis.checklist && Array.isArray(data.aiAnalysis.checklist) && data.aiAnalysis.checklist.length > 0) {
-                    // Use AI-generated checklist items (they have item, status, detail)
-                    const aiChecklist = data.aiAnalysis.checklist;
-                    
-                    // If no DB checklist items yet, create items from AI checklist
-                    if (checklistItems.length === 0) {
-                        checklistItems = aiChecklist.map((ai, idx) => ({
-                            id: -(idx + 1), // negative IDs for AI-generated items
-                            itemName: ai.item,
-                            description: `AI: ${ai.detail || ''} [${(ai.status || 'warning').toUpperCase()}]`,
-                            isRequired: ai.status === 'fail',
-                            aiStatus: ai.status,
-                            aiDetail: ai.detail
-                        }));
-                    } else {
-                        // Merge: add AI status info to existing items + append any AI items not in DB
-                        const existingNames = checklistItems.map(c => c.itemName?.toLowerCase());
-                        let nextId = -1;
-                        aiChecklist.forEach(ai => {
-                            const match = checklistItems.find(c => 
-                                c.itemName?.toLowerCase().includes(ai.item?.toLowerCase()?.substring(0, 20)) ||
-                                ai.item?.toLowerCase().includes(c.itemName?.toLowerCase()?.substring(0, 20))
-                            );
-                            if (match) {
-                                match.aiStatus = ai.status;
-                                match.aiDetail = ai.detail;
-                            } else {
-                                checklistItems.push({
-                                    id: nextId--,
-                                    itemName: ai.item,
-                                    description: ai.detail || '',
-                                    isRequired: ai.status === 'fail',
-                                    aiStatus: ai.status,
-                                    aiDetail: ai.detail
-                                });
-                            }
-                        });
-                    }
-                }
-                
-                renderChecklist(checklistItems);
+                // Set download URL for step 1
+                document.getElementById('step1DownloadBtn').href = `/api/DocumentApi/${documentId}/download`;
 
-                // Clear previous inputs
+                // Load and display Staff Review Summary
+                await loadStaffReviewSummary(documentId, data);
+
+                // Store AI checklist items for step 3
+                checklistItems = data.checklistItems || [];
+                if (data.aiAnalysis?.checklist) {
+                    checklistItems = data.aiAnalysis.checklist;
+                }
+
+                // Clear form inputs
                 document.getElementById('reviewRemarks').value = '';
                 document.getElementById('reviewInternalNotes').value = '';
                 document.getElementById('editFile').value = '';
@@ -688,70 +855,238 @@
         }
     }
 
-    function renderChecklist(items) {
-        const container = document.getElementById('checklistContainer');
-
-        if (items.length === 0) {
-            container.innerHTML = '<p class="text-muted">No checklist items configured for this document type</p>';
-            return;
-        }
-
-        container.innerHTML = items.map(item => {
-            // AI status indicator
-            let aiIndicator = '';
-            if (item.aiStatus) {
-                const statusColors = { pass: 'success', fail: 'danger', warning: 'warning' };
-                const statusIcons = { pass: 'check-circle-fill', fail: 'x-circle-fill', warning: 'exclamation-triangle-fill' };
-                const statusLabels = { pass: 'AI: Pass', fail: 'AI: Fail', warning: 'AI: Warning' };
-                const color = statusColors[item.aiStatus] || 'secondary';
-                const icon = statusIcons[item.aiStatus] || 'question-circle';
-                const label = statusLabels[item.aiStatus] || 'AI: Unknown';
-                aiIndicator = `<span class="badge bg-${color} ms-2"><i class="bi bi-${icon} me-1"></i>${label}</span>`;
-            }
+    // ===== STAFF REVIEW SUMMARY =====
+    async function loadStaffReviewSummary(documentId, reviewData) {
+        const summaryEl = document.getElementById('staffReviewSummary');
+        const changesEl = document.getElementById('staffMetadataChanges');
+        
+        try {
+            // Extract staff review from reviewHistory
+            const reviewHistory = reviewData.document?.reviewHistory || [];
+            const staffReview = reviewHistory.find(r => r.reviewerRole === 'Staff');
             
-            // AI detail
-            let aiDetail = '';
-            if (item.aiDetail) {
-                aiDetail = `<br><small class="text-primary"><i class="bi bi-robot me-1"></i>${escapeHtml(item.aiDetail)}</small>`;
+            if (staffReview) {
+                staffReviewData = staffReview;
+                
+                // Display Staff Review Summary
+                let summaryHtml = `
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-check-circle-fill text-success me-2"></i>
+                        <strong>Staff Review Completed</strong>
+                    </div>
+                    <div class="small">
+                        <div class="mb-1"><strong>Reviewed by:</strong> ${escapeHtml(staffReview.reviewer || 'Staff Member')}</div>
+                        <div class="mb-1"><strong>Date:</strong> ${formatDate(staffReview.reviewedAt)}</div>
+                        <div class="mb-1"><strong>Status:</strong> <span class="badge bg-${staffReview.reviewStatus === 'Approved' ? 'success' : 'warning'}">${staffReview.reviewStatus}</span></div>
+                        ${staffReview.remarks ? `<div class="mt-2 p-2 bg-light rounded"><strong>Remarks:</strong><br>${escapeHtml(staffReview.remarks)}</div>` : ''}
+                    </div>
+                `;
+                
+                // Checklist items verified by staff
+                if (staffReview.checklistResults && staffReview.checklistResults.length > 0) {
+                    summaryHtml += `
+                        <div class="mt-3">
+                            <strong class="small">Metadata Items Checked:</strong>
+                            <div class="mt-1">
+                    `;
+                    staffReview.checklistResults.forEach(check => {
+                        const icon = check.isPassed ? 'check-circle-fill text-success' : 'x-circle-fill text-danger';
+                        summaryHtml += `
+                            <div class="d-flex align-items-center small py-1">
+                                <i class="bi bi-${icon} me-2"></i>
+                                <span>${escapeHtml(check.itemName || 'Item')}</span>
+                                ${check.remarks ? `<small class="text-muted ms-2">(${escapeHtml(check.remarks)})</small>` : ''}
+                            </div>
+                        `;
+                    });
+                    summaryHtml += '</div></div>';
+                }
+                
+                // Score summary
+                if (staffReview.checklistScore != null) {
+                    summaryHtml += `
+                        <div class="mt-2 small">
+                            <span class="badge bg-${staffReview.isChecklistComplete ? 'success' : 'warning'}">
+                                Checklist Score: ${staffReview.checklistScore}
+                            </span>
+                        </div>
+                    `;
+                }
+                
+                summaryEl.innerHTML = summaryHtml;
+                
+                // Show internal notes if available
+                if (staffReview.internalNotes) {
+                    changesEl.innerHTML = `
+                        <div class="p-2 bg-light rounded small">
+                            <strong>Staff Internal Notes:</strong><br>
+                            ${escapeHtml(staffReview.internalNotes)}
+                        </div>
+                    `;
+                } else {
+                    changesEl.innerHTML = '<p class="text-muted mb-0 small">No additional notes from staff</p>';
+                }
+            } else {
+                // No staff review data available - show placeholder
+                summaryEl.innerHTML = `
+                    <div class="text-center text-muted">
+                        <i class="bi bi-hourglass" style="font-size: 1.5rem;"></i>
+                        <p class="small mb-0 mt-2">No staff review available yet</p>
+                    </div>
+                `;
+                changesEl.innerHTML = '<p class="text-muted mb-0 small">No data available</p>';
             }
+        } catch (error) {
+            console.error('Error loading staff review:', error);
+            summaryEl.innerHTML = '<p class="text-danger small">Error loading staff review</p>';
+        }
+    }
 
-            return `
-                <div class="form-check mb-2 p-3 border rounded checklist-item ${item.aiStatus === 'fail' ? 'border-danger bg-danger bg-opacity-10' : item.aiStatus === 'pass' ? 'border-success bg-success bg-opacity-10' : item.aiStatus === 'warning' ? 'border-warning bg-warning bg-opacity-10' : ''}" data-item-id="${item.id}">
-                    <input class="form-check-input" type="checkbox" id="check_${item.id}" ${item.aiStatus === 'pass' ? 'checked' : ''}>
-                    <label class="form-check-label" for="check_${item.id}">
-                        <strong>${escapeHtml(item.itemName)}</strong>
-                        ${item.isRequired ? '<span class="badge bg-danger ms-1">Required</span>' : ''}
-                        ${aiIndicator}
-                        ${item.description && !item.aiDetail ? `<br><small class="text-muted">${escapeHtml(item.description)}</small>` : ''}
-                        ${aiDetail}
-                    </label>
-                    <input type="text" class="form-control form-control-sm mt-2" placeholder="Optional remarks..." id="check_remarks_${item.id}">
-                </div>
-            `;
-        }).join('');
+    // ===== CONTENT CHECKLIST (Step 3) =====
+    function renderContentChecklist() {
+        // Legal Accuracy
+        const legalContainer = document.getElementById('legalAccuracyChecklist');
+        legalContainer.innerHTML = lawyerContentChecklist.legalAccuracy.map(item => createChecklistItem(item, 'legal')).join('');
+        
+        // Document Quality
+        const qualityContainer = document.getElementById('docQualityChecklist');
+        qualityContainer.innerHTML = lawyerContentChecklist.docQuality.map(item => createChecklistItem(item, 'quality')).join('');
+        
+        // Compliance
+        const complianceContainer = document.getElementById('complianceChecklist');
+        complianceContainer.innerHTML = lawyerContentChecklist.compliance.map(item => createChecklistItem(item, 'compliance')).join('');
+        
+        // AI-generated items
+        if (checklistItems && checklistItems.length > 0) {
+            const aiSection = document.getElementById('aiChecklistSection');
+            const aiContainer = document.getElementById('aiChecklistItems');
+            aiSection.classList.remove('d-none');
+            
+            aiContainer.innerHTML = checklistItems.map((item, idx) => {
+                const statusClass = item.status === 'pass' ? 'border-success bg-success bg-opacity-10' : 
+                                   item.status === 'fail' ? 'border-danger bg-danger bg-opacity-10' : 
+                                   'border-warning bg-warning bg-opacity-10';
+                const checked = item.status === 'pass' ? 'checked' : '';
+                
+                return `
+                    <div class="metadata-check-item ${statusClass}" data-item-id="ai_${idx}">
+                        <input class="form-check-input" type="checkbox" id="ai_check_${idx}" ${checked} onchange="updateChecklistProgress()">
+                        <label class="form-check-label" for="ai_check_${idx}">
+                            <strong>${escapeHtml(item.item || item.itemName)}</strong>
+                            ${item.detail ? `<br><small class="text-muted"><i class="bi bi-robot me-1"></i>${escapeHtml(item.detail)}</small>` : ''}
+                        </label>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // Add change listeners to all checkboxes
+        document.querySelectorAll('.metadata-check-item input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', updateChecklistProgress);
+        });
+        
+        updateChecklistProgress();
+    }
+    
+    function createChecklistItem(item, category) {
+        return `
+            <div class="metadata-check-item" data-item-id="${item.id}">
+                <input class="form-check-input" type="checkbox" id="${category}_${item.id}" onchange="updateChecklistProgress()">
+                <label class="form-check-label" for="${category}_${item.id}">
+                    <strong>${escapeHtml(item.label)}</strong>
+                    <br><small class="text-muted">${escapeHtml(item.description)}</small>
+                </label>
+            </div>
+        `;
+    }
+    
+    function updateChecklistProgress() {
+        const allCheckboxes = document.querySelectorAll('.wizard-page[data-page="3"] .metadata-check-item input[type="checkbox"]');
+        const checked = document.querySelectorAll('.wizard-page[data-page="3"] .metadata-check-item input[type="checkbox"]:checked');
+        
+        const total = allCheckboxes.length;
+        const checkedCount = checked.length;
+        const percentage = total > 0 ? Math.round((checkedCount / total) * 100) : 0;
+        
+        document.getElementById('checkedCount').textContent = checkedCount;
+        document.getElementById('pendingCount').textContent = total - checkedCount;
+        document.getElementById('requiredCount').textContent = '0'; // All items optional for lawyer
+        
+        const progressBar = document.getElementById('checklistProgress');
+        progressBar.style.width = percentage + '%';
+        progressBar.textContent = percentage + '%';
+        progressBar.className = 'progress-bar ' + (percentage >= 80 ? 'bg-success' : percentage >= 50 ? 'bg-warning' : 'bg-danger');
     }
 
     function getChecklistResults() {
-        return checklistItems.map(item => ({
-            checklistItemId: item.id,
-            isPassed: document.getElementById(`check_${item.id}`)?.checked || false,
-            remarks: document.getElementById(`check_remarks_${item.id}`)?.value || null
-        }));
+        const results = [];
+        
+        // Get lawyer checklist results
+        Object.keys(lawyerContentChecklist).forEach(category => {
+            lawyerContentChecklist[category].forEach(item => {
+                const checkbox = document.getElementById(`${category === 'legalAccuracy' ? 'legal' : category === 'docQuality' ? 'quality' : 'compliance'}_${item.id}`);
+                results.push({
+                    itemId: item.id?.toString() || `${category}_${item.id}`,
+                    category: category,
+                    itemName: item.label,
+                    isPassed: checkbox?.checked || false,
+                    remarks: null
+                });
+            });
+        });
+        
+        // Get AI checklist results
+        checklistItems.forEach((item, idx) => {
+            const checkbox = document.getElementById(`ai_check_${idx}`);
+            results.push({
+                itemId: item.id?.toString() || `ai_${idx}`,
+                category: 'ai',
+                itemName: item.item || item.itemName,
+                isPassed: checkbox?.checked || false,
+                remarks: null
+            });
+        });
+        
+        return results;
     }
 
+    // ===== DOCUMENT PREVIEW =====
+    function loadDocumentPreview() {
+        if (!currentDocument) return;
+        
+        const fileExt = (currentDocument.fileExtension || '').toLowerCase();
+        const viewUrl = `/api/DocumentApi/${currentDocumentId}/view`;
+        
+        document.getElementById('step1PreviewContainer').classList.add('d-none');
+        
+        if (fileExt === '.pdf') {
+            const viewer = document.getElementById('step1PdfViewer');
+            viewer.src = viewUrl + '#toolbar=0&navpanes=0';
+            viewer.classList.remove('d-none');
+        } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'].includes(fileExt)) {
+            document.getElementById('step1ImagePreview').src = viewUrl;
+            document.getElementById('step1ImageViewer').classList.remove('d-none');
+        } else {
+            document.getElementById('step1UnsupportedViewer').classList.remove('d-none');
+        }
+    }
+    
+    function downloadForEdit() {
+        if (!currentDocumentId) return;
+        window.open(`/api/DocumentApi/${currentDocumentId}/download`, '_blank');
+    }
+
+    // ===== APPROVE/REJECT =====
     async function approveDocument() {
         const documentId = document.getElementById('reviewDocumentId').value;
         const remarks = document.getElementById('reviewRemarks').value;
         const internalNotes = document.getElementById('reviewInternalNotes').value;
         const checklistResults = getChecklistResults();
 
-        // Check required items
-        const requiredUnchecked = checklistItems.filter(item =>
-            item.isRequired && !document.getElementById(`check_${item.id}`)?.checked
-        );
-
-        if (requiredUnchecked.length > 0) {
-            if (!confirm(`${requiredUnchecked.length} required checklist items are not checked. Continue anyway?`)) {
+        // Check if at least some items are verified
+        const checkedCount = checklistResults.filter(r => r.isPassed).length;
+        if (checkedCount < 3) {
+            if (!confirm('Only ' + checkedCount + ' checklist items verified. Are you sure you want to approve?')) {
                 return;
             }
         }
@@ -760,7 +1095,17 @@
             const response = await fetch(`/api/ReviewApi/${documentId}/lawyer-approve`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ remarks, internalNotes, checklistResults })
+                body: JSON.stringify({ 
+                    remarks, 
+                    internalNotes, 
+                    checklistResults,
+                    lawyerReviewSummary: {
+                        reviewDate: new Date().toISOString(),
+                        checkedItems: checklistResults.filter(r => r.isPassed).map(r => r.itemName),
+                        totalChecked: checkedCount,
+                        totalItems: checklistResults.length
+                    }
+                })
             });
 
             const data = await response.json();
@@ -846,8 +1191,9 @@
             const data = await response.json();
 
             if (data.success) {
-                alert(`New version ${data.versionNumber} uploaded successfully! Client has been notified.`);
-                openReviewModal(documentId); // Refresh modal
+                alert(`New version ${data.versionNumber} uploaded successfully!`);
+                // Refresh the modal
+                openReviewModal(documentId);
             } else {
                 alert('Error: ' + (data.message || 'Failed to upload new version'));
             }
@@ -865,20 +1211,14 @@
         const statusEl = document.getElementById('signatureStatus');
         const resultEl = document.getElementById('signatureResult');
         
-        // Show loading
         statusEl.innerHTML = `
             <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-            <p class="text-muted small mb-0 mt-2">AI is analyzing document for signatures...</p>
+            <p class="text-muted small mb-0 mt-2">Analyzing signatures...</p>
         `;
         statusEl.classList.remove('d-none');
         resultEl.classList.add('d-none');
 
         try {
-            // Get client signature info first
-            const clientSigRes = await fetch(`/api/DocumentApi/${documentId}/client-signature`);
-            const clientSigData = await clientSigRes.json();
-
-            // Verify signature
             const response = await fetch(`/api/DocumentApi/${documentId}/verify-signature`, {
                 method: 'POST'
             });
@@ -887,34 +1227,22 @@
             if (data.success && data.verification) {
                 const v = data.verification;
                 
-                // Update UI
                 statusEl.classList.add('d-none');
                 resultEl.classList.remove('d-none');
 
-                // Status badge
                 const statusBadge = document.getElementById('sigVerifyStatus');
                 statusBadge.textContent = v.verificationStatus;
                 statusBadge.className = 'badge ' + getSignatureStatusBadge(v.verificationStatus);
 
-                // Confidence
                 document.getElementById('sigConfidence').textContent = 
                     v.confidenceScore != null ? `${v.confidenceScore.toFixed(0)}%` : '-';
-
-                // Detected name
                 document.getElementById('sigDetectedName').textContent = v.signerNameDetected || 'Not detected';
 
-                // Message
-                document.getElementById('sigMessage').textContent = v.message || '-';
-
-                // Show client's reference signature if available
-                if (clientSigData.success && clientSigData.hasSignature) {
-                    document.getElementById('clientSignatureImg').src = clientSigData.signaturePath;
-                    document.getElementById('clientSignatureRef').classList.remove('d-none');
-                }
-
-                // Auto-check signature checklist item if verified
+                // Auto-check signature item if verified
                 if (v.isVerified === true) {
-                    autoCheckSignatureChecklist();
+                    const sigCheckbox = document.getElementById('compliance_signatures');
+                    if (sigCheckbox) sigCheckbox.checked = true;
+                    updateChecklistProgress();
                 }
             } else {
                 statusEl.innerHTML = `
@@ -943,18 +1271,109 @@
         return badges[status] || 'bg-secondary';
     }
 
-    function autoCheckSignatureChecklist() {
-        // Find signature-related checklist items and auto-check them
-        const checkboxes = document.querySelectorAll('#checklistContainer input[type="checkbox"]');
-        checkboxes.forEach(cb => {
-            const label = cb.closest('.form-check')?.querySelector('label')?.textContent?.toLowerCase() || '';
-            if (label.includes('signature') && !cb.checked) {
-                cb.checked = true;
-                cb.dispatchEvent(new Event('change'));
+    // ===== DOCUMENT VIEWER =====
+    function openDocumentViewer() {
+        if (!currentDocument) return;
+
+        const modal = new bootstrap.Modal(document.getElementById('documentViewerModal'));
+        modal.show();
+
+        document.getElementById('viewerDocTitle').textContent = currentDocument.title || currentDocument.originalFileName;
+        document.getElementById('viewerDownloadBtn').href = `/api/DocumentApi/${currentDocumentId}/download`;
+
+        document.getElementById('pdfViewer').classList.add('d-none');
+        document.getElementById('imageViewer').classList.add('d-none');
+        document.getElementById('unsupportedViewer').classList.add('d-none');
+        document.getElementById('documentPreviewContainer').classList.remove('d-none');
+
+        const fileExt = (currentDocument.fileExtension || '').toLowerCase();
+        const viewUrl = `/api/DocumentApi/${currentDocumentId}/view`;
+        const downloadUrl = `/api/DocumentApi/${currentDocumentId}/download`;
+
+        loadAIAnalysis(currentDocumentId);
+
+        setTimeout(() => {
+            document.getElementById('documentPreviewContainer').classList.add('d-none');
+            document.getElementById('pdfViewer').classList.add('d-none');
+            document.getElementById('imageViewer').classList.add('d-none');
+            document.getElementById('unsupportedViewer').classList.add('d-none');
+            document.getElementById('officeViewer').classList.add('d-none');
+
+            if (fileExt === '.pdf') {
+                const pdfViewer = document.getElementById('pdfViewer');
+                pdfViewer.src = viewUrl + '#toolbar=0&navpanes=0';
+                pdfViewer.classList.remove('d-none');
+            } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.tif', '.tiff'].includes(fileExt)) {
+                document.getElementById('imagePreview').src = viewUrl;
+                document.getElementById('imageViewer').classList.remove('d-none');
+            } else if (['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'].includes(fileExt)) {
+                const fullUrl = window.location.origin + viewUrl;
+                const googleViewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(fullUrl)}&embedded=true`;
+                const officeViewer = document.getElementById('officeViewer');
+                officeViewer.src = googleViewerUrl;
+                officeViewer.classList.remove('d-none');
+            } else {
+                document.getElementById('unsupportedDownloadBtn').href = downloadUrl;
+                document.getElementById('unsupportedViewer').classList.remove('d-none');
             }
-        });
+        }, 500);
     }
 
+    async function loadAIAnalysis(documentId) {
+        try {
+            const response = await fetch(`/api/DocumentApi/${documentId}/ai-analysis`);
+            const data = await response.json();
+
+            if (data.success) {
+                document.getElementById('viewerDetectedType').textContent = data.documentType || '-';
+                
+                const confidence = data.confidence || 0;
+                const confidenceBar = document.getElementById('viewerConfidenceBar');
+                confidenceBar.style.width = confidence + '%';
+                confidenceBar.textContent = confidence + '%';
+                confidenceBar.className = 'progress-bar ' + (confidence >= 80 ? 'bg-success' : confidence >= 50 ? 'bg-warning' : 'bg-danger');
+
+                const issuesList = document.getElementById('viewerIssuesList');
+                const issues = data.issues || [];
+                document.getElementById('viewerAIMistakesCount').textContent = issues.length + ' issues detected';
+
+                if (issues.length > 0) {
+                    issuesList.innerHTML = issues.map((issue, idx) => `
+                        <li class="list-group-item small">
+                            <div class="d-flex align-items-start">
+                                <span class="badge ${getSeverityBadge(issue.severity)} me-2">${idx + 1}</span>
+                                <div>
+                                    <strong>${escapeHtml(issue.type)}</strong>
+                                    <p class="mb-0 text-muted">${escapeHtml(issue.message)}</p>
+                                </div>
+                            </div>
+                        </li>
+                    `).join('');
+                } else {
+                    issuesList.innerHTML = '<li class="list-group-item text-success small"><i class="bi bi-check-circle me-1"></i>No issues detected</li>';
+                }
+
+                const confidentialAlert = document.getElementById('viewerConfidentialAlert');
+                confidentialAlert.classList.toggle('d-none', !data.isConfidential);
+
+                const duplicateAlert = document.getElementById('viewerDuplicateAlert');
+                duplicateAlert.classList.toggle('d-none', !data.isDuplicate);
+                if (data.isDuplicate) {
+                    document.getElementById('viewerDuplicateInfo').textContent = data.duplicateInfo || 'Similar document found.';
+                }
+
+                const keywordsDiv = document.getElementById('viewerKeywords');
+                const keywords = data.keywords || [];
+                keywordsDiv.innerHTML = keywords.length > 0 
+                    ? keywords.map(k => `<span class="badge bg-secondary me-1 mb-1">${escapeHtml(k)}</span>`).join('')
+                    : '<span class="text-muted small">No keywords extracted</span>';
+            }
+        } catch (error) {
+            console.error('Error loading AI analysis:', error);
+        }
+    }
+
+    // ===== UTILITY FUNCTIONS =====
     function getFileIcon(ext) {
         const icons = {
             '.pdf': 'bi-file-pdf text-danger',
@@ -991,177 +1410,6 @@
         return div.innerHTML;
     }
 
-    function scrollToEdit() {
-        // Expand the edit accordion
-        const editCollapse = document.getElementById('editCollapse');
-        const bsCollapse = new bootstrap.Collapse(editCollapse, { toggle: false });
-        bsCollapse.show();
-        
-        // Scroll to the edit section
-        setTimeout(() => {
-            document.getElementById('editAccordion').scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 300);
-    }
-
-    function downloadDocument() {
-        if (!currentDocumentId) return;
-        window.open(`/api/DocumentApi/${currentDocumentId}/download`, '_blank');
-    }
-
-    function downloadAndEdit() {
-        if (!currentDocumentId) return;
-        
-        // Download the document
-        window.open(`/api/DocumentApi/${currentDocumentId}/download`, '_blank');
-        
-        // Close viewer modal
-        const viewerModal = bootstrap.Modal.getInstance(document.getElementById('documentViewerModal'));
-        if (viewerModal) viewerModal.hide();
-        
-        // Show instruction and expand edit section
-        setTimeout(() => {
-            scrollToEdit();
-            alert('Document downloaded! Make your edits offline, then upload the corrected version using the form below.');
-        }, 500);
-    }
-
-    // Document Viewer Functions
-    function openDocumentViewer() {
-        if (!currentDocument) return;
-
-        const modal = new bootstrap.Modal(document.getElementById('documentViewerModal'));
-        modal.show();
-
-        // Set title
-        document.getElementById('viewerDocTitle').textContent = currentDocument.title || currentDocument.originalFileName;
-
-        // Set download button URL
-        document.getElementById('viewerDownloadBtn').href = `/api/DocumentApi/${currentDocumentId}/download`;
-
-        // Hide all viewers first
-        document.getElementById('pdfViewer').classList.add('d-none');
-        document.getElementById('imageViewer').classList.add('d-none');
-        document.getElementById('unsupportedViewer').classList.add('d-none');
-        document.getElementById('documentPreviewContainer').classList.remove('d-none');
-
-        const fileExt = (currentDocument.fileExtension || '').toLowerCase();
-        const viewUrl = `/api/DocumentApi/${currentDocumentId}/view`;
-        const downloadUrl = `/api/DocumentApi/${currentDocumentId}/download`;
-
-        // Load AI analysis data
-        loadAIAnalysis(currentDocumentId);
-
-        setTimeout(() => {
-            document.getElementById('documentPreviewContainer').classList.add('d-none');
-            
-            // Hide all viewers first
-            document.getElementById('pdfViewer').classList.add('d-none');
-            document.getElementById('imageViewer').classList.add('d-none');
-            document.getElementById('unsupportedViewer').classList.add('d-none');
-            document.getElementById('officeViewer').classList.add('d-none');
-
-            if (fileExt === '.pdf') {
-                // PDF Viewer
-                const pdfViewer = document.getElementById('pdfViewer');
-                pdfViewer.src = viewUrl + '#toolbar=0&navpanes=0';
-                pdfViewer.classList.remove('d-none');
-            } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.tif', '.tiff'].includes(fileExt)) {
-                // Image Viewer
-                document.getElementById('imagePreview').src = viewUrl;
-                document.getElementById('imageViewer').classList.remove('d-none');
-            } else if (['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'].includes(fileExt)) {
-                // Office Documents - Use Google Docs Viewer
-                const fullUrl = window.location.origin + viewUrl;
-                const googleViewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(fullUrl)}&embedded=true`;
-                const officeViewer = document.getElementById('officeViewer');
-                officeViewer.src = googleViewerUrl;
-                officeViewer.classList.remove('d-none');
-                
-                // Fallback: If Google Docs fails, show download option after timeout
-                officeViewer.onerror = function() {
-                    officeViewer.classList.add('d-none');
-                    document.getElementById('unsupportedDownloadBtn').href = downloadUrl;
-                    document.getElementById('unsupportedViewer').classList.remove('d-none');
-                };
-            } else if (['.txt', '.csv', '.json', '.xml', '.html', '.htm', '.css', '.js'].includes(fileExt)) {
-                // Text files - show in iframe
-                document.getElementById('pdfViewer').src = viewUrl;
-                document.getElementById('pdfViewer').classList.remove('d-none');
-            } else {
-                document.getElementById('unsupportedDownloadBtn').href = downloadUrl;
-                document.getElementById('unsupportedViewer').classList.remove('d-none');
-            }
-        }, 500);
-    }
-
-    async function loadAIAnalysis(documentId) {
-        try {
-            const response = await fetch(`/api/DocumentApi/${documentId}/ai-analysis`);
-            const data = await response.json();
-
-            if (data.success) {
-                // Document type and confidence
-                document.getElementById('viewerDetectedType').textContent = data.documentType || '-';
-                
-                const confidence = data.confidence || 0;
-                const confidenceBar = document.getElementById('viewerConfidenceBar');
-                confidenceBar.style.width = confidence + '%';
-                confidenceBar.textContent = confidence + '%';
-                confidenceBar.className = 'progress-bar ' + (confidence >= 80 ? 'bg-success' : confidence >= 50 ? 'bg-warning' : 'bg-danger');
-
-                // Issues/Mistakes
-                const issuesList = document.getElementById('viewerIssuesList');
-                const issues = data.issues || [];
-                document.getElementById('viewerAIMistakesCount').textContent = issues.length + ' issues detected';
-
-                if (issues.length > 0) {
-                    issuesList.innerHTML = issues.map((issue, idx) => `
-                        <li class="list-group-item small">
-                            <div class="d-flex align-items-start">
-                                <span class="badge ${getSeverityBadge(issue.severity)} me-2">${idx + 1}</span>
-                                <div>
-                                    <strong>${escapeHtml(issue.type)}</strong>
-                                    <p class="mb-0 text-muted">${escapeHtml(issue.message)}</p>
-                                    ${issue.location ? `<small class="text-muted">Location: ${escapeHtml(issue.location)}</small>` : ''}
-                                </div>
-                            </div>
-                        </li>
-                    `).join('');
-                } else {
-                    issuesList.innerHTML = '<li class="list-group-item text-success small"><i class="bi bi-check-circle me-1"></i>No issues detected</li>';
-                }
-
-                // Confidential alert
-                const confidentialAlert = document.getElementById('viewerConfidentialAlert');
-                if (data.isConfidential) {
-                    confidentialAlert.classList.remove('d-none');
-                } else {
-                    confidentialAlert.classList.add('d-none');
-                }
-
-                // Duplicate alert
-                const duplicateAlert = document.getElementById('viewerDuplicateAlert');
-                if (data.isDuplicate) {
-                    duplicateAlert.classList.remove('d-none');
-                    document.getElementById('viewerDuplicateInfo').textContent = data.duplicateInfo || 'Similar document found.';
-                } else {
-                    duplicateAlert.classList.add('d-none');
-                }
-
-                // Keywords
-                const keywordsDiv = document.getElementById('viewerKeywords');
-                const keywords = data.keywords || [];
-                if (keywords.length > 0) {
-                    keywordsDiv.innerHTML = keywords.map(k => `<span class="badge bg-secondary me-1 mb-1">${escapeHtml(k)}</span>`).join('');
-                } else {
-                    keywordsDiv.innerHTML = '<span class="text-muted small">No keywords extracted</span>';
-                }
-            }
-        } catch (error) {
-            console.error('Error loading AI analysis:', error);
-        }
-    }
-
     function getSeverityBadge(severity) {
         switch (severity?.toLowerCase()) {
             case 'high': return 'bg-danger';
@@ -1169,6 +1417,18 @@
             case 'low': return 'bg-info';
             default: return 'bg-secondary';
         }
+    }
+
+    function downloadAndEdit() {
+        if (!currentDocumentId) return;
+        window.open(`/api/DocumentApi/${currentDocumentId}/download`, '_blank');
+        
+        const viewerModal = bootstrap.Modal.getInstance(document.getElementById('documentViewerModal'));
+        if (viewerModal) viewerModal.hide();
+        
+        setTimeout(() => {
+            goToStep(2);
+        }, 500);
     }
 </script>
 }

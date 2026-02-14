@@ -23,9 +23,17 @@
 <body class="@(ViewBag.Theme == "dark" ? "dark-mode" : "")">
     <a href="#main-content" class="skip-link">Skip to main content</a>
     
+    <!-- Hamburger Toggle Button -->
+    <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle navigation">
+        <span class="hamburger"></span>
+    </button>
+    
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    
     <div class="app-layout">
         <!-- Sidebar Navigation -->
-        <nav class="sidebar" role="navigation" aria-label="Main navigation">
+        <nav class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
             <div class="sidebar-header">
                 <a asp-controller="Dashboard" asp-action="Index" class="sidebar-brand">
                     <img src="/images/document_logo.png" alt="Logo" style="width: 32px; height: 32px; object-fit: contain;" />
@@ -47,12 +55,6 @@
                             <a class="nav-link" asp-controller="Document" asp-action="Index" role="menuitem">
                                 <i class="bi bi-file-earmark-text" aria-hidden="true"></i>
                                 <span>All Documents</span>
-                            </a>
-                        </li>
-                        <li class="nav-item" role="none">
-                            <a class="nav-link" asp-controller="Document" asp-action="MyDocuments" role="menuitem">
-                                <i class="bi bi-file-person" aria-hidden="true"></i>
-                                <span>My Documents</span>
                             </a>
                         </li>
                     </ul>
@@ -77,6 +79,12 @@
                             <a class="nav-link" asp-controller="Review" asp-action="Completed" role="menuitem">
                                 <i class="bi bi-check-circle" aria-hidden="true"></i>
                                 <span>Completed</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" role="none">
+                            <a class="nav-link" asp-controller="Audit" asp-action="Index" role="menuitem">
+                                <i class="bi bi-journal-text" aria-hidden="true"></i>
+                                <span>Audit Log</span>
                             </a>
                         </li>
                     </ul>
@@ -301,6 +309,41 @@
                 console.error('Error marking all as read:', error);
             }
         }
+
+        // Sidebar Toggle Functionality
+        (function() {
+            const toggle = document.getElementById('sidebarToggle');
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            
+            if (toggle && sidebar && overlay) {
+                toggle.addEventListener('click', function() {
+                    toggle.classList.toggle('active');
+                    sidebar.classList.toggle('active');
+                    overlay.classList.toggle('active');
+                    document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
+                });
+                
+                overlay.addEventListener('click', function() {
+                    toggle.classList.remove('active');
+                    sidebar.classList.remove('active');
+                    overlay.classList.remove('active');
+                    document.body.style.overflow = '';
+                });
+                
+                // Close sidebar on nav link click (mobile)
+                sidebar.querySelectorAll('.nav-link').forEach(link => {
+                    link.addEventListener('click', function() {
+                        if (window.innerWidth <= 991) {
+                            toggle.classList.remove('active');
+                            sidebar.classList.remove('active');
+                            overlay.classList.remove('active');
+                            document.body.style.overflow = '';
+                        }
+                    });
+                });
+            }
+        })();
 
         // Apply dark mode from localStorage on page load
         (function() {

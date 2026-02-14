@@ -360,7 +360,7 @@
         if (workflowStage === 'StaffReview' || workflowStage === 'PendingStaffReview') return '<span class="badge bg-warning">Needs Review</span>';
         if (workflowStage === 'LawyerReview' || workflowStage === 'PendingLawyerReview') return '<span class="badge bg-primary">Lawyer Review</span>';
         if (workflowStage === 'AdminReview' || workflowStage === 'PendingAdminReview') return '<span class="badge bg-info">Admin Review</span>';
-        return '<span class="badge bg-secondary">Pending</span>';
+        return '<span class="badge bg-warning text-dark">Pending</span>';
     }
     
     function getActionBadge(status) {

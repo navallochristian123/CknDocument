@@ -90,136 +90,421 @@
     </div>
 </div>
 
-<!-- Admin Review Modal -->
+<!-- Admin Review Wizard Modal -->
 <div class="modal fade" id="adminReviewModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Admin Review</h5>
+                <h5 class="modal-title"><i class="bi bi-shield-check me-2"></i>Final Document Review</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
+            
+            <!-- 4-Step Wizard Navigation -->
+            <div class="wizard-steps">
+                <div class="wizard-step active" data-step="1">
+                    <div class="step-number">1</div>
+                    <div class="step-label">View Document</div>
+                </div>
+                <div class="wizard-step" data-step="2">
+                    <div class="step-number">2</div>
+                    <div class="step-label">Compare Versions</div>
+                </div>
+                <div class="wizard-step" data-step="3">
+                    <div class="step-number">3</div>
+                    <div class="step-label">Review Summaries</div>
+                </div>
+                <div class="wizard-step" data-step="4">
+                    <div class="step-number">4</div>
+                    <div class="step-label">Final Decision</div>
+                </div>
+            </div>
+            
             <div class="modal-body">
-                <div class="row">
-                    <!-- Document Info -->
-                    <div class="col-lg-5">
-                        <div class="card mb-3">
-                            <div class="card-header">
-                                <h6 class="mb-0">Document Information</h6>
+                <input type="hidden" id="reviewDocumentId">
+                
+                <!-- Step 1: View Document -->
+                <div class="wizard-page active" data-page="1">
+                    <div class="row">
+                        <!-- Left: Document Info -->
+                        <div class="col-lg-4">
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="bi bi-file-earmark-text me-2"></i>Document Information</h6>
+                                </div>
+                                <div class="card-body">
+                                    <dl class="row mb-0">
+                                        <dt class="col-sm-4">Title:</dt>
+                                        <dd class="col-sm-8" id="modalDocTitle">-</dd>
+                                        <dt class="col-sm-4">Type:</dt>
+                                        <dd class="col-sm-8" id="modalDocType">-</dd>
+                                        <dt class="col-sm-4">Category:</dt>
+                                        <dd class="col-sm-8" id="modalDocCategory">-</dd>
+                                        <dt class="col-sm-4">File:</dt>
+                                        <dd class="col-sm-8" id="modalDocFile">-</dd>
+                                        <dt class="col-sm-4">Version:</dt>
+                                        <dd class="col-sm-8" id="modalDocVersion">-</dd>
+                                        <dt class="col-sm-4">Size:</dt>
+                                        <dd class="col-sm-8" id="modalDocSize">-</dd>
+                                        <dt class="col-sm-4">Submitted:</dt>
+                                        <dd class="col-sm-8" id="modalDocDate">-</dd>
+                                        <dt class="col-sm-4">By Client:</dt>
+                                        <dd class="col-sm-8" id="modalDocUploader">-</dd>
+                                    </dl>
+                                </div>
                             </div>
-                            <div class="card-body">
-                                <dl class="row mb-0">
-                                    <dt class="col-sm-4">Title:</dt>
-                                    <dd class="col-sm-8" id="modalDocTitle">-</dd>
-                                    <dt class="col-sm-4">Type:</dt>
-                                    <dd class="col-sm-8" id="modalDocType">-</dd>
-                                    <dt class="col-sm-4">Category:</dt>
-                                    <dd class="col-sm-8" id="modalDocCategory">-</dd>
-                                    <dt class="col-sm-4">File:</dt>
-                                    <dd class="col-sm-8" id="modalDocFile">-</dd>
-                                    <dt class="col-sm-4">Size:</dt>
-                                    <dd class="col-sm-8" id="modalDocSize">-</dd>
-                                    <dt class="col-sm-4">Version:</dt>
-                                    <dd class="col-sm-8" id="modalDocVersion">-</dd>
-                                    <dt class="col-sm-4">Submitted:</dt>
-                                    <dd class="col-sm-8" id="modalDocDate">-</dd>
-                                    <dt class="col-sm-4">By Client:</dt>
-                                    <dd class="col-sm-8" id="modalDocUploader">-</dd>
-                                </dl>
+                            
+                            <!-- Version History -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>Version History</h6>
+                                </div>
+                                <div class="card-body p-0" style="max-height: 200px; overflow-y: auto;">
+                                    <ul class="list-group list-group-flush" id="versionsList">
+                                    </ul>
+                                </div>
                             </div>
                         </div>
-
-                        <!-- File Actions -->
-                        <div class="card mb-3">
-                            <div class="card-body">
-                                <a href="#" class="btn btn-outline-primary w-100 mb-2" id="btnViewDocument" target="_blank">
-                                    <i class="bi bi-eye"></i> View/Preview Document
-                                </a>
-                                <a href="#" class="btn btn-outline-secondary w-100" id="btnDownloadDocument">
-                                    <i class="bi bi-download"></i> Download
-                                </a>
+                        
+                        <!-- Right: Document Preview -->
+                        <div class="col-lg-8">
+                            <div class="card h-100">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0"><i class="bi bi-eye me-2"></i>Document Preview</h6>
+                                    <div>
+                                        <a href="#" class="btn btn-sm btn-outline-secondary me-2" id="btnDownloadDocument">
+                                            <i class="bi bi-download me-1"></i>Download
+                                        </a>
+                                        <a href="#" class="btn btn-sm btn-primary" id="btnViewDocument" target="_blank">
+                                            <i class="bi bi-arrows-fullscreen me-1"></i>Full View
+                                        </a>
+                                    </div>
+                                </div>
+                                <div class="card-body p-0 bg-dark" style="min-height: 400px;">
+                                    <div id="step1PreviewContainer" class="h-100 d-flex align-items-center justify-content-center">
+                                        <div class="text-center text-white p-4">
+                                            <i class="bi bi-file-earmark-text" style="font-size: 4rem;"></i>
+                                            <p class="mt-3">Click to preview document</p>
+                                            <button type="button" class="btn btn-primary" onclick="loadDocumentPreview()">
+                                                <i class="bi bi-eye me-2"></i>Load Preview
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <iframe id="step1PdfViewer" class="w-100 d-none" style="border: none; min-height: 450px;"></iframe>
+                                    <div id="step1ImageViewer" class="d-none h-100 d-flex align-items-center justify-content-center" style="min-height: 450px;">
+                                        <img id="step1ImagePreview" style="max-width: 100%; max-height: 450px; object-fit: contain;">
+                                    </div>
+                                    <div id="step1UnsupportedViewer" class="d-none h-100 d-flex align-items-center justify-content-center flex-column text-white" style="min-height: 450px;">
+                                        <i class="bi bi-file-earmark-x" style="font-size: 4rem;"></i>
+                                        <h5 class="mt-3">Preview not available</h5>
+                                        <p class="text-muted">Download to view this file format</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-
-                        <!-- Versions -->
-                        <div class="card">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <h6 class="mb-0">Version History</h6>
-                                <button type="button" class="btn btn-sm btn-outline-primary d-none" id="btnCompareVersions" onclick="openCompareModal()">
-                                    <i class="bi bi-file-diff"></i> Compare
+                    </div>
+                </div>
+                
+                <!-- Step 2: Version Comparison -->
+                <div class="wizard-page" data-page="2">
+                    <div id="versionCompareContent">
+                        <!-- Version comparison header -->
+                        <div class="row mb-3">
+                            <div class="col-md-5">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <h6 class="text-muted mb-0">Previous Version</h6>
+                                    <select class="form-select form-select-sm w-auto" id="compareVersion1" onchange="loadVersionComparison()">
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-2 text-center">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="swapVersions()" title="Swap Versions">
+                                    <i class="bi bi-arrow-left-right"></i>
                                 </button>
                             </div>
-                            <div class="card-body p-0" style="max-height: 200px; overflow-y: auto;">
-                                <ul class="list-group list-group-flush" id="versionsList">
-                                </ul>
+                            <div class="col-md-5">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <h6 class="text-muted mb-0">Current Version</h6>
+                                    <select class="form-select form-select-sm w-auto" id="compareVersion2" onchange="loadVersionComparison()">
+                                    </select>
+                                </div>
                             </div>
                         </div>
-                    </div>
-
-                    <!-- Staff Review & Admin Decision -->
-                    <div class="col-lg-7">
-                        <!-- Staff Review Summary -->
-                        <div class="card mb-3 border-info">
-                            <div class="card-header bg-info bg-opacity-10">
-                                <h6 class="mb-0"><i class="bi bi-person-check me-2"></i>Staff Review Summary</h6>
+                        
+                        <!-- Side-by-side preview -->
+                        <div class="row g-3" style="height: 350px;">
+                            <div class="col-md-6">
+                                <div class="card h-100">
+                                    <div class="card-header bg-secondary text-white py-2">
+                                        <span id="compare1Info">Previous Version</span>
+                                    </div>
+                                    <div class="card-body p-0 bg-dark">
+                                        <iframe id="compareFrame1" class="w-100 h-100" style="border: none;"></iframe>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card h-100">
+                                    <div class="card-header bg-primary text-white py-2">
+                                        <span id="compare2Info">Current Version</span>
+                                    </div>
+                                    <div class="card-body p-0 bg-dark">
+                                        <iframe id="compareFrame2" class="w-100 h-100" style="border: none;"></iframe>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Version metadata comparison -->
+                        <div class="card mt-3">
+                            <div class="card-header bg-info bg-opacity-10 py-2">
+                                <h6 class="mb-0"><i class="bi bi-file-diff me-2"></i>Version Changes</h6>
                             </div>
                             <div class="card-body">
-                                <div class="row mb-2">
-                                    <div class="col-4"><strong>Reviewed By:</strong></div>
-                                    <div class="col-8" id="staffReviewer">-</div>
-                                </div>
-                                <div class="row mb-2">
-                                    <div class="col-4"><strong>Review Date:</strong></div>
-                                    <div class="col-8" id="staffReviewDate">-</div>
-                                </div>
-                                <div class="row mb-2">
-                                    <div class="col-4"><strong>Decision:</strong></div>
-                                    <div class="col-8" id="staffDecision">-</div>
-                                </div>
-                                <div class="row mb-2">
-                                    <div class="col-4"><strong>Checklist:</strong></div>
-                                    <div class="col-8" id="staffChecklist">-</div>
-                                </div>
                                 <div class="row">
-                                    <div class="col-4"><strong>Remarks:</strong></div>
-                                    <div class="col-8" id="staffRemarks">-</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Checklist Results from Staff -->
-                        <div class="card mb-3">
-                            <div class="card-header">
-                                <h6 class="mb-0"><i class="bi bi-list-check me-2"></i>Checklist Results</h6>
-                            </div>
-                            <div class="card-body" id="checklistResultsContainer">
-                                <p class="text-muted">Loading...</p>
-                            </div>
-                        </div>
-
-                        <!-- Admin Decision -->
-                        <div class="card">
-                            <div class="card-header bg-primary bg-opacity-10">
-                                <h6 class="mb-0"><i class="bi bi-shield-check me-2"></i>Admin Decision</h6>
-                            </div>
-                            <div class="card-body">
-                                <input type="hidden" id="reviewDocumentId">
-                                
-                                <div class="mb-3">
-                                    <label class="form-label">Admin Remarks</label>
-                                    <textarea class="form-control" id="adminRemarks" rows="3" placeholder="Optional remarks..."></textarea>
-                                </div>
-
-                                <div class="d-flex gap-2">
-                                    <button type="button" class="btn btn-success flex-fill" id="btnAdminApprove">
-                                        <i class="bi bi-check-circle"></i> Approve & Complete
-                                    </button>
-                                    <button type="button" class="btn btn-danger" id="btnAdminReject">
-                                        <i class="bi bi-x-circle"></i> Reject
-                                    </button>
+                                    <div class="col-md-6">
+                                        <table class="table table-sm mb-0">
+                                            <tr><th>File Name:</th><td id="compare1FileName">-</td></tr>
+                                            <tr><th>File Size:</th><td id="compare1FileSize">-</td></tr>
+                                            <tr><th>Uploaded:</th><td id="compare1Date">-</td></tr>
+                                            <tr><th>Changed By:</th><td id="compare1ChangedBy">-</td></tr>
+                                            <tr><th>Description:</th><td id="compare1ChangeDesc">-</td></tr>
+                                        </table>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <table class="table table-sm mb-0">
+                                            <tr><th>File Name:</th><td id="compare2FileName">-</td></tr>
+                                            <tr><th>File Size:</th><td id="compare2FileSize">-</td></tr>
+                                            <tr><th>Uploaded:</th><td id="compare2Date">-</td></tr>
+                                            <tr><th>Changed By:</th><td id="compare2ChangedBy">-</td></tr>
+                                            <tr><th>Description:</th><td id="compare2ChangeDesc">-</td></tr>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- Shown when only 1 version exists -->
+                    <div id="noVersionsMessage" class="d-none text-center py-5">
+                        <i class="bi bi-file-earmark text-muted" style="font-size: 4rem;"></i>
+                        <h5 class="mt-3 text-muted">No Version Changes</h5>
+                        <p class="text-muted">This document has only one version. No comparison available.</p>
+                        <button type="button" class="btn btn-primary" onclick="nextStep()">
+                            Continue to Review Summaries<i class="bi bi-arrow-right ms-2"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Step 3: Staff & Lawyer Review Summaries -->
+                <div class="wizard-page" data-page="3">
+                    <div class="row">
+                        <!-- Staff Review Summary -->
+                        <div class="col-lg-6">
+                            <div class="card h-100 staff-review-summary">
+                                <div class="card-header bg-success bg-opacity-10">
+                                    <h6 class="mb-0"><i class="bi bi-person-badge me-2"></i>Staff Review Summary</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3 pb-3 border-bottom">
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <small class="text-muted">Reviewed By</small>
+                                                <div><strong id="staffReviewer">-</strong></div>
+                                            </div>
+                                            <div class="col-6">
+                                                <small class="text-muted">Review Date</small>
+                                                <div><strong id="staffReviewDate">-</strong></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <small class="text-muted d-block mb-2">Metadata Verified</small>
+                                        <div id="staffMetadataChecklist">
+                                            <p class="text-muted mb-0">Loading...</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <small class="text-muted d-block mb-2">Metadata Changes Made</small>
+                                        <div id="staffMetadataChanges">
+                                            <p class="text-muted mb-0">No changes</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <small class="text-muted d-block mb-1">Staff Remarks</small>
+                                        <p class="mb-0 small bg-light p-2 rounded" id="staffRemarks">No remarks</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Lawyer Review Summary -->
+                        <div class="col-lg-6">
+                            <div class="card h-100 lawyer-review-summary">
+                                <div class="card-header bg-primary bg-opacity-10">
+                                    <h6 class="mb-0"><i class="bi bi-person-workspace me-2"></i>Lawyer Review Summary</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3 pb-3 border-bottom">
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <small class="text-muted">Reviewed By</small>
+                                                <div><strong id="lawyerReviewer">-</strong></div>
+                                            </div>
+                                            <div class="col-6">
+                                                <small class="text-muted">Review Date</small>
+                                                <div><strong id="lawyerReviewDate">-</strong></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <small class="text-muted d-block mb-2">Content Verified</small>
+                                        <div id="lawyerContentChecklist">
+                                            <p class="text-muted mb-0">Loading...</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <small class="text-muted d-block mb-2">Version Changes</small>
+                                        <div id="lawyerVersionChanges">
+                                            <p class="text-muted mb-0">No new versions uploaded</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <small class="text-muted d-block mb-1">Lawyer Remarks</small>
+                                        <p class="mb-0 small bg-light p-2 rounded" id="lawyerRemarks">No remarks</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Step 4: Final Review & Decision -->
+                <div class="wizard-page" data-page="4">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <!-- Admin Final Checklist -->
+                            <div class="card mb-3">
+                                <div class="card-header bg-warning text-dark">
+                                    <h6 class="mb-0"><i class="bi bi-clipboard-check me-2"></i>Final Review Checklist</h6>
+                                </div>
+                                <div class="card-body">
+                                    <p class="text-muted mb-3">As the final reviewer, verify all aspects of the document:</p>
+                                    
+                                    <!-- Document Completeness -->
+                                    <div class="mb-4">
+                                        <h6 class="text-primary border-bottom pb-2"><i class="bi bi-check2-all me-2"></i>Document Completeness</h6>
+                                        <div id="completenessChecklist">
+                                            <!-- Dynamically populated -->
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Review Process -->
+                                    <div class="mb-4">
+                                        <h6 class="text-primary border-bottom pb-2"><i class="bi bi-arrow-repeat me-2"></i>Review Process</h6>
+                                        <div id="processChecklist">
+                                            <!-- Dynamically populated -->
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Final Approval -->
+                                    <div class="mb-4">
+                                        <h6 class="text-primary border-bottom pb-2"><i class="bi bi-shield-check me-2"></i>Final Approval</h6>
+                                        <div id="approvalChecklist">
+                                            <!-- Dynamically populated -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Admin Remarks -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="bi bi-chat-left-text me-2"></i>Admin Remarks</h6>
+                                </div>
+                                <div class="card-body">
+                                    <textarea class="form-control" id="adminRemarks" rows="3" placeholder="Enter final remarks (visible to client and staff)..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4">
+                            <!-- Review Summary Card -->
+                            <div class="card mb-3 sticky-top" style="top: 10px;">
+                                <div class="card-header bg-secondary text-white">
+                                    <h6 class="mb-0"><i class="bi bi-clipboard-data me-2"></i>Final Verification</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <small class="text-muted d-block">Checklist Progress</small>
+                                        <div class="progress mt-1" style="height: 20px;">
+                                            <div class="progress-bar bg-success" id="adminChecklistProgress" role="progressbar" style="width: 0%">0%</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3 pb-3 border-bottom">
+                                        <div class="row text-center">
+                                            <div class="col-6">
+                                                <h4 class="text-success mb-0" id="adminCheckedCount">0</h4>
+                                                <small class="text-muted">Verified</small>
+                                            </div>
+                                            <div class="col-6">
+                                                <h4 class="text-warning mb-0" id="adminPendingCount">0</h4>
+                                                <small class="text-muted">Pending</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Review Trail -->
+                                    <div class="mb-3">
+                                        <small class="text-muted d-block mb-2">Review Trail</small>
+                                        <div class="small">
+                                            <div class="d-flex align-items-center mb-2">
+                                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                                <span>Staff Review: <strong id="trailStaffStatus">-</strong></span>
+                                            </div>
+                                            <div class="d-flex align-items-center mb-2">
+                                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                                <span>Lawyer Review: <strong id="trailLawyerStatus">-</strong></span>
+                                            </div>
+                                            <div class="d-flex align-items-center">
+                                                <i class="bi bi-hourglass text-warning me-2"></i>
+                                                <span>Admin Review: <strong>In Progress</strong></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-footer">
+                                    <div class="d-grid gap-2">
+                                        <button type="button" class="btn btn-success" id="btnAdminApprove">
+                                            <i class="bi bi-check-circle me-2"></i>Approve & Complete
+                                        </button>
+                                        <button type="button" class="btn btn-danger" id="btnAdminReject">
+                                            <i class="bi bi-x-circle me-2"></i>Reject Document
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Wizard Navigation Footer -->
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <div class="ms-auto">
+                    <button type="button" class="btn btn-outline-primary me-2" id="btnPrevStep" onclick="prevStep()" style="display: none;">
+                        <i class="bi bi-arrow-left me-1"></i>Previous
+                    </button>
+                    <button type="button" class="btn btn-primary" id="btnNextStep" onclick="nextStep()">
+                        Next<i class="bi bi-arrow-right ms-1"></i>
+                    </button>
                 </div>
             </div>
         </div>
@@ -316,6 +601,31 @@
 <script>
     let currentTab = 'pending';
     let currentDocumentId = null;
+    let currentDocument = null;
+    let currentVersions = [];
+    let currentStep = 1;
+    const totalSteps = 4;
+    let staffReviewData = null;
+    let lawyerReviewData = null;
+
+    // Admin Final Checklist Definition
+    const adminChecklist = {
+        completeness: [
+            { id: 'all_pages', label: 'All pages present and complete', description: 'Document has all required pages' },
+            { id: 'all_signatures', label: 'All required signatures obtained', description: 'All parties have signed where required' },
+            { id: 'dates_correct', label: 'All dates are correct and consistent', description: 'No date errors or inconsistencies' }
+        ],
+        process: [
+            { id: 'staff_reviewed', label: 'Staff review completed satisfactorily', description: 'Staff metadata verification completed' },
+            { id: 'lawyer_reviewed', label: 'Lawyer review completed satisfactorily', description: 'Lawyer content review completed' },
+            { id: 'changes_tracked', label: 'All changes properly documented', description: 'Version history tracks all modifications' }
+        ],
+        approval: [
+            { id: 'ready_filing', label: 'Document ready for filing/storage', description: 'Document meets all requirements for final storage' },
+            { id: 'client_notified', label: 'Client notification prepared', description: 'Client will be notified upon approval' },
+            { id: 'final_approval', label: 'Final approval granted', description: 'All review stages complete' }
+        ]
+    };
 
     document.addEventListener('DOMContentLoaded', function() {
         loadStats();
@@ -334,18 +644,63 @@
 
         document.getElementById('btnAdminApprove').addEventListener('click', adminApprove);
         document.getElementById('btnAdminReject').addEventListener('click', adminReject);
-
-        // Version comparison event listeners
-        const compareVersion1 = document.getElementById('compareVersion1');
-        const compareVersion2 = document.getElementById('compareVersion2');
-        if (compareVersion1) {
-            compareVersion1.addEventListener('change', loadVersionComparison);
-        }
-        if (compareVersion2) {
-            compareVersion2.addEventListener('change', loadVersionComparison);
-        }
+        
+        // Reset wizard when modal is closed
+        document.getElementById('adminReviewModal').addEventListener('hidden.bs.modal', resetWizard);
     });
 
+    // ===== WIZARD NAVIGATION =====
+    function goToStep(step) {
+        if (step < 1 || step > totalSteps) return;
+        
+        currentStep = step;
+        
+        // Update step indicators
+        document.querySelectorAll('.wizard-step').forEach((el, idx) => {
+            el.classList.remove('active', 'completed');
+            if (idx + 1 < step) el.classList.add('completed');
+            if (idx + 1 === step) el.classList.add('active');
+        });
+        
+        // Update pages
+        document.querySelectorAll('.wizard-page').forEach((el, idx) => {
+            el.classList.remove('active');
+            if (idx + 1 === step) el.classList.add('active');
+        });
+        
+        // Update navigation buttons
+        document.getElementById('btnPrevStep').style.display = step > 1 ? 'inline-block' : 'none';
+        document.getElementById('btnNextStep').style.display = step < totalSteps ? 'inline-block' : 'none';
+        
+        // On step 2, set up version comparison
+        if (step === 2) {
+            setupVersionComparison();
+        }
+        
+        // On step 4, render the admin checklist
+        if (step === 4) {
+            renderAdminChecklist();
+        }
+    }
+    
+    function nextStep() {
+        goToStep(currentStep + 1);
+    }
+    
+    function prevStep() {
+        goToStep(currentStep - 1);
+    }
+    
+    function resetWizard() {
+        currentStep = 1;
+        goToStep(1);
+        document.getElementById('step1PreviewContainer').classList.remove('d-none');
+        document.getElementById('step1PdfViewer').classList.add('d-none');
+        document.getElementById('step1ImageViewer').classList.add('d-none');
+        document.getElementById('step1UnsupportedViewer').classList.add('d-none');
+    }
+
+    // ===== STATS =====
     async function loadStats() {
         try {
             const response = await fetch('/api/ReviewApi/stats');
@@ -363,15 +718,10 @@
         }
     }
 
+    // ===== DOCUMENTS =====
     async function loadDocuments(tab) {
         const tbody = document.getElementById('documents-tbody');
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="7" class="text-center py-4">
-                    <div class="spinner-border text-primary" role="status"></div>
-                </td>
-            </tr>
-        `;
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4"><div class="spinner-border text-primary"></div></td></tr>`;
 
         try {
             let url = '/api/ReviewApi/pending';
@@ -389,14 +739,9 @@
                     documents = data.documents || [];
                 } else {
                     let reviews = data.reviews || [];
-                    
-                    if (tab === 'approved') {
-                        reviews = reviews.filter(r => r.reviewStatus === 'Approved');
-                    } else if (tab === 'rejected') {
-                        reviews = reviews.filter(r => r.reviewStatus === 'Rejected');
-                    }
+                    if (tab === 'approved') reviews = reviews.filter(r => r.reviewStatus === 'Approved');
+                    else if (tab === 'rejected') reviews = reviews.filter(r => r.reviewStatus === 'Rejected');
 
-                    // Map reviews to documents format for display
                     documents = reviews.map(r => ({
                         id: r.documentId,
                         title: r.documentTitle,
@@ -409,32 +754,16 @@
                 }
 
                 if (documents.length === 0) {
-                    tbody.innerHTML = `
-                        <tr>
-                            <td colspan="7" class="text-center py-5">
-                                <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
-                                <h5 class="mt-3 text-muted">No documents found</h5>
-                            </td>
-                        </tr>
-                    `;
+                    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-5"><i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i><h5 class="mt-3 text-muted">No documents found</h5></td></tr>`;
                     return;
                 }
 
-                if (tab === 'pending') {
-                    renderPendingDocuments(documents);
-                } else {
-                    renderCompletedReviews(documents);
-                }
+                if (tab === 'pending') renderPendingDocuments(documents);
+                else renderCompletedReviews(documents);
             }
         } catch (error) {
             console.error('Error loading documents:', error);
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="7" class="text-center py-4 text-danger">
-                        Error loading documents
-                    </td>
-                </tr>
-            `;
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-danger">Error loading documents</td></tr>`;
         }
     }
 
@@ -442,20 +771,13 @@
         const tbody = document.getElementById('documents-tbody');
         tbody.innerHTML = documents.map(doc => `
             <tr>
-                <td>
-                    <i class="bi ${getFileIcon(doc.fileExtension)} me-2"></i>
-                    <strong>${escapeHtml(doc.title || doc.originalFileName)}</strong>
-                </td>
+                <td><i class="bi ${getFileIcon(doc.fileExtension)} me-2"></i><strong>${escapeHtml(doc.title || doc.originalFileName)}</strong></td>
                 <td>${doc.uploader?.name || '-'}</td>
                 <td>${doc.assignedStaff?.name || '-'}</td>
                 <td><span class="badge bg-success">Staff Approved</span></td>
                 <td>${formatDate(doc.createdAt)}</td>
                 <td><span class="badge bg-warning text-dark">Pending Admin</span></td>
-                <td>
-                    <button class="btn btn-sm btn-primary" onclick="openAdminReviewModal(${doc.id})">
-                        <i class="bi bi-shield-check"></i> Review
-                    </button>
-                </td>
+                <td><button class="btn btn-sm btn-primary" onclick="openAdminReviewModal(${doc.id})"><i class="bi bi-shield-check"></i> Review</button></td>
             </tr>
         `).join('');
     }
@@ -464,30 +786,22 @@
         const tbody = document.getElementById('documents-tbody');
         tbody.innerHTML = reviews.map(r => `
             <tr>
-                <td>
-                    <strong>${escapeHtml(r.title || r.originalFileName)}</strong>
-                </td>
+                <td><strong>${escapeHtml(r.title || r.originalFileName)}</strong></td>
                 <td>${r.uploaderName || '-'}</td>
                 <td>-</td>
                 <td>-</td>
                 <td>${formatDate(r.reviewedAt)}</td>
-                <td>
-                    <span class="badge ${r.reviewStatus === 'Approved' ? 'bg-success' : 'bg-danger'}">
-                        ${r.reviewStatus}
-                    </span>
-                </td>
-                <td>
-                    <a href="/Document/Details/${r.id}" class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-eye"></i> View
-                    </a>
-                </td>
+                <td><span class="badge ${r.reviewStatus === 'Approved' ? 'bg-success' : 'bg-danger'}">${r.reviewStatus}</span></td>
+                <td><a href="/Document/Details/${r.id}" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i> View</a></td>
             </tr>
         `).join('');
     }
 
+    // ===== OPEN ADMIN REVIEW =====
     async function openAdminReviewModal(documentId) {
         currentDocumentId = documentId;
         document.getElementById('reviewDocumentId').value = documentId;
+        resetWizard();
 
         const modal = new bootstrap.Modal(document.getElementById('adminReviewModal'));
         modal.show();
@@ -498,6 +812,7 @@
 
             if (data.success) {
                 const doc = data.document;
+                currentDocument = doc;
 
                 // Document info
                 document.getElementById('modalDocTitle').textContent = doc.title || '-';
@@ -510,15 +825,12 @@
                 document.getElementById('modalDocUploader').textContent = doc.uploader?.name || '-';
 
                 // File actions
-                document.getElementById('btnViewDocument').href = `/api/DocumentApi/${documentId}/download`;
+                document.getElementById('btnViewDocument').href = `/api/DocumentApi/${documentId}/view`;
                 document.getElementById('btnDownloadDocument').href = `/api/DocumentApi/${documentId}/download`;
 
                 // Versions
                 const versionsList = document.getElementById('versionsList');
-                const btnCompareVersions = document.getElementById('btnCompareVersions');
-                
                 if (doc.versions && doc.versions.length > 0) {
-                    // Store versions for comparison
                     currentVersions = doc.versions.map(v => ({
                         id: v.versionId,
                         versionNumber: v.versionNumber,
@@ -531,60 +843,22 @@
                         isCurrentVersion: v.isCurrentVersion
                     }));
 
-                    // Show/hide compare button
-                    if (btnCompareVersions) {
-                        btnCompareVersions.style.display = currentVersions.length >= 2 ? 'inline-block' : 'none';
-                    }
-
                     versionsList.innerHTML = doc.versions.map(v => `
                         <li class="list-group-item d-flex justify-content-between align-items-center py-2">
                             <div>
                                 <small><strong>v${v.versionNumber}</strong> ${v.isCurrentVersion ? '<span class="badge bg-primary">Current</span>' : ''}</small>
                                 <br><small class="text-muted">${v.changeDescription || 'Initial'}</small>
                             </div>
-                            <a href="/api/DocumentApi/${documentId}/download?versionId=${v.versionId}" class="btn btn-sm btn-link">
-                                <i class="bi bi-download"></i>
-                            </a>
+                            <a href="/api/DocumentApi/${documentId}/download?versionId=${v.versionId}" class="btn btn-sm btn-link"><i class="bi bi-download"></i></a>
                         </li>
                     `).join('');
                 } else {
                     currentVersions = [];
-                    if (btnCompareVersions) {
-                        btnCompareVersions.style.display = 'none';
-                    }
                     versionsList.innerHTML = '<li class="list-group-item text-muted">No versions</li>';
                 }
 
-                // Staff review info
-                const staffReview = doc.reviewHistory?.find(r => r.reviewerRole === 'Staff' && r.reviewStatus === 'Approved');
-                if (staffReview) {
-                    document.getElementById('staffReviewer').textContent = staffReview.reviewer || '-';
-                    document.getElementById('staffReviewDate').textContent = formatDate(staffReview.reviewedAt);
-                    document.getElementById('staffDecision').innerHTML = '<span class="badge bg-success">Approved</span>';
-                    document.getElementById('staffChecklist').textContent = staffReview.isChecklistComplete ? 'Complete' : 'Incomplete';
-                    document.getElementById('staffRemarks').textContent = staffReview.remarks || 'No remarks';
-
-                    // Checklist results
-                    const checklistContainer = document.getElementById('checklistResultsContainer');
-                    if (staffReview.checklistResults && staffReview.checklistResults.length > 0) {
-                        checklistContainer.innerHTML = staffReview.checklistResults.map(cr => `
-                            <div class="d-flex align-items-center mb-2">
-                                <i class="bi ${cr.isPassed ? 'bi-check-circle text-success' : 'bi-x-circle text-danger'} me-2"></i>
-                                <span>${escapeHtml(cr.itemName)}</span>
-                                ${cr.remarks ? `<small class="text-muted ms-2">(${escapeHtml(cr.remarks)})</small>` : ''}
-                            </div>
-                        `).join('');
-                    } else {
-                        checklistContainer.innerHTML = '<p class="text-muted mb-0">No checklist data</p>';
-                    }
-                } else {
-                    document.getElementById('staffReviewer').textContent = '-';
-                    document.getElementById('staffReviewDate').textContent = '-';
-                    document.getElementById('staffDecision').textContent = '-';
-                    document.getElementById('staffChecklist').textContent = '-';
-                    document.getElementById('staffRemarks').textContent = '-';
-                    document.getElementById('checklistResultsContainer').innerHTML = '<p class="text-muted">No review data</p>';
-                }
+                // Load review summaries
+                loadReviewSummaries(doc);
 
                 // Clear admin remarks
                 document.getElementById('adminRemarks').value = '';
@@ -595,9 +869,283 @@
         }
     }
 
+    // ===== DOCUMENT PREVIEW (Step 1) =====
+    function loadDocumentPreview() {
+        if (!currentDocument) return;
+        
+        const fileExt = (currentDocument.fileExtension || '').toLowerCase();
+        const viewUrl = `/api/DocumentApi/${currentDocumentId}/view`;
+        
+        document.getElementById('step1PreviewContainer').classList.add('d-none');
+        
+        if (fileExt === '.pdf') {
+            const viewer = document.getElementById('step1PdfViewer');
+            viewer.src = viewUrl + '#toolbar=0&navpanes=0';
+            viewer.classList.remove('d-none');
+        } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'].includes(fileExt)) {
+            document.getElementById('step1ImagePreview').src = viewUrl;
+            document.getElementById('step1ImageViewer').classList.remove('d-none');
+        } else {
+            document.getElementById('step1UnsupportedViewer').classList.remove('d-none');
+        }
+    }
+
+    // ===== VERSION COMPARISON (Step 2) =====
+    function setupVersionComparison() {
+        if (currentVersions.length < 2) {
+            document.getElementById('versionCompareContent').classList.add('d-none');
+            document.getElementById('noVersionsMessage').classList.remove('d-none');
+            return;
+        }
+        
+        document.getElementById('versionCompareContent').classList.remove('d-none');
+        document.getElementById('noVersionsMessage').classList.add('d-none');
+
+        const v1Select = document.getElementById('compareVersion1');
+        const v2Select = document.getElementById('compareVersion2');
+        
+        v1Select.innerHTML = currentVersions.map((v, i) => 
+            `<option value="${v.id}" ${i === 1 ? 'selected' : ''}>v${v.versionNumber}</option>`
+        ).join('');
+        
+        v2Select.innerHTML = currentVersions.map((v, i) => 
+            `<option value="${v.id}" ${i === 0 ? 'selected' : ''}>v${v.versionNumber}</option>`
+        ).join('');
+
+        loadVersionComparison();
+    }
+
+    function loadVersionComparison() {
+        const v1Id = document.getElementById('compareVersion1').value;
+        const v2Id = document.getElementById('compareVersion2').value;
+        
+        const v1 = currentVersions.find(v => v.id == v1Id);
+        const v2 = currentVersions.find(v => v.id == v2Id);
+        
+        if (!v1 || !v2) return;
+
+        document.getElementById('compare1Info').textContent = `Version ${v1.versionNumber}`;
+        document.getElementById('compare2Info').textContent = `Version ${v2.versionNumber}`;
+
+        const frame1 = document.getElementById('compareFrame1');
+        const frame2 = document.getElementById('compareFrame2');
+        
+        const ext1 = v1.fileExtension?.toLowerCase() || '';
+        const ext2 = v2.fileExtension?.toLowerCase() || '';
+        
+        if (ext1 === '.pdf') {
+            frame1.src = `/api/DocumentVersionApi/${v1.id}/download#toolbar=0&navpanes=0`;
+        } else {
+            frame1.srcdoc = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:sans-serif;color:#fff;background:#333;"><div style="text-align:center;"><p>${escapeHtml(v1.fileName)}</p><p>${formatFileSize(v1.fileSize)}</p><p><em>Preview not available</em></p></div></div>`;
+        }
+        
+        if (ext2 === '.pdf') {
+            frame2.src = `/api/DocumentVersionApi/${v2.id}/download#toolbar=0&navpanes=0`;
+        } else {
+            frame2.srcdoc = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:sans-serif;color:#fff;background:#333;"><div style="text-align:center;"><p>${escapeHtml(v2.fileName)}</p><p>${formatFileSize(v2.fileSize)}</p><p><em>Preview not available</em></p></div></div>`;
+        }
+
+        // Update metadata
+        document.getElementById('compare1FileName').textContent = v1.fileName || '-';
+        document.getElementById('compare2FileName').textContent = v2.fileName || '-';
+        document.getElementById('compare1FileSize').textContent = formatFileSize(v1.fileSize);
+        document.getElementById('compare2FileSize').textContent = formatFileSize(v2.fileSize);
+        document.getElementById('compare1Date').textContent = formatDate(v1.createdAt);
+        document.getElementById('compare2Date').textContent = formatDate(v2.createdAt);
+        document.getElementById('compare1ChangedBy').textContent = v1.createdByName || '-';
+        document.getElementById('compare2ChangedBy').textContent = v2.createdByName || '-';
+        document.getElementById('compare1ChangeDesc').textContent = v1.changeDescription || '-';
+        document.getElementById('compare2ChangeDesc').textContent = v2.changeDescription || '-';
+    }
+
+    function swapVersions() {
+        const v1Select = document.getElementById('compareVersion1');
+        const v2Select = document.getElementById('compareVersion2');
+        const temp = v1Select.value;
+        v1Select.value = v2Select.value;
+        v2Select.value = temp;
+        loadVersionComparison();
+    }
+
+    // ===== REVIEW SUMMARIES (Step 3) =====
+    function loadReviewSummaries(doc) {
+        // Staff Review
+        const staffReview = doc.reviewHistory?.find(r => r.reviewerRole === 'Staff' && r.reviewStatus === 'Approved');
+        if (staffReview) {
+            staffReviewData = staffReview;
+            document.getElementById('staffReviewer').textContent = staffReview.reviewer || '-';
+            document.getElementById('staffReviewDate').textContent = formatDate(staffReview.reviewedAt);
+            document.getElementById('staffRemarks').textContent = staffReview.remarks || 'No remarks';
+            document.getElementById('trailStaffStatus').textContent = 'Approved';
+            
+            // Metadata checklist
+            const metaContainer = document.getElementById('staffMetadataChecklist');
+            if (staffReview.checklistResults && staffReview.checklistResults.length > 0) {
+                metaContainer.innerHTML = staffReview.checklistResults.map(cr => `
+                    <div class="d-flex align-items-center small mb-1">
+                        <i class="bi ${cr.isPassed ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger'} me-2"></i>
+                        <span>${escapeHtml(cr.itemName)}</span>
+                    </div>
+                `).join('');
+            } else {
+                metaContainer.innerHTML = '<p class="text-muted mb-0 small">No checklist data</p>';
+            }
+            
+            // Metadata changes
+            const changesContainer = document.getElementById('staffMetadataChanges');
+            if (staffReview.metadataChanges && staffReview.metadataChanges.length > 0) {
+                changesContainer.innerHTML = staffReview.metadataChanges.map(c => `
+                    <div class="small mb-1">
+                        <strong>${escapeHtml(c.field)}:</strong> 
+                        <span class="text-muted text-decoration-line-through">${escapeHtml(c.oldValue || 'empty')}</span>
+                        → <span class="text-success">${escapeHtml(c.newValue)}</span>
+                    </div>
+                `).join('');
+            } else {
+                changesContainer.innerHTML = '<p class="text-muted mb-0 small">No changes made</p>';
+            }
+        } else {
+            document.getElementById('staffReviewer').textContent = '-';
+            document.getElementById('staffReviewDate').textContent = '-';
+            document.getElementById('staffRemarks').textContent = 'No staff review data';
+            document.getElementById('staffMetadataChecklist').innerHTML = '<p class="text-muted mb-0 small">No data</p>';
+            document.getElementById('staffMetadataChanges').innerHTML = '<p class="text-muted mb-0 small">No data</p>';
+        }
+
+        // Lawyer Review
+        const lawyerReview = doc.reviewHistory?.find(r => r.reviewerRole === 'Lawyer' && r.reviewStatus === 'Approved');
+        if (lawyerReview) {
+            lawyerReviewData = lawyerReview;
+            document.getElementById('lawyerReviewer').textContent = lawyerReview.reviewer || '-';
+            document.getElementById('lawyerReviewDate').textContent = formatDate(lawyerReview.reviewedAt);
+            document.getElementById('lawyerRemarks').textContent = lawyerReview.remarks || 'No remarks';
+            document.getElementById('trailLawyerStatus').textContent = 'Approved';
+            
+            // Content checklist
+            const contentContainer = document.getElementById('lawyerContentChecklist');
+            if (lawyerReview.checklistResults && lawyerReview.checklistResults.length > 0) {
+                contentContainer.innerHTML = lawyerReview.checklistResults.map(cr => `
+                    <div class="d-flex align-items-center small mb-1">
+                        <i class="bi ${cr.isPassed ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger'} me-2"></i>
+                        <span>${escapeHtml(cr.itemName)}</span>
+                    </div>
+                `).join('');
+            } else {
+                contentContainer.innerHTML = '<p class="text-muted mb-0 small">No checklist data</p>';
+            }
+            
+            // Version changes by lawyer
+            const versionContainer = document.getElementById('lawyerVersionChanges');
+            const lawyerVersions = currentVersions.filter(v => v.createdByName?.toLowerCase().includes('lawyer'));
+            if (lawyerVersions.length > 0) {
+                versionContainer.innerHTML = lawyerVersions.map(v => `
+                    <div class="small mb-1">
+                        <strong>v${v.versionNumber}:</strong> ${escapeHtml(v.changeDescription || 'No description')}
+                    </div>
+                `).join('');
+            } else {
+                versionContainer.innerHTML = '<p class="text-muted mb-0 small">No new versions uploaded</p>';
+            }
+        } else {
+            document.getElementById('lawyerReviewer').textContent = '-';
+            document.getElementById('lawyerReviewDate').textContent = '-';
+            document.getElementById('lawyerRemarks').textContent = 'No lawyer review data';
+            document.getElementById('lawyerContentChecklist').innerHTML = '<p class="text-muted mb-0 small">No data</p>';
+            document.getElementById('lawyerVersionChanges').innerHTML = '<p class="text-muted mb-0 small">No data</p>';
+            document.getElementById('trailLawyerStatus').textContent = 'Pending';
+        }
+    }
+
+    // ===== ADMIN CHECKLIST (Step 4) =====
+    function renderAdminChecklist() {
+        // Completeness
+        document.getElementById('completenessChecklist').innerHTML = adminChecklist.completeness.map(item => createChecklistItem(item, 'completeness')).join('');
+        
+        // Process
+        document.getElementById('processChecklist').innerHTML = adminChecklist.process.map(item => createChecklistItem(item, 'process')).join('');
+        
+        // Approval
+        document.getElementById('approvalChecklist').innerHTML = adminChecklist.approval.map(item => createChecklistItem(item, 'approval')).join('');
+        
+        // Add change listeners
+        document.querySelectorAll('.metadata-check-item input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', updateAdminChecklistProgress);
+        });
+        
+        // Auto-check process items if reviews exist
+        if (staffReviewData) {
+            const staffCheck = document.getElementById('process_staff_reviewed');
+            if (staffCheck) staffCheck.checked = true;
+        }
+        if (lawyerReviewData) {
+            const lawyerCheck = document.getElementById('process_lawyer_reviewed');
+            if (lawyerCheck) lawyerCheck.checked = true;
+        }
+        if (currentVersions.length > 0) {
+            const changesCheck = document.getElementById('process_changes_tracked');
+            if (changesCheck) changesCheck.checked = true;
+        }
+        
+        updateAdminChecklistProgress();
+    }
+    
+    function createChecklistItem(item, category) {
+        return `
+            <div class="metadata-check-item" data-item-id="${item.id}">
+                <input class="form-check-input" type="checkbox" id="${category}_${item.id}">
+                <label class="form-check-label" for="${category}_${item.id}">
+                    <strong>${escapeHtml(item.label)}</strong>
+                    <br><small class="text-muted">${escapeHtml(item.description)}</small>
+                </label>
+            </div>
+        `;
+    }
+    
+    function updateAdminChecklistProgress() {
+        const allCheckboxes = document.querySelectorAll('.wizard-page[data-page="4"] .metadata-check-item input[type="checkbox"]');
+        const checked = document.querySelectorAll('.wizard-page[data-page="4"] .metadata-check-item input[type="checkbox"]:checked');
+        
+        const total = allCheckboxes.length;
+        const checkedCount = checked.length;
+        const percentage = total > 0 ? Math.round((checkedCount / total) * 100) : 0;
+        
+        document.getElementById('adminCheckedCount').textContent = checkedCount;
+        document.getElementById('adminPendingCount').textContent = total - checkedCount;
+        
+        const progressBar = document.getElementById('adminChecklistProgress');
+        progressBar.style.width = percentage + '%';
+        progressBar.textContent = percentage + '%';
+        progressBar.className = 'progress-bar ' + (percentage >= 80 ? 'bg-success' : percentage >= 50 ? 'bg-warning' : 'bg-danger');
+    }
+
+    function getAdminChecklistResults() {
+        const results = [];
+        Object.keys(adminChecklist).forEach(category => {
+            adminChecklist[category].forEach(item => {
+                const checkbox = document.getElementById(`${category}_${item.id}`);
+                results.push({
+                    category: category,
+                    itemId: item.id,
+                    itemName: item.label,
+                    isPassed: checkbox?.checked || false
+                });
+            });
+        });
+        return results;
+    }
+
+    // ===== APPROVE/REJECT =====
     async function adminApprove() {
         const documentId = document.getElementById('reviewDocumentId').value;
         const remarks = document.getElementById('adminRemarks').value;
+        const checklistResults = getAdminChecklistResults();
+
+        const checkedCount = checklistResults.filter(r => r.isPassed).length;
+        if (checkedCount < 5) {
+            if (!confirm(`Only ${checkedCount} checklist items verified. Are you sure you want to approve?`)) {
+                return;
+            }
+        }
 
         if (!confirm('Are you sure you want to approve this document and mark it as completed?')) {
             return;
@@ -607,7 +1155,15 @@
             const response = await fetch(`/api/ReviewApi/${documentId}/admin-approve`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ remarks })
+                body: JSON.stringify({ 
+                    remarks,
+                    checklistResults,
+                    adminReviewSummary: {
+                        reviewDate: new Date().toISOString(),
+                        totalChecked: checkedCount,
+                        totalItems: checklistResults.length
+                    }
+                })
             });
 
             const data = await response.json();
@@ -663,13 +1219,17 @@
         }
     }
 
+    // ===== UTILITY FUNCTIONS =====
     function getFileIcon(ext) {
         const icons = {
             '.pdf': 'bi-file-pdf text-danger',
             '.doc': 'bi-file-word text-primary',
             '.docx': 'bi-file-word text-primary',
             '.xls': 'bi-file-excel text-success',
-            '.xlsx': 'bi-file-excel text-success'
+            '.xlsx': 'bi-file-excel text-success',
+            '.jpg': 'bi-file-image text-info',
+            '.jpeg': 'bi-file-image text-info',
+            '.png': 'bi-file-image text-info'
         };
         return icons[ext?.toLowerCase()] || 'bi-file-earmark text-secondary';
     }
@@ -692,137 +1252,6 @@
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
-    }
-
-    // ========================================
-    // VERSION COMPARISON FUNCTIONS
-    // ========================================
-    let currentVersions = [];
-
-    function openCompareModal() {
-        const compareModal = new bootstrap.Modal(document.getElementById('compareVersionsModal'));
-        
-        // Get versions from the version history container
-        if (currentVersions.length < 2) {
-            alert('At least 2 versions are required for comparison');
-            return;
-        }
-
-        // Populate version dropdowns
-        const v1Select = document.getElementById('compareVersion1');
-        const v2Select = document.getElementById('compareVersion2');
-        
-        v1Select.innerHTML = currentVersions.map((v, i) => 
-            `<option value="${v.id}" ${i === 1 ? 'selected' : ''}>Version ${v.versionNumber} (${formatDate(v.createdAt)})</option>`
-        ).join('');
-        
-        v2Select.innerHTML = currentVersions.map((v, i) => 
-            `<option value="${v.id}" ${i === 0 ? 'selected' : ''}>Version ${v.versionNumber} (${formatDate(v.createdAt)})</option>`
-        ).join('');
-
-        // Load initial comparison
-        loadVersionComparison();
-        
-        compareModal.show();
-    }
-
-    function loadVersionComparison() {
-        const v1Id = document.getElementById('compareVersion1').value;
-        const v2Id = document.getElementById('compareVersion2').value;
-        
-        const v1 = currentVersions.find(v => v.id == v1Id);
-        const v2 = currentVersions.find(v => v.id == v2Id);
-        
-        if (!v1 || !v2) return;
-
-        // Update labels
-        document.getElementById('compare1Info').textContent = `Version ${v1.versionNumber}`;
-        document.getElementById('compare2Info').textContent = `Version ${v2.versionNumber}`;
-
-        // Load documents into iframes (for PDFs) or show info
-        const frame1 = document.getElementById('compareFrame1');
-        const frame2 = document.getElementById('compareFrame2');
-        
-        const ext1 = v1.fileExtension?.toLowerCase() || '';
-        const ext2 = v2.fileExtension?.toLowerCase() || '';
-        
-        if (ext1 === '.pdf') {
-            frame1.src = `/api/DocumentVersionApi/${v1.id}/download#toolbar=0&navpanes=0`;
-        } else {
-            frame1.src = 'about:blank';
-            frame1.srcdoc = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:sans-serif;color:#666;">
-                <div style="text-align:center;">
-                    <i class="bi bi-file-earmark" style="font-size:48px;"></i>
-                    <p>${escapeHtml(v1.fileName)}</p>
-                    <p>${formatFileSize(v1.fileSize)}</p>
-                    <p><em>Preview not available for ${ext1 || 'this file type'}</em></p>
-                </div>
-            </div>`;
-        }
-        
-        if (ext2 === '.pdf') {
-            frame2.src = `/api/DocumentVersionApi/${v2.id}/download#toolbar=0&navpanes=0`;
-        } else {
-            frame2.src = 'about:blank';
-            frame2.srcdoc = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:sans-serif;color:#666;">
-                <div style="text-align:center;">
-                    <i class="bi bi-file-earmark" style="font-size:48px;"></i>
-                    <p>${escapeHtml(v2.fileName)}</p>
-                    <p>${formatFileSize(v2.fileSize)}</p>
-                    <p><em>Preview not available for ${ext2 || 'this file type'}</em></p>
-                </div>
-            </div>`;
-        }
-
-        // Update metadata comparison table
-        document.getElementById('compare1FileName').textContent = v1.fileName || '-';
-        document.getElementById('compare2FileName').textContent = v2.fileName || '-';
-        
-        document.getElementById('compare1FileSize').textContent = formatFileSize(v1.fileSize);
-        document.getElementById('compare2FileSize').textContent = formatFileSize(v2.fileSize);
-        
-        document.getElementById('compare1Date').textContent = formatDate(v1.createdAt);
-        document.getElementById('compare2Date').textContent = formatDate(v2.createdAt);
-        
-        document.getElementById('compare1ChangedBy').textContent = v1.createdByName || '-';
-        document.getElementById('compare2ChangedBy').textContent = v2.createdByName || '-';
-        
-        document.getElementById('compare1ChangeDesc').textContent = v1.changeDescription || '-';
-        document.getElementById('compare2ChangeDesc').textContent = v2.changeDescription || '-';
-
-        // Highlight differences
-        highlightDifferences();
-    }
-
-    function highlightDifferences() {
-        const metaRows = ['FileName', 'FileSize', 'Date', 'ChangedBy', 'ChangeDesc'];
-        
-        metaRows.forEach(row => {
-            const cell1 = document.getElementById(`compare1${row}`);
-            const cell2 = document.getElementById(`compare2${row}`);
-            
-            if (cell1 && cell2) {
-                if (cell1.textContent !== cell2.textContent) {
-                    cell1.classList.add('bg-warning-subtle');
-                    cell2.classList.add('bg-warning-subtle');
-                } else {
-                    cell1.classList.remove('bg-warning-subtle');
-                    cell2.classList.remove('bg-warning-subtle');
-                }
-            }
-        });
-    }
-
-    // Swap versions
-    function swapVersions() {
-        const v1Select = document.getElementById('compareVersion1');
-        const v2Select = document.getElementById('compareVersion2');
-        
-        const temp = v1Select.value;
-        v1Select.value = v2Select.value;
-        v2Select.value = temp;
-        
-        loadVersionComparison();
     }
 </script>
 }

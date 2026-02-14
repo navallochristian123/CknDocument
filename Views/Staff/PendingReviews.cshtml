@@ -83,235 +83,359 @@
     </div>
 </div>
 
-<!-- Document Review Modal -->
+<!-- Document Review Modal - 3-Step Wizard -->
 <div class="modal fade" id="reviewModal" tabindex="-1" data-bs-backdrop="static">
-    <div class="modal-dialog modal-xl">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Review Document</h5>
+            <div class="modal-header py-2 bg-white">
+                <h5 class="modal-title"><i class="bi bi-clipboard-check me-2"></i>Staff Document Review</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
-                <div class="row">
-                    <!-- Document Info -->
-                    <div class="col-lg-4">
-                        <div class="card mb-3">
-                            <div class="card-header">
-                                <h6 class="mb-0">Document Information</h6>
-                            </div>
-                            <div class="card-body">
-                                <dl class="row mb-0">
-                                    <dt class="col-sm-4">Title:</dt>
-                                    <dd class="col-sm-8" id="modalDocTitle">-</dd>
-                                    <dt class="col-sm-4">Type:</dt>
-                                    <dd class="col-sm-8" id="modalDocType">-</dd>
-                                    <dt class="col-sm-4">Category:</dt>
-                                    <dd class="col-sm-8" id="modalDocCategory">-</dd>
-                                    <dt class="col-sm-4">File:</dt>
-                                    <dd class="col-sm-8" id="modalDocFile">-</dd>
-                                    <dt class="col-sm-4">Size:</dt>
-                                    <dd class="col-sm-8" id="modalDocSize">-</dd>
-                                    <dt class="col-sm-4">Submitted:</dt>
-                                    <dd class="col-sm-8" id="modalDocDate">-</dd>
-                                    <dt class="col-sm-4">By:</dt>
-                                    <dd class="col-sm-8" id="modalDocUploader">-</dd>
-                                </dl>
-                            </div>
-                        </div>
+            
+            <!-- Wizard Steps Navigation -->
+            <div class="wizard-steps">
+                <div class="wizard-step active" data-step="1" onclick="goToStep(1)">
+                    <span class="wizard-step-number">1</span>
+                    <span class="wizard-step-label">View Document</span>
+                </div>
+                <div class="wizard-step" data-step="2" onclick="goToStep(2)">
+                    <span class="wizard-step-number">2</span>
+                    <span class="wizard-step-label">Edit Metadata</span>
+                </div>
+                <div class="wizard-step" data-step="3" onclick="goToStep(3)">
+                    <span class="wizard-step-number">3</span>
+                    <span class="wizard-step-label">Review Checklist</span>
+                </div>
+            </div>
 
-                        <!-- AI Analysis Results -->
-                        <div class="card mb-3" id="aiResultsCard">
-                            <div class="card-header bg-info bg-opacity-10">
-                                <h6 class="mb-0"><i class="bi bi-robot me-2"></i>AI Analysis</h6>
-                            </div>
-                            <div class="card-body">
-                                <div class="mb-2">
-                                    <small class="text-muted">Detected Type:</small>
-                                    <br><strong id="aiDetectedType">-</strong>
+            <div class="wizard-content">
+                <input type="hidden" id="reviewDocumentId">
+                
+                <!-- Step 1: View Document -->
+                <div class="wizard-page active" id="wizardPage1">
+                    <div class="row">
+                        <div class="col-lg-5">
+                            <!-- Document Information Card -->
+                            <div class="review-info-card">
+                                <div class="card-header">
+                                    <i class="bi bi-file-earmark-text me-2"></i>Document Information
                                 </div>
-                                <div class="mb-2" id="duplicateWarning" style="display: none;">
-                                    <div class="alert alert-warning mb-0 py-2">
+                                <div class="card-body">
+                                    <dl class="row mb-0">
+                                        <dt class="col-sm-4">Title:</dt>
+                                        <dd class="col-sm-8" id="modalDocTitle">-</dd>
+                                        <dt class="col-sm-4">Type:</dt>
+                                        <dd class="col-sm-8"><span class="badge bg-secondary" id="modalDocType">-</span></dd>
+                                        <dt class="col-sm-4">Category:</dt>
+                                        <dd class="col-sm-8" id="modalDocCategory">-</dd>
+                                        <dt class="col-sm-4">File:</dt>
+                                        <dd class="col-sm-8" id="modalDocFile">-</dd>
+                                        <dt class="col-sm-4">Size:</dt>
+                                        <dd class="col-sm-8" id="modalDocSize">-</dd>
+                                        <dt class="col-sm-4">Submitted:</dt>
+                                        <dd class="col-sm-8" id="modalDocDate">-</dd>
+                                        <dt class="col-sm-4">By:</dt>
+                                        <dd class="col-sm-8" id="modalDocUploader">-</dd>
+                                    </dl>
+                                </div>
+                            </div>
+
+                            <!-- AI Analysis Card -->
+                            <div class="review-info-card" id="aiResultsCard">
+                                <div class="card-header bg-info">
+                                    <i class="bi bi-robot me-2"></i>AI Analysis Results
+                                </div>
+                                <div class="card-body">
+                                    <div class="row g-3">
+                                        <div class="col-6">
+                                            <small class="text-muted d-block">Detected Type</small>
+                                            <strong id="aiDetectedType">-</strong>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted d-block">AI Confidence</small>
+                                            <div class="progress" style="height: 8px;">
+                                                <div class="progress-bar bg-success" id="aiConfidenceBar" style="width: 0%"></div>
+                                            </div>
+                                            <small id="aiConfidenceText">-</small>
+                                        </div>
+                                    </div>
+                                    <div id="duplicateWarning" class="alert alert-warning mt-3 mb-0 py-2 d-none">
                                         <i class="bi bi-exclamation-triangle me-1"></i>
-                                        <strong>Possible Duplicate</strong>
+                                        <strong>Possible Duplicate Detected</strong>
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <!-- File Actions -->
-                        <div class="card mb-3">
-                            <div class="card-header bg-primary text-white">
-                                <h6 class="mb-0"><i class="bi bi-lightning-fill me-2"></i>Quick Actions</h6>
-                            </div>
-                            <div class="card-body">
-                                <div class="d-grid gap-2">
-                                    <button type="button" class="btn btn-primary" id="btnViewDocument" onclick="openDocumentViewer()">
-                                        <i class="bi bi-eye me-2"></i> View Document
-                                    </button>
-                                    <button type="button" class="btn btn-warning" onclick="scrollToEdit()">
-                                        <i class="bi bi-pencil-square me-2"></i> Edit & Upload New Version
-                                    </button>
+                            <!-- Version History -->
+                            <div class="review-info-card">
+                                <div class="card-header">
+                                    <i class="bi bi-clock-history me-2"></i>Version History
+                                    <span class="badge bg-primary ms-2" id="versionCount">0</span>
                                 </div>
-                                <div class="mt-3 p-2 bg-light rounded small">
-                                    <strong><i class="bi bi-info-circle me-1"></i>Workflow:</strong>
-                                    <ol class="mb-0 ps-3 mt-1">
-                                        <li>View the document</li>
-                                        <li>Download & make corrections offline</li>
-                                        <li>Upload corrected version</li>
-                                        <li>Approve to send to Lawyer</li>
-                                    </ol>
+                                <div class="card-body p-0" style="max-height: 200px; overflow-y: auto;">
+                                    <ul class="list-group list-group-flush" id="versionsList">
+                                        <li class="list-group-item text-muted text-center">Loading...</li>
+                                    </ul>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Edit Restrictions Alert -->
-                        <div class="card mb-3 d-none" id="editRestrictionsCard">
-                            <div class="card-body">
-                                <div class="alert alert-warning mb-0" id="editRestrictionsAlert">
-                                    <i class="bi bi-lock me-2"></i>
-                                    <strong>Edit Restricted</strong>
-                                    <p class="mb-0 small" id="editRestrictionReason">-</p>
+                        <div class="col-lg-7">
+                            <!-- Document Preview Actions -->
+                            <div class="review-info-card">
+                                <div class="card-header bg-success">
+                                    <i class="bi bi-eye me-2"></i>Document Preview
+                                </div>
+                                <div class="card-body text-center py-4">
+                                    <div class="mb-4">
+                                        <i class="bi bi-file-earmark-text text-primary" style="font-size: 4rem;"></i>
+                                    </div>
+                                    <h5 id="previewDocName">Document Name</h5>
+                                    <p class="text-muted mb-4">Review the document before proceeding to metadata verification</p>
+                                    <div class="d-flex gap-2 justify-content-center flex-wrap">
+                                        <button type="button" class="btn btn-primary btn-lg" onclick="openDocumentViewer()">
+                                            <i class="bi bi-eye me-2"></i>View Document
+                                        </button>
+                                        <a href="#" class="btn btn-outline-secondary btn-lg" id="btnDownloadDoc">
+                                            <i class="bi bi-download me-2"></i>Download
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <!-- Versions -->
-                        <div class="card">
-                            <div class="card-header">
-                                <h6 class="mb-0">Version History</h6>
-                            </div>
-                            <div class="card-body p-0">
-                                <ul class="list-group list-group-flush" id="versionsList">
+                            <!-- Quick Tips for Staff -->
+                            <div class="alert alert-info">
+                                <h6 class="alert-heading"><i class="bi bi-lightbulb me-2"></i>Staff Review Focus</h6>
+                                <p class="mb-2 small">As a staff member, your role is to verify document <strong>metadata</strong>:</p>
+                                <ul class="mb-0 small">
+                                    <li>Check if the document title matches the content</li>
+                                    <li>Verify correct document type and category</li>
+                                    <li>Ensure proper client and case association</li>
+                                    <li>Add or correct tags if needed</li>
                                 </ul>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Checklist & Review -->
-                    <div class="col-lg-8">
-                        <!-- Signature Verification Card -->
-                        <div class="card mb-3" id="signatureCard">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <h6 class="mb-0"><i class="bi bi-vector-pen me-2"></i>Signature Verification</h6>
-                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="verifySignature()">
-                                    <i class="bi bi-robot me-1"></i>AI Verify
-                                </button>
-                            </div>
-                            <div class="card-body">
-                                <div id="signatureStatus" class="text-center">
-                                    <i class="bi bi-hourglass text-muted" style="font-size: 2rem;"></i>
-                                    <p class="text-muted small mb-0 mt-2">Click "AI Verify" to check document signature</p>
-                                </div>
-                                <div id="signatureResult" class="d-none">
-                                    <div class="row">
-                                        <div class="col-6">
-                                            <small class="text-muted d-block">Status</small>
-                                            <span id="sigVerifyStatus" class="badge">-</span>
-                                        </div>
-                                        <div class="col-6">
-                                            <small class="text-muted d-block">Confidence</small>
-                                            <span id="sigConfidence">-</span>
-                                        </div>
+                <!-- Step 2: Edit Metadata -->
+                <div class="wizard-page" id="wizardPage2">
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <h5 class="mb-3"><i class="bi bi-tags me-2"></i>Current Metadata</h5>
+                            <p class="text-muted small mb-3">Review and edit the document's metadata as needed. Changes will be logged.</p>
+                            
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Document Title</label>
+                                        <input type="text" class="form-control" id="editMetaTitle" placeholder="Enter document title">
+                                        <small class="text-muted">AI Suggestion: <span id="aiSuggestedTitle">-</span></small>
                                     </div>
-                                    <div class="mt-2">
-                                        <small class="text-muted d-block">Detected Name</small>
-                                        <strong id="sigDetectedName">-</strong>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Document Type</label>
+                                        <select class="form-select" id="editMetaType">
+                                            <option value="">Select type...</option>
+                                            <option value="Contract">Contract</option>
+                                            <option value="Agreement">Agreement</option>
+                                            <option value="Court Filing">Court Filing</option>
+                                            <option value="Legal Brief">Legal Brief</option>
+                                            <option value="Affidavit">Affidavit</option>
+                                            <option value="Power of Attorney">Power of Attorney</option>
+                                            <option value="Deed">Deed</option>
+                                            <option value="Will">Will</option>
+                                            <option value="Certificate">Certificate</option>
+                                            <option value="ID Document">ID Document</option>
+                                            <option value="Financial">Financial Document</option>
+                                            <option value="Correspondence">Correspondence</option>
+                                            <option value="Evidence">Evidence</option>
+                                            <option value="Other">Other</option>
+                                        </select>
                                     </div>
-                                    <div class="mt-2">
-                                        <small class="text-muted d-block">Message</small>
-                                        <span id="sigMessage" class="small">-</span>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Category</label>
+                                        <select class="form-select" id="editMetaCategory">
+                                            <option value="">Select category...</option>
+                                            <option value="Civil Case">Civil Case</option>
+                                            <option value="Criminal Case">Criminal Case</option>
+                                            <option value="Family Law">Family Law</option>
+                                            <option value="Corporate">Corporate</option>
+                                            <option value="Real Estate">Real Estate</option>
+                                            <option value="Immigration">Immigration</option>
+                                            <option value="Labor">Labor</option>
+                                            <option value="Tax">Tax</option>
+                                            <option value="Personal">Personal</option>
+                                        </select>
                                     </div>
-                                    <!-- Client's Reference Signature -->
-                                    <div id="clientSignatureRef" class="mt-3 d-none">
-                                        <small class="text-muted d-block mb-1">Client's Registered Signature:</small>
-                                        <div class="border rounded p-2 bg-light text-center">
-                                            <img id="clientSignatureImg" src="" alt="Client Signature" style="max-height: 60px;">
-                                        </div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Case/Matter Reference</label>
+                                        <input type="text" class="form-control" id="editMetaCaseRef" placeholder="Case number or reference">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Tags</label>
+                                        <input type="text" class="form-control" id="editMetaTags" placeholder="Enter tags separated by commas">
+                                        <small class="text-muted">AI Suggested Tags: <span id="aiSuggestedTags">-</span></small>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Confidentiality Level</label>
+                                        <select class="form-select" id="editMetaConfidential">
+                                            <option value="Normal">Normal</option>
+                                            <option value="Confidential">Confidential</option>
+                                            <option value="Highly Confidential">Highly Confidential</option>
+                                        </select>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Checklist -->
-                        <div class="card mb-3">
-                            <div class="card-header">
-                                <h6 class="mb-0"><i class="bi bi-list-check me-2"></i>Review Checklist</h6>
-                            </div>
-                            <div class="card-body">
-                                <div id="checklistContainer">
-                                    <p class="text-muted">Loading checklist...</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Review Actions -->
-                        <div class="card">
-                            <div class="card-header">
-                                <h6 class="mb-0">Review Decision</h6>
-                            </div>
-                            <div class="card-body">
-                                <input type="hidden" id="reviewDocumentId">
-                                
-                                <div class="mb-3">
-                                    <label class="form-label">Remarks (visible to client)</label>
-                                    <textarea class="form-control" id="reviewRemarks" rows="3" placeholder="Enter remarks for the client..."></textarea>
-                                </div>
-
-                                <div class="mb-3">
-                                    <label class="form-label">Internal Notes (staff/admin only)</label>
-                                    <textarea class="form-control" id="reviewInternalNotes" rows="2" placeholder="Internal notes..."></textarea>
-                                </div>
-
-                                <!-- Minor Edit Option -->
-                                <div class="accordion mb-3" id="editAccordion">
-                                    <div class="accordion-item" id="editAccordionItem">
-                                        <h2 class="accordion-header">
-                                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#editCollapse" id="editAccordionBtn">
-                                                <i class="bi bi-pencil me-2"></i>Make Minor Edit (Upload New Version)
-                                            </button>
-                                        </h2>
-                                        <div id="editCollapse" class="accordion-collapse collapse" data-bs-parent="#editAccordion">
-                                            <div class="accordion-body">
-                                                <div class="mb-3">
-                                                    <label class="form-label">Upload Corrected File</label>
-                                                    <input type="file" class="form-control" id="editFile">
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label class="form-label">Change Description <span class="text-danger">*</span></label>
-                                                    <input type="text" class="form-control" id="editChangeDescription" placeholder="Describe what was changed...">
-                                                </div>
-                                                <button type="button" class="btn btn-warning" id="btnUploadNewVersion">
-                                                    <i class="bi bi-upload"></i> Upload New Version
-                                                </button>
-                                            </div>
-                                        </div>
+                        <div class="col-lg-6">
+                            <h5 class="mb-3"><i class="bi bi-calendar me-2"></i>Date Information</h5>
+                            <p class="text-muted small mb-3">Verify and update important dates associated with this document.</p>
+                            
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Document Date</label>
+                                        <input type="date" class="form-control" id="editMetaDocDate">
+                                        <small class="text-muted">Date on the document itself</small>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Due Date (if applicable)</label>
+                                        <input type="date" class="form-control" id="editMetaDueDate">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Expiry Date (if applicable)</label>
+                                        <input type="date" class="form-control" id="editMetaExpiryDate">
                                     </div>
                                 </div>
+                            </div>
 
-                                <!-- Pass to Lawyer Option (for non-editable docs) -->
-                                <div class="alert alert-info d-none mb-3" id="passToAdminAlert">
-                                    <i class="bi bi-arrow-up-right-circle me-2"></i>
-                                    <strong>Staff Review Focus</strong>
-                                    <p class="mb-2 small">As Staff, you focus on metadata and document classification:</p>
-                                    <ul class="mb-0 small">
-                                        <li>Verify document metadata is correct</li>
-                                        <li>Add appropriate tags and categories</li>
-                                        <li>Forward to Lawyer for content review</li>
-                                    </ul>
+                            <div class="card">
+                                <div class="card-header bg-warning">
+                                    <i class="bi bi-pencil-square me-2"></i>Metadata Change Log
                                 </div>
-
-                                <div class="d-flex gap-2">
-                                    <button type="button" class="btn btn-success flex-fill" id="btnApprove">
-                                        <i class="bi bi-check-lg"></i> Approve & Forward to Lawyer
-                                    </button>
-                                    <button type="button" class="btn btn-danger" id="btnReject">
-                                        <i class="bi bi-x-lg"></i> Reject
-                                    </button>
+                                <div class="card-body small" id="metadataChangeLog">
+                                    <p class="text-muted mb-0">No changes made yet</p>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <!-- Step 3: Review Checklist -->
+                <div class="wizard-page" id="wizardPage3">
+                    <div class="row">
+                        <div class="col-lg-7">
+                            <h5 class="mb-3"><i class="bi bi-card-checklist me-2"></i>Metadata Verification Checklist</h5>
+                            <p class="text-muted small mb-3">Verify each metadata item before approving. This checklist focuses on document classification and tagging.</p>
+                            
+                            <!-- Metadata Checklist Items -->
+                            <div class="checklist-category">
+                                <div class="checklist-category-header">
+                                    <i class="bi bi-file-text"></i>
+                                    <span>Document Identification</span>
+                                </div>
+                                <div class="checklist-category-items" id="checklistDocIdentification">
+                                    <!-- Will be populated by JS -->
+                                </div>
+                            </div>
+
+                            <div class="checklist-category">
+                                <div class="checklist-category-header">
+                                    <i class="bi bi-tags"></i>
+                                    <span>Classification & Tags</span>
+                                </div>
+                                <div class="checklist-category-items" id="checklistClassification">
+                                    <!-- Will be populated by JS -->
+                                </div>
+                            </div>
+
+                            <div class="checklist-category">
+                                <div class="checklist-category-header">
+                                    <i class="bi bi-calendar-check"></i>
+                                    <span>Date Verification</span>
+                                </div>
+                                <div class="checklist-category-items" id="checklistDates">
+                                    <!-- Will be populated by JS -->
+                                </div>
+                            </div>
+
+                            <!-- Additional custom checklist from AI -->
+                            <div id="aiChecklistSection" class="d-none">
+                                <div class="checklist-category">
+                                    <div class="checklist-category-header">
+                                        <i class="bi bi-robot"></i>
+                                        <span>AI Detected Items</span>
+                                    </div>
+                                    <div class="checklist-category-items" id="checklistAI">
+                                        <!-- Will be populated by JS -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-5">
+                            <h5 class="mb-3"><i class="bi bi-chat-square-text me-2"></i>Review Decision</h5>
+                            
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Remarks (visible to client)</label>
+                                        <textarea class="form-control" id="reviewRemarks" rows="3" placeholder="Enter remarks for the client..."></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Internal Notes (staff/lawyer only)</label>
+                                        <textarea class="form-control" id="reviewInternalNotes" rows="2" placeholder="Internal notes for next reviewer..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Checklist Summary -->
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <i class="bi bi-clipboard-data me-2"></i>Checklist Summary
+                                </div>
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>Items Checked:</span>
+                                        <strong><span id="checkedCount">0</span> / <span id="totalCount">0</span></strong>
+                                    </div>
+                                    <div class="progress mb-3" style="height: 10px;">
+                                        <div class="progress-bar bg-success" id="checklistProgress" style="width: 0%"></div>
+                                    </div>
+                                    <div id="checklistWarning" class="alert alert-warning py-2 d-none">
+                                        <i class="bi bi-exclamation-triangle me-1"></i>
+                                        <small>Some required items are not checked</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="alert alert-light border">
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    After approval, this document will be forwarded to a <strong>Lawyer</strong> for content review.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Wizard Footer with Navigation -->
+            <div class="wizard-footer">
+                <button type="button" class="btn btn-outline-secondary" id="btnWizardPrev" onclick="prevStep()" style="display: none;">
+                    <i class="bi bi-arrow-left me-1"></i> Previous
+                </button>
+                <div class="flex-grow-1"></div>
+                <button type="button" class="btn btn-danger me-2" id="btnReject" onclick="rejectDocument()">
+                    <i class="bi bi-x-lg me-1"></i> Reject
+                </button>
+                <button type="button" class="btn btn-primary" id="btnWizardNext" onclick="nextStep()">
+                    Next <i class="bi bi-arrow-right ms-1"></i>
+                </button>
+                <button type="button" class="btn btn-success" id="btnApprove" onclick="approveDocument()" style="display: none;">
+                    <i class="bi bi-check-lg me-1"></i> Approve & Forward to Lawyer
+                </button>
             </div>
         </div>
     </div>
@@ -464,9 +588,28 @@
     let currentDocumentId = null;
     let currentDocument = null;
     let checklistItems = [];
+    let currentWizardStep = 1;
+    const totalWizardSteps = 3;
+    let metadataChanges = [];
 
-    // All document types are now editable by staff (upload new version)
-    // Staff can upload corrected versions of any file type
+    // Staff metadata checklist items
+    const staffMetadataChecklist = {
+        docIdentification: [
+            { id: 'meta_title', label: 'Document title is clear and accurate', required: true },
+            { id: 'meta_type', label: 'Document type is correctly classified', required: true },
+            { id: 'meta_category', label: 'Category is appropriate for this document', required: true }
+        ],
+        classification: [
+            { id: 'meta_case_ref', label: 'Case/Matter reference is correct', required: false },
+            { id: 'meta_tags', label: 'Relevant tags have been added', required: false },
+            { id: 'meta_confidential', label: 'Confidentiality level is appropriate', required: true }
+        ],
+        dates: [
+            { id: 'meta_doc_date', label: 'Document date is verified', required: false },
+            { id: 'meta_due_date', label: 'Due date is set (if applicable)', required: false },
+            { id: 'meta_expiry', label: 'Expiry date is noted (if applicable)', required: false }
+        ]
+    };
 
     document.addEventListener('DOMContentLoaded', function() {
         loadStats();
@@ -486,10 +629,204 @@
             loadPendingDocuments(false);
         });
 
-        document.getElementById('btnApprove').addEventListener('click', approveDocument);
-        document.getElementById('btnReject').addEventListener('click', rejectDocument);
-        document.getElementById('btnUploadNewVersion').addEventListener('click', uploadNewVersion);
+        // Track metadata changes
+        document.querySelectorAll('#wizardPage2 input, #wizardPage2 select').forEach(el => {
+            el.addEventListener('change', trackMetadataChange);
+        });
+
+        // Update checklist progress
+        document.addEventListener('change', function(e) {
+            if (e.target.classList.contains('checklist-checkbox')) {
+                updateChecklistProgress();
+            }
+        });
     });
+
+    // ===== WIZARD NAVIGATION =====
+    function goToStep(step) {
+        if (step < 1 || step > totalWizardSteps) return;
+        
+        // Update step indicators
+        document.querySelectorAll('.wizard-step').forEach(s => {
+            const stepNum = parseInt(s.dataset.step);
+            s.classList.remove('active', 'completed');
+            if (stepNum < step) s.classList.add('completed');
+            if (stepNum === step) s.classList.add('active');
+        });
+
+        // Show/hide pages
+        document.querySelectorAll('.wizard-page').forEach(p => p.classList.remove('active'));
+        document.getElementById(`wizardPage${step}`).classList.add('active');
+
+        // Update navigation buttons
+        document.getElementById('btnWizardPrev').style.display = step > 1 ? 'inline-block' : 'none';
+        document.getElementById('btnWizardNext').style.display = step < totalWizardSteps ? 'inline-block' : 'none';
+        document.getElementById('btnApprove').style.display = step === totalWizardSteps ? 'inline-block' : 'none';
+
+        currentWizardStep = step;
+
+        // Initialize step content if needed
+        if (step === 3) {
+            renderMetadataChecklist();
+            updateChecklistProgress();
+        }
+    }
+
+    function nextStep() {
+        goToStep(currentWizardStep + 1);
+    }
+
+    function prevStep() {
+        goToStep(currentWizardStep - 1);
+    }
+
+    function resetWizard() {
+        currentWizardStep = 1;
+        metadataChanges = [];
+        goToStep(1);
+    }
+
+    // ===== METADATA TRACKING =====
+    function trackMetadataChange(e) {
+        const field = e.target.id.replace('editMeta', '');
+        const oldValue = e.target.dataset.originalValue || '';
+        const newValue = e.target.value;
+        
+        if (oldValue !== newValue) {
+            const existingIdx = metadataChanges.findIndex(c => c.field === field);
+            if (existingIdx >= 0) {
+                metadataChanges[existingIdx].newValue = newValue;
+            } else {
+                metadataChanges.push({ field, oldValue, newValue, timestamp: new Date() });
+            }
+        }
+        
+        updateMetadataChangeLog();
+    }
+
+    function updateMetadataChangeLog() {
+        const log = document.getElementById('metadataChangeLog');
+        if (metadataChanges.length === 0) {
+            log.innerHTML = '<p class="text-muted mb-0">No changes made yet</p>';
+            return;
+        }
+        
+        log.innerHTML = metadataChanges.map(c => `
+            <div class="mb-2 pb-2 border-bottom">
+                <strong>${c.field}</strong>
+                <br><span class="text-danger"><s>${c.oldValue || '(empty)'}</s></span>
+                <br><span class="text-success">${c.newValue}</span>
+            </div>
+        `).join('');
+    }
+
+    // ===== METADATA CHECKLIST =====
+    function renderMetadataChecklist() {
+        // Document Identification
+        document.getElementById('checklistDocIdentification').innerHTML = 
+            staffMetadataChecklist.docIdentification.map(item => createChecklistItem(item)).join('');
+        
+        // Classification
+        document.getElementById('checklistClassification').innerHTML = 
+            staffMetadataChecklist.classification.map(item => createChecklistItem(item)).join('');
+        
+        // Dates
+        document.getElementById('checklistDates').innerHTML = 
+            staffMetadataChecklist.dates.map(item => createChecklistItem(item)).join('');
+
+        // Add AI checklist items if available
+        if (checklistItems.length > 0) {
+            document.getElementById('aiChecklistSection').classList.remove('d-none');
+            document.getElementById('checklistAI').innerHTML = 
+                checklistItems.map(item => createAIChecklistItem(item)).join('');
+        }
+    }
+
+    function createChecklistItem(item) {
+        return `
+            <div class="metadata-check-item" id="checkItem_${item.id}">
+                <div class="form-check w-100">
+                    <input class="form-check-input checklist-checkbox" type="checkbox" id="${item.id}" 
+                           data-required="${item.required}" data-name="${item.label}" data-category="${item.category || 'Metadata'}">
+                    <label class="form-check-label" for="${item.id}">
+                        ${item.label}
+                        ${item.required ? '<span class="badge bg-danger ms-1">Required</span>' : ''}
+                    </label>
+                </div>
+            </div>
+        `;
+    }
+
+    function createAIChecklistItem(item) {
+        const statusColors = { pass: 'success', fail: 'danger', warning: 'warning' };
+        const statusIcons = { pass: 'check-circle-fill', fail: 'x-circle-fill', warning: 'exclamation-triangle-fill' };
+        const color = statusColors[item.aiStatus] || 'secondary';
+        const icon = statusIcons[item.aiStatus] || 'question-circle';
+        
+        return `
+            <div class="metadata-check-item ${item.aiStatus === 'pass' ? 'checked' : item.aiStatus === 'fail' ? 'failed' : ''}" id="checkItem_ai_${item.id}">
+                <div class="form-check w-100">
+                    <input class="form-check-input checklist-checkbox" type="checkbox" id="ai_${item.id}" 
+                           ${item.aiStatus === 'pass' ? 'checked' : ''} data-required="${item.isRequired}"
+                           data-name="${escapeHtml(item.itemName)}" data-category="AI Detected">
+                    <label class="form-check-label" for="ai_${item.id}">
+                        ${escapeHtml(item.itemName)}
+                        ${item.isRequired ? '<span class="badge bg-danger ms-1">Required</span>' : ''}
+                        <span class="badge bg-${color} ms-2"><i class="bi bi-${icon} me-1"></i>AI: ${item.aiStatus}</span>
+                        ${item.aiDetail ? `<br><small class="text-muted">${escapeHtml(item.aiDetail)}</small>` : ''}
+                    </label>
+                </div>
+            </div>
+        `;
+    }
+
+    function updateChecklistProgress() {
+        const checkboxes = document.querySelectorAll('.checklist-checkbox');
+        const total = checkboxes.length;
+        const checked = Array.from(checkboxes).filter(cb => cb.checked).length;
+        const requiredUnchecked = Array.from(checkboxes).filter(cb => 
+            cb.dataset.required === 'true' && !cb.checked
+        ).length;
+
+        document.getElementById('checkedCount').textContent = checked;
+        document.getElementById('totalCount').textContent = total;
+        
+        const progress = total > 0 ? Math.round((checked / total) * 100) : 0;
+        document.getElementById('checklistProgress').style.width = progress + '%';
+
+        const warning = document.getElementById('checklistWarning');
+        if (requiredUnchecked > 0) {
+            warning.classList.remove('d-none');
+        } else {
+            warning.classList.add('d-none');
+        }
+
+        // Update visual state of items
+        checkboxes.forEach(cb => {
+            const item = cb.closest('.metadata-check-item');
+            if (item) {
+                item.classList.toggle('checked', cb.checked);
+                item.classList.toggle('failed', !cb.checked && cb.dataset.required === 'true');
+            }
+        });
+    }
+
+    function getChecklistResults() {
+        const results = [];
+        
+        // Get all metadata checklist results
+        document.querySelectorAll('.checklist-checkbox').forEach(cb => {
+            results.push({
+                itemId: cb.id,  // String-based ID for custom checklist items
+                itemName: cb.dataset.name || cb.id,
+                category: cb.dataset.category || 'General',
+                isPassed: cb.checked,
+                remarks: null
+            });
+        });
+
+        return results;
+    }
 
     async function loadStats() {
         try {
@@ -511,7 +848,9 @@
         const tbody = document.getElementById('documents-tbody');
         tbody.innerHTML = `
             <tr>
-                            <td colspan="8" class="text-center py-4">
+                <td colspan="8" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </td>
             </tr>
         `;
 
@@ -548,9 +887,9 @@
                         <td>${doc.uploader?.name || 'Unknown'}</td>
                         <td>${doc.folder?.name || '<em class="text-muted">Root</em>'}</td>
                         <td>${formatDate(doc.createdAt)}</td>
-                        <td><span class="badge bg-warning text-dark">Pending Review</span></td>
+                        <td><span class="badge bg-warning">Pending Review</span></td>
                         <td>
-                            ${doc.isDuplicate ? '<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle"></i> Duplicate</span>' : '<span class="badge bg-success"><i class="bi bi-check"></i> OK</span>'}
+                            ${doc.isDuplicate ? '<span class="badge bg-warning"><i class="bi bi-exclamation-triangle"></i> Duplicate</span>' : '<span class="badge bg-success"><i class="bi bi-check"></i> OK</span>'}
                         </td>
                         <td>
                             <button class="btn btn-sm btn-primary" onclick="openReviewModal(${doc.id})">
@@ -575,6 +914,9 @@
     async function openReviewModal(documentId) {
         currentDocumentId = documentId;
         document.getElementById('reviewDocumentId').value = documentId;
+        
+        // Reset wizard to step 1
+        resetWizard();
 
         const modal = new bootstrap.Modal(document.getElementById('reviewModal'));
         modal.show();
@@ -585,8 +927,9 @@
 
             if (data.success) {
                 const doc = data.document;
+                currentDocument = doc;
 
-                // Populate document info
+                // Step 1: Populate document info
                 document.getElementById('modalDocTitle').textContent = doc.title || '-';
                 document.getElementById('modalDocType').textContent = doc.documentType || '-';
                 document.getElementById('modalDocCategory').textContent = doc.category || '-';
@@ -594,31 +937,44 @@
                 document.getElementById('modalDocSize').textContent = formatFileSize(doc.totalFileSize);
                 document.getElementById('modalDocDate').textContent = formatDate(doc.createdAt);
                 document.getElementById('modalDocUploader').textContent = doc.uploader?.name || '-';
+                document.getElementById('previewDocName').textContent = doc.title || doc.originalFileName;
+                document.getElementById('btnDownloadDoc').href = `/api/DocumentApi/${documentId}/download`;
 
                 // AI results
                 document.getElementById('aiDetectedType').textContent = doc.documentType || 'Not processed';
-                document.getElementById('duplicateWarning').style.display = doc.isDuplicate ? 'block' : 'none';
+                const duplicateWarning = document.getElementById('duplicateWarning');
+                duplicateWarning.classList.toggle('d-none', !doc.isDuplicate);
 
-                // Store current document for viewer
-                currentDocument = doc;
+                // AI Confidence
+                const confidence = doc.aiConfidence || 85;
+                document.getElementById('aiConfidenceBar').style.width = confidence + '%';
+                document.getElementById('aiConfidenceText').textContent = confidence + '%';
 
-                // Edit section - always available for staff (can upload corrected version of any file type)
-                const editAccordionItem = document.getElementById('editAccordionItem');
-                const passToAdminAlert = document.getElementById('passToAdminAlert');
-                const editRestrictionsCard = document.getElementById('editRestrictionsCard');
+                // Step 2: Populate metadata form
+                document.getElementById('editMetaTitle').value = doc.title || '';
+                document.getElementById('editMetaTitle').dataset.originalValue = doc.title || '';
+                document.getElementById('editMetaType').value = doc.documentType || '';
+                document.getElementById('editMetaType').dataset.originalValue = doc.documentType || '';
+                document.getElementById('editMetaCategory').value = doc.category || '';
+                document.getElementById('editMetaCategory').dataset.originalValue = doc.category || '';
+                document.getElementById('editMetaCaseRef').value = doc.caseReference || '';
+                document.getElementById('editMetaCaseRef').dataset.originalValue = doc.caseReference || '';
+                document.getElementById('editMetaTags').value = doc.tags || '';
+                document.getElementById('editMetaTags').dataset.originalValue = doc.tags || '';
                 
-                // Enable editing for all document types
-                editAccordionItem.classList.remove('d-none');
-                passToAdminAlert.classList.add('d-none');
-                editRestrictionsCard.classList.add('d-none');
+                // AI suggestions
+                document.getElementById('aiSuggestedTitle').textContent = doc.aiSuggestedTitle || doc.title || '-';
+                document.getElementById('aiSuggestedTags').textContent = doc.aiSuggestedTags || '-';
 
-                // Versions
+                // Version History
                 const versionsList = document.getElementById('versionsList');
                 if (doc.versions && doc.versions.length > 0) {
+                    document.getElementById('versionCount').textContent = doc.versions.length;
                     versionsList.innerHTML = doc.versions.map(v => `
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             <div>
-                                <strong>v${v.versionNumber}</strong> ${v.isCurrentVersion ? '<span class="badge bg-primary">Current</span>' : ''}
+                                <strong>v${v.versionNumber}</strong> 
+                                ${v.isCurrentVersion ? '<span class="badge bg-primary">Current</span>' : ''}
                                 <br><small class="text-muted">${v.changeDescription || 'Initial upload'}</small>
                                 <br><small class="text-muted">${formatDate(v.createdAt)} by ${v.changedBy}</small>
                             </div>
@@ -628,116 +984,36 @@
                         </li>
                     `).join('');
                 } else {
-                    versionsList.innerHTML = '<li class="list-group-item text-muted">No version history</li>';
+                    document.getElementById('versionCount').textContent = '1';
+                    versionsList.innerHTML = '<li class="list-group-item text-muted">Original version only</li>';
                 }
 
-                // Checklist - prefer AI-generated checklist, fall back to DB checklist items
+                // Load AI checklist items
                 checklistItems = data.checklistItems || [];
-                
-                // If AI analysis has a checklist, merge/override with AI items
-                if (data.aiAnalysis && data.aiAnalysis.checklist && Array.isArray(data.aiAnalysis.checklist) && data.aiAnalysis.checklist.length > 0) {
-                    // Use AI-generated checklist items (they have item, status, detail)
+                if (data.aiAnalysis && data.aiAnalysis.checklist) {
                     const aiChecklist = data.aiAnalysis.checklist;
-                    
-                    // If no DB checklist items yet, create items from AI checklist
                     if (checklistItems.length === 0) {
                         checklistItems = aiChecklist.map((ai, idx) => ({
-                            id: -(idx + 1), // negative IDs for AI-generated items
+                            id: -(idx + 1),
                             itemName: ai.item,
-                            description: `AI: ${ai.detail || ''} [${(ai.status || 'warning').toUpperCase()}]`,
+                            description: ai.detail || '',
                             isRequired: ai.status === 'fail',
                             aiStatus: ai.status,
                             aiDetail: ai.detail
                         }));
-                    } else {
-                        // Merge: add AI status info to existing items + append any AI items not in DB
-                        const existingNames = checklistItems.map(c => c.itemName?.toLowerCase());
-                        let nextId = -1;
-                        aiChecklist.forEach(ai => {
-                            const match = checklistItems.find(c => 
-                                c.itemName?.toLowerCase().includes(ai.item?.toLowerCase()?.substring(0, 20)) ||
-                                ai.item?.toLowerCase().includes(c.itemName?.toLowerCase()?.substring(0, 20))
-                            );
-                            if (match) {
-                                match.aiStatus = ai.status;
-                                match.aiDetail = ai.detail;
-                            } else {
-                                checklistItems.push({
-                                    id: nextId--,
-                                    itemName: ai.item,
-                                    description: ai.detail || '',
-                                    isRequired: ai.status === 'fail',
-                                    aiStatus: ai.status,
-                                    aiDetail: ai.detail
-                                });
-                            }
-                        });
                     }
                 }
-                
-                renderChecklist(checklistItems);
 
-                // Clear previous inputs
+                // Clear review inputs
                 document.getElementById('reviewRemarks').value = '';
                 document.getElementById('reviewInternalNotes').value = '';
-                document.getElementById('editFile').value = '';
-                document.getElementById('editChangeDescription').value = '';
+                metadataChanges = [];
+                updateMetadataChangeLog();
             }
         } catch (error) {
             console.error('Error loading document:', error);
             alert('Error loading document details');
         }
-    }
-
-    function renderChecklist(items) {
-        const container = document.getElementById('checklistContainer');
-
-        if (items.length === 0) {
-            container.innerHTML = '<p class="text-muted">No checklist items configured for this document type</p>';
-            return;
-        }
-
-        container.innerHTML = items.map(item => {
-            // AI status indicator
-            let aiIndicator = '';
-            if (item.aiStatus) {
-                const statusColors = { pass: 'success', fail: 'danger', warning: 'warning' };
-                const statusIcons = { pass: 'check-circle-fill', fail: 'x-circle-fill', warning: 'exclamation-triangle-fill' };
-                const statusLabels = { pass: 'AI: Pass', fail: 'AI: Fail', warning: 'AI: Warning' };
-                const color = statusColors[item.aiStatus] || 'secondary';
-                const icon = statusIcons[item.aiStatus] || 'question-circle';
-                const label = statusLabels[item.aiStatus] || 'AI: Unknown';
-                aiIndicator = `<span class="badge bg-${color} ms-2"><i class="bi bi-${icon} me-1"></i>${label}</span>`;
-            }
-            
-            // AI detail
-            let aiDetail = '';
-            if (item.aiDetail) {
-                aiDetail = `<br><small class="text-primary"><i class="bi bi-robot me-1"></i>${escapeHtml(item.aiDetail)}</small>`;
-            }
-
-            return `
-                <div class="form-check mb-2 p-3 border rounded checklist-item ${item.aiStatus === 'fail' ? 'border-danger bg-danger bg-opacity-10' : item.aiStatus === 'pass' ? 'border-success bg-success bg-opacity-10' : item.aiStatus === 'warning' ? 'border-warning bg-warning bg-opacity-10' : ''}" data-item-id="${item.id}">
-                    <input class="form-check-input" type="checkbox" id="check_${item.id}" ${item.aiStatus === 'pass' ? 'checked' : ''}>
-                    <label class="form-check-label" for="check_${item.id}">
-                        <strong>${escapeHtml(item.itemName)}</strong>
-                        ${item.isRequired ? '<span class="badge bg-danger ms-1">Required</span>' : ''}
-                        ${aiIndicator}
-                        ${item.description && !item.aiDetail ? `<br><small class="text-muted">${escapeHtml(item.description)}</small>` : ''}
-                        ${aiDetail}
-                    </label>
-                    <input type="text" class="form-control form-control-sm mt-2" placeholder="Optional remarks..." id="check_remarks_${item.id}">
-                </div>
-            `;
-        }).join('');
-    }
-
-    function getChecklistResults() {
-        return checklistItems.map(item => ({
-            checklistItemId: item.id,
-            isPassed: document.getElementById(`check_${item.id}`)?.checked || false,
-            remarks: document.getElementById(`check_remarks_${item.id}`)?.value || null
-        }));
     }
 
     async function approveDocument() {
@@ -747,9 +1023,8 @@
         const checklistResults = getChecklistResults();
 
         // Check required items
-        const requiredUnchecked = checklistItems.filter(item =>
-            item.isRequired && !document.getElementById(`check_${item.id}`)?.checked
-        );
+        const requiredCheckboxes = document.querySelectorAll('.checklist-checkbox[data-required="true"]');
+        const requiredUnchecked = Array.from(requiredCheckboxes).filter(cb => !cb.checked);
 
         if (requiredUnchecked.length > 0) {
             if (!confirm(`${requiredUnchecked.length} required checklist items are not checked. Continue anyway?`)) {
@@ -757,11 +1032,27 @@
             }
         }
 
+        // Include metadata changes in the request
+        const metadataUpdates = {
+            title: document.getElementById('editMetaTitle').value,
+            documentType: document.getElementById('editMetaType').value,
+            category: document.getElementById('editMetaCategory').value,
+            caseReference: document.getElementById('editMetaCaseRef').value,
+            tags: document.getElementById('editMetaTags').value,
+            confidentiality: document.getElementById('editMetaConfidential')?.value
+        };
+
         try {
             const response = await fetch(`/api/ReviewApi/${documentId}/approve`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ remarks, internalNotes, checklistResults })
+                body: JSON.stringify({ 
+                    remarks, 
+                    internalNotes, 
+                    checklistResults,
+                    metadataUpdates,
+                    metadataChanges
+                })
             });
 
             const data = await response.json();
@@ -787,6 +1078,7 @@
 
         if (!remarks.trim()) {
             alert('Please provide remarks explaining why the document is rejected');
+            goToStep(3); // Go to step 3 where remarks are
             document.getElementById('reviewRemarks').focus();
             return;
         }
@@ -815,46 +1107,6 @@
         } catch (error) {
             console.error('Error rejecting document:', error);
             alert('Error rejecting document');
-        }
-    }
-
-    async function uploadNewVersion() {
-        const documentId = document.getElementById('reviewDocumentId').value;
-        const fileInput = document.getElementById('editFile');
-        const changeDescription = document.getElementById('editChangeDescription').value;
-
-        if (!fileInput.files || fileInput.files.length === 0) {
-            alert('Please select a file');
-            return;
-        }
-
-        if (!changeDescription.trim()) {
-            alert('Please describe what was changed');
-            document.getElementById('editChangeDescription').focus();
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('file', fileInput.files[0]);
-        formData.append('changeDescription', changeDescription);
-
-        try {
-            const response = await fetch(`/api/ReviewApi/${documentId}/edit`, {
-                method: 'POST',
-                body: formData
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                alert(`New version ${data.versionNumber} uploaded successfully! Client has been notified.`);
-                openReviewModal(documentId); // Refresh modal
-            } else {
-                alert('Error: ' + (data.message || 'Failed to upload new version'));
-            }
-        } catch (error) {
-            console.error('Error uploading version:', error);
-            alert('Error uploading new version');
         }
     }
 

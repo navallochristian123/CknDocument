@@ -401,4 +401,130 @@ public class DashboardApiController : ControllerBase
 
         return Ok(new { success = true, activity = activities });
     }
+
+    // ===========================================
+    // LAWYER DASHBOARD ENDPOINTS
+    // ===========================================
+
+    /// <summary>
+    /// Get dashboard statistics for Lawyer
+    /// </summary>
+    [HttpGet("lawyer-stats")]
+    [Authorize(Policy = "LawyerOnly")]
+    public async Task<IActionResult> GetLawyerStats()
+    {
+        var userId = GetCurrentUserId();
+        var firmId = GetFirmId();
+
+        // Get archived document IDs to exclude
+        var archivedDocIds = await _context.Archives
+            .Where(a => a.IsRestored != true)
+            .Select(a => a.DocumentID)
+            .ToListAsync();
+
+        var totalDocuments = await _context.Documents
+            .Where(d => d.FirmID == firmId && !archivedDocIds.Contains(d.DocumentID))
+            .CountAsync();
+
+        var assignedToMe = await _context.Documents
+            .Where(d => d.FirmID == firmId && 
+                       d.AssignedLawyerId == userId && 
+                       !archivedDocIds.Contains(d.DocumentID))
+            .CountAsync();
+
+        var pendingReviews = await _context.Documents
+            .Where(d => d.FirmID == firmId && 
+                       (d.WorkflowStage == "PendingLawyerReview" || d.WorkflowStage == "LawyerReview") &&
+                       !archivedDocIds.Contains(d.DocumentID))
+            .CountAsync();
+
+        var completedToday = await _context.DocumentReviews
+            .Where(r => r.Document != null && r.Document.FirmID == firmId && 
+                       r.ReviewedBy == userId && 
+                       r.ReviewerRole == "Lawyer" &&
+                       r.ReviewedAt != null && r.ReviewedAt.Value.Date == DateTime.UtcNow.Date)
+            .CountAsync();
+
+        return Ok(new
+        {
+            success = true,
+            stats = new { totalDocuments, assignedToMe, pendingReviews, completedToday }
+        });
+    }
+
+    /// <summary>
+    /// Get recent documents for Lawyer review
+    /// </summary>
+    [HttpGet("lawyer-recent")]
+    [Authorize(Policy = "LawyerOnly")]
+    public async Task<IActionResult> GetLawyerRecentDocuments([FromQuery] int take = 10)
+    {
+        var firmId = GetFirmId();
+        var userId = GetCurrentUserId();
+
+        // Get archived document IDs to exclude
+        var archivedDocIds = await _context.Archives
+            .Where(a => a.IsRestored != true)
+            .Select(a => a.DocumentID)
+            .ToListAsync();
+
+        var documents = await _context.Documents
+            .Include(d => d.Uploader)
+            .Include(d => d.AssignedLawyer)
+            .Where(d => d.FirmID == firmId && 
+                       !archivedDocIds.Contains(d.DocumentID) &&
+                       (d.WorkflowStage == "PendingLawyerReview" || 
+                        d.WorkflowStage == "LawyerReview" ||
+                        d.AssignedLawyerId == userId))
+            .OrderByDescending(d => d.CreatedAt)
+            .Take(take)
+            .Select(d => new
+            {
+                id = d.DocumentID,
+                title = d.Title,
+                originalFileName = d.OriginalFileName,
+                fileExtension = d.FileExtension,
+                documentType = d.DocumentType,
+                status = d.Status,
+                workflowStage = d.WorkflowStage,
+                clientName = d.Uploader != null ? d.Uploader.FullName : null,
+                createdAt = d.CreatedAt
+            })
+            .ToListAsync();
+
+        return Ok(new { success = true, documents });
+    }
+
+    /// <summary>
+    /// Get completed reviews by Lawyer
+    /// </summary>
+    [HttpGet("lawyer-completed")]
+    [Authorize(Policy = "LawyerOnly")]
+    public async Task<IActionResult> GetLawyerCompletedReviews([FromQuery] int take = 20)
+    {
+        var userId = GetCurrentUserId();
+        var firmId = GetFirmId();
+
+        var completed = await _context.DocumentReviews
+            .Include(r => r.Document)
+            .ThenInclude(d => d.Uploader)
+            .Where(r => r.ReviewedBy == userId && 
+                       r.ReviewerRole == "Lawyer" &&
+                       r.Document != null && r.Document.FirmID == firmId)
+            .OrderByDescending(r => r.ReviewedAt)
+            .Take(take)
+            .Select(r => new
+            {
+                documentId = r.DocumentId,
+                documentTitle = r.Document != null ? r.Document.Title : null,
+                originalFileName = r.Document != null ? r.Document.OriginalFileName : null,
+                clientName = r.Document != null && r.Document.Uploader != null ? r.Document.Uploader.FullName : null,
+                reviewStatus = r.ReviewStatus,
+                reviewedAt = r.ReviewedAt,
+                remarks = r.Remarks
+            })
+            .ToListAsync();
+
+        return Ok(new { success = true, completed });
+    }
 }

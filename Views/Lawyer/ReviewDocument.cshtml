@@ -784,7 +784,9 @@
         const internalNotes = document.getElementById('internalNotes').value;
 
         const checklistData = checklistItems.map(item => ({
-            checklistItemId: item.checklistItemId,
+            itemId: item.checklistItemId?.toString() || item.id?.toString() || 'item',
+            itemName: item.itemName || item.label || 'Checklist Item',
+            category: item.category || 'Content',
             isPassed: checklistResults[item.checklistItemId]?.isPassed || false,
             remarks: checklistResults[item.checklistItemId]?.remarks || ''
         }));
@@ -793,7 +795,7 @@
             document.getElementById('btnApprove').disabled = true;
             document.getElementById('btnApprove').innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
 
-            const response = await fetch(`/api/ReviewApi/${docId}/approve`, {
+            const response = await fetch(`/api/ReviewApi/${docId}/lawyer-approve`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

@@ -821,7 +821,9 @@
         const internalNotes = document.getElementById('internalNotes').value;
 
         const checklistData = checklistItems.map(item => ({
-            checklistItemId: item.checklistItemId,
+            itemId: item.checklistItemId?.toString() || item.id?.toString() || 'item',
+            itemName: item.itemName || item.label || 'Checklist Item',
+            category: item.category || 'General',
             isPassed: checklistResults[item.checklistItemId]?.isPassed || false,
             remarks: checklistResults[item.checklistItemId]?.remarks || ''
         }));

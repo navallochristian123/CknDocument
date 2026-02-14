@@ -416,25 +416,44 @@ public class ReviewApiController : ControllerBase
             if (document.AssignedStaffId != userId)
                 return BadRequest(new { success = false, message = "This document is not assigned to you" });
 
-            // Prepare checklist results
-            List<DocumentChecklistResult>? checklistResults = null;
+            // Build checklist summary for storage
+            string? checklistSummary = null;
             if (dto.ChecklistResults != null && dto.ChecklistResults.Any())
             {
-                checklistResults = dto.ChecklistResults.Select(r => new DocumentChecklistResult
-                {
-                    ChecklistItemId = r.ChecklistItemId,
-                    IsPassed = r.IsPassed,
-                    Remarks = r.Remarks
-                }).ToList();
+                var summaryItems = dto.ChecklistResults.Select(r => new {
+                    itemId = r.ItemId ?? r.ChecklistItemId?.ToString() ?? "unknown",
+                    itemName = r.ItemName ?? r.ItemId ?? "Item",
+                    category = r.Category,
+                    passed = r.IsPassed,
+                    remarks = r.Remarks
+                });
+                checklistSummary = System.Text.Json.JsonSerializer.Serialize(summaryItems);
+            }
+
+            // Combine remarks with checklist summary
+            var fullRemarks = dto.Remarks;
+            if (!string.IsNullOrEmpty(checklistSummary))
+            {
+                var passedCount = dto.ChecklistResults?.Count(r => r.IsPassed) ?? 0;
+                var totalCount = dto.ChecklistResults?.Count ?? 0;
+                fullRemarks = $"{dto.Remarks}\n[Checklist: {passedCount}/{totalCount} items verified]";
             }
 
             var review = await _workflowService.StaffApproveAsync(
-                documentId, userId, dto.Remarks, dto.InternalNotes, checklistResults);
+                documentId, userId, fullRemarks, dto.InternalNotes, null);
+
+            // Store checklist results separately if needed
+            if (!string.IsNullOrEmpty(checklistSummary))
+            {
+                review.ChecklistScore = dto.ChecklistResults?.Count(r => r.IsPassed) ?? 0;
+                review.IsChecklistComplete = dto.ChecklistResults?.All(r => r.IsPassed) ?? false;
+                await _context.SaveChangesAsync();
+            }
 
             return Ok(new
             {
                 success = true,
-                message = "Document approved and forwarded to admin",
+                message = "Document approved and forwarded to lawyer",
                 reviewId = review.ReviewId
             });
         }
@@ -469,20 +488,17 @@ public class ReviewApiController : ControllerBase
             if (document.AssignedStaffId != userId)
                 return BadRequest(new { success = false, message = "This document is not assigned to you" });
 
-            // Prepare checklist results
-            List<DocumentChecklistResult>? checklistResults = null;
+            // Build checklist summary
+            var fullRemarks = dto.Remarks;
             if (dto.ChecklistResults != null && dto.ChecklistResults.Any())
             {
-                checklistResults = dto.ChecklistResults.Select(r => new DocumentChecklistResult
-                {
-                    ChecklistItemId = r.ChecklistItemId,
-                    IsPassed = r.IsPassed,
-                    Remarks = r.Remarks
-                }).ToList();
+                var passedCount = dto.ChecklistResults.Count(r => r.IsPassed);
+                var failedCount = dto.ChecklistResults.Count(r => !r.IsPassed);
+                fullRemarks = $"{dto.Remarks}\n[Checklist: {passedCount} passed, {failedCount} failed]";
             }
 
             var review = await _workflowService.StaffRejectAsync(
-                documentId, userId, dto.Remarks, checklistResults);
+                documentId, userId, fullRemarks, null);
 
             return Ok(new
             {
@@ -633,24 +649,25 @@ public class ReviewApiController : ControllerBase
                 return BadRequest(new { success = false, message = $"Document is not ready for lawyer review. Current stage: {document.WorkflowStage}" });
             }
 
-            // Verify assignment (optional - lawyers can review any pending document in their firm)
-            // if (document.AssignedLawyerId != userId)
-            //     return BadRequest(new { success = false, message = "This document is not assigned to you" });
-
-            // Prepare checklist results
-            List<DocumentChecklistResult>? checklistResults = null;
+            // Build checklist summary for remarks
+            var fullRemarks = dto.Remarks;
             if (dto.ChecklistResults != null && dto.ChecklistResults.Any())
             {
-                checklistResults = dto.ChecklistResults.Select(r => new DocumentChecklistResult
-                {
-                    ChecklistItemId = r.ChecklistItemId,
-                    IsPassed = r.IsPassed,
-                    Remarks = r.Remarks
-                }).ToList();
+                var passedCount = dto.ChecklistResults.Count(r => r.IsPassed);
+                var totalCount = dto.ChecklistResults.Count;
+                fullRemarks = $"{dto.Remarks}\n[Content Checklist: {passedCount}/{totalCount} items verified]";
             }
 
             var review = await _workflowService.LawyerApproveAsync(
-                documentId, userId, dto.Remarks, dto.InternalNotes, checklistResults);
+                documentId, userId, fullRemarks, dto.InternalNotes, null);
+
+            // Update review with checklist info
+            if (dto.ChecklistResults != null && dto.ChecklistResults.Any())
+            {
+                review.ChecklistScore = dto.ChecklistResults.Count(r => r.IsPassed);
+                review.IsChecklistComplete = dto.ChecklistResults.All(r => r.IsPassed);
+                await _context.SaveChangesAsync();
+            }
 
             return Ok(new
             {
@@ -698,20 +715,17 @@ public class ReviewApiController : ControllerBase
                 return BadRequest(new { success = false, message = $"Document is not ready for lawyer review. Current stage: {document.WorkflowStage}" });
             }
 
-            // Prepare checklist results
-            List<DocumentChecklistResult>? checklistResults = null;
+            // Build checklist summary
+            var fullRemarks = dto.Remarks;
             if (dto.ChecklistResults != null && dto.ChecklistResults.Any())
             {
-                checklistResults = dto.ChecklistResults.Select(r => new DocumentChecklistResult
-                {
-                    ChecklistItemId = r.ChecklistItemId,
-                    IsPassed = r.IsPassed,
-                    Remarks = r.Remarks
-                }).ToList();
+                var passedCount = dto.ChecklistResults.Count(r => r.IsPassed);
+                var failedCount = dto.ChecklistResults.Count(r => !r.IsPassed);
+                fullRemarks = $"{dto.Remarks}\n[Checklist: {passedCount} passed, {failedCount} failed]";
             }
 
             var review = await _workflowService.LawyerRejectAsync(
-                documentId, userId, dto.Remarks, checklistResults);
+                documentId, userId, fullRemarks, null);
 
             return Ok(new
             {
@@ -853,12 +867,12 @@ public class ReviewApiController : ControllerBase
                 foreach (var checklistResult in dto.ChecklistResults)
                 {
                     // Only save valid checklist item IDs (positive numbers)
-                    if (checklistResult.ChecklistItemId > 0)
+                    if (checklistResult.ChecklistItemId.HasValue && checklistResult.ChecklistItemId.Value > 0)
                     {
                         var result = new DocumentChecklistResult
                         {
                             ReviewId = review.ReviewId,
-                            ChecklistItemId = checklistResult.ChecklistItemId,
+                            ChecklistItemId = checklistResult.ChecklistItemId.Value,
                             IsPassed = checklistResult.IsPassed,
                             Remarks = checklistResult.Remarks,
                             CheckedAt = DateTime.UtcNow
@@ -1091,7 +1105,10 @@ public class StaffReviewDto
 
 public class ChecklistResultDto
 {
-    public int ChecklistItemId { get; set; }
+    public int? ChecklistItemId { get; set; }
+    public string? ItemId { get; set; }  // String-based item ID for custom checklists
+    public string? ItemName { get; set; } // Item name/label for display
+    public string? Category { get; set; } // Category for grouping
     public bool IsPassed { get; set; }
     public string? Remarks { get; set; }
 }

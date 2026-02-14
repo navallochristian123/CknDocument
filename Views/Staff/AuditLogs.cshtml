@@ -1,0 +1,158 @@
+@model List<CKNDocument.Models.LawFirmDMS.AuditLog>
+@{
+    ViewData["Title"] = "Audit Log";
+    Layout = "_StaffLayout";
+    var totalCount = (int)(ViewData["TotalCount"] ?? 0);
+    var currentPage = (int)(ViewData["CurrentPage"] ?? 1);
+    var pageSize = (int)(ViewData["PageSize"] ?? 20);
+    var totalPages = (int)(ViewData["TotalPages"] ?? 1);
+    var actions = (string[])(ViewData["Actions"] ?? Array.Empty<string>());
+    var categories = (string[])(ViewData["Categories"] ?? Array.Empty<string>());
+    var filterAction = ViewData["FilterAction"]?.ToString();
+    var filterCategory = ViewData["FilterCategory"]?.ToString();
+    var filterStartDate = ViewData["FilterStartDate"]?.ToString();
+    var filterEndDate = ViewData["FilterEndDate"]?.ToString();
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0">My Activity Log</h4>
+        <p class="text-muted mb-0">Your system activity and audit trail</p>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" asp-action="Index">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">Action</label>
+                    <select name="action" class="form-select">
+                        <option value="">All Actions</option>
+                        @foreach (var act in actions)
+                        {
+                            <option value="@act" selected="@(filterAction == act)">@act</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Category</label>
+                    <select name="category" class="form-select">
+                        <option value="">All Categories</option>
+                        @foreach (var cat in categories)
+                        {
+                            <option value="@cat" selected="@(filterCategory == cat)">@cat</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Start Date</label>
+                    <input type="date" name="startDate" class="form-control" value="@filterStartDate">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">End Date</label>
+                    <input type="date" name="endDate" class="form-control" value="@filterEndDate">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-search"></i> Filter
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-white">
+        <strong>Activity Log</strong>
+        <span class="text-muted ms-2">(@totalCount total records)</span>
+    </div>
+    <div class="card-body p-0">
+        @if (Model != null && Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Action</th>
+                            <th>Category</th>
+                            <th>Entity</th>
+                            <th>Description</th>
+                            <th>IP Address</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var log in Model)
+                        {
+                            <tr>
+                                <td>@log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                <td>
+                                    @{
+                                        var actionClass = log.Action switch {
+                                            "Login" or "Logout" => "text-info fw-bold",
+                                            "DocumentCreated" or "AccountCreated" => "text-success fw-bold",
+                                            "DocumentUpdated" or "DocumentForwarded" or "DocumentApproved" => "text-primary fw-bold",
+                                            "DocumentDeleted" or "DocumentRejected" => "text-danger fw-bold",
+                                            "DocumentViewed" => "text-secondary fw-bold",
+                                            _ => "text-dark fw-bold"
+                                        };
+                                    }
+                                    <span class="@actionClass">@log.Action</span>
+                                </td>
+                                <td>@(log.ActionCategory ?? "General")</td>
+                                <td>@(log.EntityType ?? "-") @(log.EntityID.HasValue ? $"#{log.EntityID}" : "")</td>
+                                <td>@(log.Description ?? "-")</td>
+                                <td><small class="text-muted">@(log.IPAddress ?? "-")</small></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="text-center py-5">
+                <i class="bi bi-journal-text fs-1 text-muted"></i>
+                <p class="text-muted mt-3">No activity logs found</p>
+            </div>
+        }
+    </div>
+    @if (totalPages > 1)
+    {
+        <div class="card-footer bg-white">
+            <nav aria-label="Audit log pagination">
+                <ul class="pagination mb-0 justify-content-center">
+                    <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                        <a class="page-link" asp-action="Index" 
+                           asp-route-action="@filterAction"
+                           asp-route-category="@filterCategory"
+                           asp-route-startDate="@filterStartDate"
+                           asp-route-endDate="@filterEndDate"
+                           asp-route-page="@(currentPage - 1)">Previous</a>
+                    </li>
+                    @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
+                    {
+                        <li class="page-item @(i == currentPage ? "active" : "")">
+                            <a class="page-link" asp-action="Index"
+                               asp-route-action="@filterAction"
+                               asp-route-category="@filterCategory"
+                               asp-route-startDate="@filterStartDate"
+                               asp-route-endDate="@filterEndDate"
+                               asp-route-page="@i">@i</a>
+                        </li>
+                    }
+                    <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                        <a class="page-link" asp-action="Index"
+                           asp-route-action="@filterAction"
+                           asp-route-category="@filterCategory"
+                           asp-route-startDate="@filterStartDate"
+                           asp-route-endDate="@filterEndDate"
+                           asp-route-page="@(currentPage + 1)">Next</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
+</div>

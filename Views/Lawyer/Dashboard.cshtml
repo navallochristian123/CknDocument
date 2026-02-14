@@ -263,7 +263,7 @@
     
     async function loadStats() {
         try {
-            const response = await fetch('/api/DashboardApi/staff-stats');
+            const response = await fetch('/api/DashboardApi/lawyer-stats');
             if (response.ok) {
                 const data = await response.json();
                 if (data.success) {
@@ -283,7 +283,7 @@
     async function loadRecentDocuments() {
         const tbody = document.getElementById('recentDocumentsTable');
         try {
-            const response = await fetch('/api/DashboardApi/staff-recent?take=8');
+            const response = await fetch('/api/DashboardApi/lawyer-recent?take=8');
             if (response.ok) {
                 const data = await response.json();
                 if (data.success && data.documents.length > 0) {
@@ -298,7 +298,7 @@
                             <td>${formatDate(doc.createdAt)}</td>
                             <td>${getStatusBadge(doc.status, doc.workflowStage)}</td>
                             <td>
-                                ${doc.workflowStage === 'StaffReview' ? 
+                                ${(doc.workflowStage === 'PendingLawyerReview' || doc.workflowStage === 'LawyerReview') ? 
                                     `<a href="/Review/PendingReviews" class="btn btn-sm btn-primary">Review</a>` :
                                     `<a href="/Document/Details/${doc.id}" class="btn btn-sm btn-outline-primary">View</a>`
                                 }
@@ -317,7 +317,7 @@
     async function loadCompletedReviews() {
         const tbody = document.getElementById('completedReviewsTable');
         try {
-            const response = await fetch('/api/DashboardApi/staff-completed?take=20');
+            const response = await fetch('/api/DashboardApi/lawyer-completed?take=20');
             if (response.ok) {
                 const data = await response.json();
                 document.getElementById('completedCount').textContent = data.completed?.length || 0;
@@ -355,17 +355,18 @@
     }
     
     function getStatusBadge(status, workflowStage) {
-        if (status === 'Completed') return '<span class="badge bg-success">Approved</span>';
-        if (status === 'Rejected') return '<span class="badge bg-danger">Rejected</span>';
-        if (workflowStage === 'StaffReview') return '<span class="badge bg-warning">Needs Review</span>';
-        if (workflowStage === 'AdminReview') return '<span class="badge bg-info">Admin Review</span>';
-        return '<span class="badge bg-secondary">Pending</span>';
+        if (status === 'Completed') return '<span class="text-success fw-bold">Approved</span>';
+        if (status === 'Rejected') return '<span class="text-danger fw-bold">Rejected</span>';
+        if (workflowStage === 'PendingLawyerReview' || workflowStage === 'LawyerReview') return '<span class="text-warning fw-bold">Needs Review</span>';
+        if (workflowStage === 'AdminReview' || workflowStage === 'PendingAdminReview') return '<span class="text-info fw-bold">Admin Review</span>';
+        if (workflowStage === 'Approved') return '<span class="text-success fw-bold">Approved</span>';
+        return '<span class="text-warning fw-bold">Pending</span>';
     }
     
     function getActionBadge(status) {
-        if (status === 'Approved') return '<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Approved</span>';
-        if (status === 'Rejected') return '<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Rejected</span>';
-        return '<span class="badge bg-secondary">' + status + '</span>';
+        if (status === 'Approved') return '<span class="text-success fw-bold"><i class="bi bi-check-circle me-1"></i>Approved</span>';
+        if (status === 'Rejected') return '<span class="text-danger fw-bold"><i class="bi bi-x-circle me-1"></i>Rejected</span>';
+        return '<span class="text-secondary fw-bold">' + status + '</span>';
     }
     
     function formatDate(dateStr) {

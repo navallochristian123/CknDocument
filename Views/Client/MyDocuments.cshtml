@@ -350,8 +350,8 @@
         if (workflowStage === 'StaffReview') return '<span class="badge bg-info">Staff Review</span>';
         if (workflowStage === 'AdminReview') return '<span class="badge bg-warning">Admin Review</span>';
         if (workflowStage === 'PendingAdminReview') return '<span class="badge bg-warning">Pending Admin Review</span>';
-        if (workflowStage === 'PendingStaffReview' || workflowStage === 'ClientUpload') return '<span class="badge bg-secondary">Pending Review</span>';
-        return '<span class="badge bg-secondary">Pending Review</span>';
+        if (workflowStage === 'PendingStaffReview' || workflowStage === 'ClientUpload') return '<span class="badge bg-warning text-dark">Pending Review</span>';
+        return '<span class="badge bg-warning text-dark">Pending Review</span>';
     }
     
     function formatDate(dateStr) {

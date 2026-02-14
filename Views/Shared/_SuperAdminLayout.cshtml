@@ -22,9 +22,14 @@
 <body>
     <a href="#main-content" class="skip-link">Skip to main content</a>
     
+    <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle navigation">
+        <span class="hamburger"></span>
+    </button>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    
     <div class="app-layout">
         <!-- Sidebar Navigation -->
-        <nav class="sidebar" role="navigation" aria-label="Main navigation">
+        <nav class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
             <div class="sidebar-header">
                 <a asp-controller="SuperAdminDashboard" asp-action="Index" class="sidebar-brand">
                     <img src="/images/document_logo.png" alt="Logo" style="width: 32px; height: 32px; object-fit: contain;" />
@@ -141,6 +146,27 @@
             var theme = localStorage.getItem('theme') || 'light';
             if (theme === 'dark' || (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                 document.body.classList.add('dark-mode');
+            }
+        })();
+        
+        // Sidebar toggle for mobile
+        (function() {
+            const toggle = document.getElementById('sidebarToggle');
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            
+            if (toggle && sidebar && overlay) {
+                toggle.addEventListener('click', function() {
+                    sidebar.classList.toggle('show');
+                    overlay.classList.toggle('show');
+                    toggle.classList.toggle('active');
+                });
+                
+                overlay.addEventListener('click', function() {
+                    sidebar.classList.remove('show');
+                    overlay.classList.remove('show');
+                    toggle.classList.remove('active');
+                });
             }
         })();
     </script>

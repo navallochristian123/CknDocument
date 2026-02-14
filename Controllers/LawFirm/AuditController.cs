@@ -8,10 +8,11 @@ using System.Security.Claims;
 namespace CKNDocument.Controllers.LawFirm;
 
 /// <summary>
-/// Audit log controller for Admin and Auditor
+/// Audit log controller for all roles
 /// Displays system audit trail with filtering and export capabilities
+/// Admin/Auditor see all logs, other roles see their own logs and related documents
 /// </summary>
-[Authorize(Roles = "Admin,Auditor")]
+[Authorize(Roles = "Admin,Auditor,Staff,Lawyer,Client")]
 public class AuditController : Controller
 {
     private readonly LawFirmDMSDbContext _context;
@@ -42,6 +43,7 @@ public class AuditController : Controller
 
     /// <summary>
     /// Display audit logs page
+    /// Admin/Auditor see all logs, other roles see only their own logs
     /// </summary>
     public async Task<IActionResult> Index(
         string? action = null,
@@ -53,10 +55,19 @@ public class AuditController : Controller
         int pageSize = 20)
     {
         var firmId = GetCurrentFirmId();
+        var role = User.FindFirst(ClaimTypes.Role)?.Value ?? "Client";
+        var currentUserId = int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out int uid) ? uid : 0;
+        
+        // Non-admin roles only see their own audit logs
+        int? filterUserId = userId;
+        if (role != "Admin" && role != "Auditor")
+        {
+            filterUserId = currentUserId;
+        }
 
         var (logs, totalCount) = await _auditLogService.GetAuditLogsAsync(
             firmId: firmId,
-            userId: userId,
+            userId: filterUserId,
             action: action,
             actionCategory: category,
             startDate: startDate,
@@ -64,20 +75,29 @@ public class AuditController : Controller
             page: page,
             pageSize: pageSize);
 
-        // Get filter options
-        ViewData["Users"] = await _context.Users
-            .Where(u => u.FirmID == firmId)
-            .Select(u => new { u.UserID, Name = u.FirstName + " " + u.LastName })
-            .ToListAsync();
+        // Get filter options - only for Admin/Auditor
+        if (role == "Admin" || role == "Auditor")
+        {
+            ViewData["Users"] = await _context.Users
+                .Where(u => u.FirmID == firmId)
+                .Select(u => new { u.UserID, Name = u.FirstName + " " + u.LastName })
+                .ToListAsync();
+        }
+        else
+        {
+            ViewData["Users"] = null;
+        }
 
         ViewData["Actions"] = new[]
         {
             "Login", "Logout", "LoginFailed", "Registration",
             "AccountCreated", "AccountStatusChanged", "PasswordChanged", "RoleAssigned",
-            "DocumentCreated", "DocumentUpdated", "DocumentDeleted", "DocumentViewed"
+            "DocumentCreated", "DocumentUpdated", "DocumentDeleted", "DocumentViewed",
+            "DocumentApproved", "DocumentRejected", "DocumentForwarded", "ReviewSubmitted"
         };
 
-        ViewData["Categories"] = new[] { "Authentication", "UserManagement", "DocumentManagement", "General" };
+        ViewData["Categories"] = new[] { "Authentication", "UserManagement", "DocumentManagement", "Review", "General" };
+        ViewData["CurrentRole"] = role;
 
         ViewData["TotalCount"] = totalCount;
         ViewData["CurrentPage"] = page;

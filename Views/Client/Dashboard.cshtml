@@ -292,8 +292,8 @@
         if (status === 'Completed') return '<span class="badge bg-success">Approved</span>';
         if (status === 'Rejected') return '<span class="badge bg-danger">Rejected</span>';
         if (workflowStage === 'StaffReview') return '<span class="badge bg-info">Staff Review</span>';
-        if (workflowStage === 'AdminReview') return '<span class="badge bg-warning">Admin Review</span>';
-        return '<span class="badge bg-secondary">Pending</span>';
+        if (workflowStage === 'AdminReview') return '<span class="badge bg-warning text-dark">Admin Review</span>';
+        return '<span class="badge bg-warning text-dark">Pending</span>';
     }
     
     function getActivityColor(action) {
