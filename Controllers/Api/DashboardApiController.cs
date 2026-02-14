@@ -511,7 +511,7 @@ public class DashboardApiController : ControllerBase
 
         var completed = await _context.DocumentReviews
             .Include(r => r.Document)
-            .ThenInclude(d => d.Uploader)
+            .ThenInclude(d => d!.Uploader)
             .Where(r => r.ReviewedBy == userId && 
                        r.ReviewerRole == "Lawyer" &&
                        r.Document != null && r.Document.FirmID == firmId)
@@ -530,5 +530,128 @@ public class DashboardApiController : ControllerBase
             .ToListAsync();
 
         return Ok(new { success = true, completed });
+    }
+
+    // ===========================================
+    // UNIVERSAL AUDIT LOG ENDPOINT (ALL ROLES)
+    // ===========================================
+
+    /// <summary>
+    /// Get audit logs for any authenticated firm member.
+    /// Admin/Auditor see all firm logs. Other roles see only their own logs.
+    /// Supports filtering, pagination, and real-time refresh.
+    /// </summary>
+    [HttpGet("audit-logs")]
+    public async Task<IActionResult> GetAuditLogs(
+        [FromQuery] string? action = null,
+        [FromQuery] string? category = null,
+        [FromQuery] int? userId = null,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50)
+    {
+        try
+        {
+            var firmId = GetFirmId();
+            var role = GetUserRole();
+            var currentUserId = GetCurrentUserId();
+
+            var query = _context.AuditLogs
+                .Include(a => a.User)
+                .AsNoTracking()
+                .AsQueryable();
+
+            // Firm filter
+            if (firmId > 0)
+            {
+                query = query.Where(a => a.FirmID == firmId || a.FirmID == null);
+            }
+
+            // Role-based access: Admin/Auditor see all firm logs, others see only their own
+            if (role != "Admin" && role != "Auditor")
+            {
+                query = query.Where(a => a.UserID == currentUserId);
+            }
+            else if (userId.HasValue)
+            {
+                query = query.Where(a => a.UserID == userId);
+            }
+
+            // Apply filters
+            if (!string.IsNullOrEmpty(action))
+                query = query.Where(a => a.Action == action);
+            if (!string.IsNullOrEmpty(category))
+                query = query.Where(a => a.ActionCategory == category);
+            if (startDate.HasValue)
+                query = query.Where(a => a.Timestamp >= startDate.Value);
+            if (endDate.HasValue)
+                query = query.Where(a => a.Timestamp <= endDate.Value.AddDays(1));
+
+            var totalCount = await query.CountAsync();
+            var totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
+
+            var logs = await query
+                .OrderByDescending(a => a.Timestamp)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(a => new
+                {
+                    id = a.AuditID,
+                    timestamp = a.Timestamp,
+                    action = a.Action,
+                    category = a.ActionCategory ?? "General",
+                    entityType = a.EntityType,
+                    entityId = a.EntityID,
+                    description = a.Description,
+                    ipAddress = a.IPAddress,
+                    userName = a.User != null ? a.User.FullName : "System"
+                })
+                .ToListAsync();
+
+            // Get filter options
+            var actions = await _context.AuditLogs
+                .Where(a => a.FirmID == firmId || a.FirmID == null)
+                .Select(a => a.Action)
+                .Distinct()
+                .OrderBy(a => a)
+                .ToListAsync();
+
+            var categories = await _context.AuditLogs
+                .Where(a => a.FirmID == firmId || a.FirmID == null)
+                .Select(a => a.ActionCategory)
+                .Where(c => c != null)
+                .Distinct()
+                .OrderBy(c => c)
+                .ToListAsync();
+
+            // For Admin/Auditor, include user list for filter
+            object? users = null;
+            if (role == "Admin" || role == "Auditor")
+            {
+                users = await _context.Users
+                    .Where(u => u.FirmID == firmId)
+                    .Select(u => new { id = u.UserID, name = u.FullName })
+                    .OrderBy(u => u.name)
+                    .ToListAsync();
+            }
+
+            return Ok(new
+            {
+                success = true,
+                logs,
+                totalCount,
+                currentPage = page,
+                pageSize,
+                totalPages,
+                filters = new { actions, categories, users },
+                debug = new { firmId, role, currentUserId }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in GetAuditLogs API");
+            return StatusCode(500, new { success = false, error = ex.Message });
+        }
     }
 }

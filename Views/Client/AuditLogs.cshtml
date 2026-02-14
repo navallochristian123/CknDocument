@@ -1,62 +1,51 @@
-@model IEnumerable<CKNDocument.Models.LawFirmDMS.AuditLog>
 @{
     ViewData["Title"] = "My Activity Log";
     Layout = "_ClientLayout";
-    var totalCount = (int)(ViewData["TotalCount"] ?? 0);
-    var currentPage = (int)(ViewData["CurrentPage"] ?? 1);
-    var pageSize = (int)(ViewData["PageSize"] ?? 50);
-    var totalPages = (int)(ViewData["TotalPages"] ?? 1);
-    var debugInfo = ViewData["DebugInfo"]?.ToString() ?? "";
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h4 class="mb-0">My Activity Log</h4>
-        <p class="text-muted mb-0">Your system activity and audit trail - @totalCount record(s)</p>
+        <p class="text-muted mb-0" id="logSubtitle">Your system activity and audit trail - Loading...</p>
     </div>
-    <a href="/Audit" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-clockwise me-1"></i> Refresh
-    </a>
+    <div>
+        <span class="badge bg-success me-2" id="liveIndicator"><i class="bi bi-broadcast me-1"></i>Live</span>
+        <button class="btn btn-outline-secondary" onclick="loadLogs()">
+            <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+        </button>
+    </div>
 </div>
 
 <!-- Filters -->
 <div class="card mb-4">
     <div class="card-body">
-        <form method="get" action="/Audit" class="row g-3 align-items-end">
+        <div class="row g-3 align-items-end">
             <div class="col-md-3">
                 <label class="form-label">Action</label>
-                <select name="action" class="form-select">
+                <select id="filterAction" class="form-select" onchange="resetAndLoad()">
                     <option value="">All Actions</option>
-                    @foreach (var opt in new[] { "Login", "Logout", "DocumentCreated", "DocumentUpdated", "DocumentViewed", "DocumentApproved", "DocumentRejected", "DocumentUpload", "DocumentDownload" })
-                    {
-                        <option value="@opt" selected="@(ViewData["FilterAction"]?.ToString() == opt)">@opt</option>
-                    }
                 </select>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Category</label>
-                <select name="category" class="form-select">
+                <select id="filterCategory" class="form-select" onchange="resetAndLoad()">
                     <option value="">All Categories</option>
-                    @foreach (var opt in new[] { "Authentication", "DocumentManagement", "General" })
-                    {
-                        <option value="@opt" selected="@(ViewData["FilterCategory"]?.ToString() == opt)">@opt</option>
-                    }
                 </select>
             </div>
             <div class="col-md-2">
                 <label class="form-label">Start Date</label>
-                <input type="date" name="startDate" class="form-control" value="@ViewData["FilterStartDate"]">
+                <input type="date" id="filterStartDate" class="form-control" onchange="resetAndLoad()">
             </div>
             <div class="col-md-2">
                 <label class="form-label">End Date</label>
-                <input type="date" name="endDate" class="form-control" value="@ViewData["FilterEndDate"]">
+                <input type="date" id="filterEndDate" class="form-control" onchange="resetAndLoad()">
             </div>
             <div class="col-md-2">
-                <button type="submit" class="btn btn-primary w-100">
-                    <i class="bi bi-search"></i> Filter
+                <button class="btn btn-outline-danger w-100" onclick="clearFilters()">
+                    <i class="bi bi-x-circle me-1"></i> Clear
                 </button>
             </div>
-        </form>
+        </div>
     </div>
 </div>
 
@@ -64,14 +53,14 @@
     <div class="card-header d-flex justify-content-between align-items-center">
         <div>
             <strong>Activity Log</strong>
-            <span class="text-muted ms-2">(@totalCount records)</span>
+            <span class="text-muted ms-2" id="recordCount">(0 records)</span>
         </div>
-        <small class="text-muted">Page @currentPage of @totalPages</small>
+        <small class="text-muted" id="pageInfo">Page 1 of 1</small>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-hover mb-0">
-                <thead class="table-light">
+                <thead>
                     <tr>
                         <th>Timestamp</th>
                         <th>Action</th>
@@ -81,76 +70,123 @@
                         <th>IP Address</th>
                     </tr>
                 </thead>
-                <tbody>
-                    @if (Model != null && Model.Any())
-                    {
-                        @foreach (var log in Model)
-                        {
-                            var badgeClass = log.Action switch
-                            {
-                                "Login" => "bg-info",
-                                "Logout" => "bg-secondary",
-                                "LoginFailed" => "bg-danger",
-                                "DocumentCreated" or "DocumentUpload" => "bg-success",
-                                "DocumentUpdated" => "bg-primary",
-                                "DocumentViewed" or "DocumentDownload" => "bg-info text-dark",
-                                "DocumentApproved" => "bg-success",
-                                "DocumentRejected" => "bg-danger",
-                                _ => "bg-secondary"
-                            };
-                            <tr>
-                                <td>
-                                    <span class="text-nowrap">@log.Timestamp.ToString("yyyy-MM-dd")</span>
-                                    <span class="text-muted">@log.Timestamp.ToString("HH:mm:ss")</span>
-                                </td>
-                                <td><span class="badge @badgeClass">@log.Action</span></td>
-                                <td>@(log.ActionCategory ?? "General")</td>
-                                <td>@(log.EntityType ?? "-") @(log.EntityID.HasValue ? $"#{log.EntityID}" : "")</td>
-                                <td class="text-truncate" style="max-width: 300px;" title="@log.Description">@(log.Description ?? "-")</td>
-                                <td><small class="text-muted">@(log.IPAddress ?? "-")</small></td>
-                            </tr>
-                        }
-                    }
-                    else
-                    {
-                        <tr>
-                            <td colspan="6" class="text-center py-5">
-                                <i class="bi bi-journal-text fs-1 text-muted"></i>
-                                <p class="text-muted mt-3">No activity logs found</p>
-                            </td>
-                        </tr>
-                    }
+                <tbody id="logsTbody">
+                    <tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="text-muted mt-2">Loading activity logs...</p></td></tr>
                 </tbody>
             </table>
         </div>
     </div>
-    @if (totalPages > 1)
-    {
-        <div class="card-footer">
-            <nav>
-                <ul class="pagination mb-0 justify-content-center">
-                    <li class="page-item @(currentPage == 1 ? "disabled" : "")">
-                        <a class="page-link" href="@BuildPageUrl(currentPage - 1)">Previous</a>
-                    </li>
-                    @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
-                    {
-                        <li class="page-item @(i == currentPage ? "active" : "")">
-                            <a class="page-link" href="@BuildPageUrl(i)">@i</a>
-                        </li>
-                    }
-                    <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
-                        <a class="page-link" href="@BuildPageUrl(currentPage + 1)">Next</a>
-                    </li>
-                </ul>
-            </nav>
-        </div>
-    }
+    <div class="card-footer" id="paginationFooter" style="display:none;">
+        <nav><ul class="pagination mb-0 justify-content-center" id="pagination"></ul></nav>
+    </div>
 </div>
 
-@functions {
-    string BuildPageUrl(int page)
-    {
-        var query = Context.Request.Query;
-        return $"/Audit?page={page}&action={query["action"]}&category={query["category"]}&startDate={query["startDate"]}&endDate={query["endDate"]}&pageSize={ViewData["PageSize"]}";
+@section Scripts {
+<script>
+    let currentPage = 1;
+    const pageSize = 50;
+    let filtersPopulated = false;
+
+    document.addEventListener('DOMContentLoaded', function () {
+        loadLogs();
+        setInterval(loadLogs, 10000);
+    });
+
+    function resetAndLoad() { currentPage = 1; loadLogs(); }
+
+    async function loadLogs() {
+        try {
+            const action = document.getElementById('filterAction').value;
+            const category = document.getElementById('filterCategory').value;
+            const startDate = document.getElementById('filterStartDate').value;
+            const endDate = document.getElementById('filterEndDate').value;
+
+            let url = `/api/DashboardApi/audit-logs?page=${currentPage}&pageSize=${pageSize}`;
+            if (action) url += `&action=${encodeURIComponent(action)}`;
+            if (category) url += `&category=${encodeURIComponent(category)}`;
+            if (startDate) url += `&startDate=${startDate}`;
+            if (endDate) url += `&endDate=${endDate}`;
+
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const ct = response.headers.get('content-type') || '';
+            if (!ct.includes('application/json')) throw new Error('Not JSON');
+            const data = await response.json();
+
+            if (data.success) {
+                renderTable(data.logs);
+                renderPagination(data.currentPage, data.totalPages);
+                if (!filtersPopulated && data.filters) { populateFilters(data.filters); filtersPopulated = true; }
+                document.getElementById('logSubtitle').textContent = `Your system activity and audit trail - ${data.totalCount} record(s)`;
+                document.getElementById('recordCount').textContent = `(${data.totalCount} records)`;
+                document.getElementById('pageInfo').textContent = `Page ${data.currentPage} of ${data.totalPages || 1}`;
+                document.getElementById('liveIndicator').className = 'badge bg-success me-2';
+                document.getElementById('liveIndicator').innerHTML = '<i class="bi bi-broadcast me-1"></i>Live';
+            }
+        } catch (e) {
+            console.error('Error loading logs:', e);
+            document.getElementById('liveIndicator').className = 'badge bg-danger me-2';
+            document.getElementById('liveIndicator').innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Error';
+        }
     }
+
+    function renderTable(logs) {
+        const tbody = document.getElementById('logsTbody');
+        if (!logs || logs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><i class="bi bi-journal-text fs-1 text-muted"></i><p class="text-muted mt-3">No activity logs found</p></td></tr>';
+            return;
+        }
+        tbody.innerHTML = logs.map(l => {
+            const dt = new Date(l.timestamp);
+            return `<tr>
+                <td><span class="text-nowrap">${dt.toLocaleDateString('en-CA')}</span> <span class="text-muted">${dt.toLocaleTimeString('en-US',{hour12:false})}</span></td>
+                <td><span class="badge ${badgeCls(l.action)}">${esc(l.action)}</span></td>
+                <td>${esc(l.category||'General')}</td>
+                <td>${esc(l.entityType||'-')} ${l.entityId?'#'+l.entityId:''}</td>
+                <td class="text-truncate" style="max-width:300px;" title="${esc(l.description)}">${esc(l.description||'-')}</td>
+                <td><small class="text-muted">${esc(l.ipAddress||'-')}</small></td>
+            </tr>`;
+        }).join('');
+    }
+
+    function renderPagination(page, total) {
+        const f = document.getElementById('paginationFooter');
+        const n = document.getElementById('pagination');
+        if (total <= 1) { f.style.display = 'none'; return; }
+        f.style.display = '';
+        let h = `<li class="page-item ${page<=1?'disabled':''}"><a class="page-link" href="#" onclick="goPage(${page-1});return false;">Previous</a></li>`;
+        for (let i = Math.max(1,page-2); i <= Math.min(total,page+2); i++)
+            h += `<li class="page-item ${i===page?'active':''}"><a class="page-link" href="#" onclick="goPage(${i});return false;">${i}</a></li>`;
+        h += `<li class="page-item ${page>=total?'disabled':''}"><a class="page-link" href="#" onclick="goPage(${page+1});return false;">Next</a></li>`;
+        n.innerHTML = h;
+    }
+
+    function goPage(p) { currentPage = p; loadLogs(); }
+
+    function populateFilters(filters) {
+        fillSelect('filterAction', filters.actions, 'All Actions');
+        fillSelect('filterCategory', filters.categories, 'All Categories');
+    }
+
+    function fillSelect(id, opts, def) {
+        const s = document.getElementById(id);
+        const v = s.value;
+        s.innerHTML = `<option value="">${def}</option>` + (opts||[]).map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
+        if (v) s.value = v;
+    }
+
+    function clearFilters() {
+        document.getElementById('filterAction').value = '';
+        document.getElementById('filterCategory').value = '';
+        document.getElementById('filterStartDate').value = '';
+        document.getElementById('filterEndDate').value = '';
+        currentPage = 1; loadLogs();
+    }
+
+    function badgeCls(a) {
+        return {'Login':'bg-info','Logout':'bg-secondary','LoginFailed':'bg-danger','DocumentCreated':'bg-success','DocumentUpload':'bg-success','DocumentUpdated':'bg-primary','DocumentViewed':'bg-info','DocumentDownload':'bg-info','DocumentApproved':'bg-success','DocumentRejected':'bg-danger','ReviewSubmitted':'bg-warning text-dark','AccountCreated':'bg-success','PasswordChanged':'bg-warning text-dark'}[a]||'bg-secondary';
+    }
+
+    function esc(t) { if (!t) return ''; const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+</script>
 }
