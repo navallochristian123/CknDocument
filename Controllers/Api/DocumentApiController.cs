@@ -413,6 +413,129 @@ public class DocumentApiController : ControllerBase
     }
 
     /// <summary>
+    /// Search client's documents and folders
+    /// Allows filtering by status, type, folder, and search term
+    /// </summary>
+    [HttpGet("search/client")]
+    [Authorize(Policy = "FirmMember")]
+    public async Task<IActionResult> SearchClientDocuments(
+        [FromQuery] string? search = null,
+        [FromQuery] string? status = null,
+        [FromQuery] string? type = null,
+        [FromQuery] int? folderId = null)
+    {
+        var userId = GetCurrentUserId();
+        var firmId = GetFirmId();
+        var role = GetUserRole();
+
+        // Build documents query
+        var docsQuery = _context.Documents
+            .Include(d => d.Folder)
+            .Include(d => d.Uploader)
+            .Where(d => d.FirmID == firmId && d.WorkflowStage != "Archived");
+
+        // Clients only see their own documents
+        if (role == "Client")
+        {
+            docsQuery = docsQuery.Where(d => d.UploadedBy == userId);
+        }
+
+        // Apply search filter
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var searchLower = search.ToLower();
+            docsQuery = docsQuery.Where(d => 
+                (d.Title != null && d.Title.ToLower().Contains(searchLower)) ||
+                (d.OriginalFileName != null && d.OriginalFileName.ToLower().Contains(searchLower)) ||
+                (d.Description != null && d.Description.ToLower().Contains(searchLower)) ||
+                (d.DocumentType != null && d.DocumentType.ToLower().Contains(searchLower)));
+        }
+
+        // Apply status filter
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            docsQuery = docsQuery.Where(d => d.Status == status);
+        }
+
+        // Apply type filter
+        if (!string.IsNullOrWhiteSpace(type))
+        {
+            docsQuery = docsQuery.Where(d => d.DocumentType == type);
+        }
+
+        // Apply folder filter
+        if (folderId.HasValue)
+        {
+            docsQuery = docsQuery.Where(d => d.FolderId == folderId);
+        }
+
+        var documents = await docsQuery
+            .OrderByDescending(d => d.CreatedAt)
+            .Select(d => new
+            {
+                id = d.DocumentID,
+                title = d.Title,
+                description = d.Description,
+                category = d.Category,
+                documentType = d.DocumentType,
+                status = d.Status,
+                workflowStage = d.WorkflowStage,
+                originalFileName = d.OriginalFileName,
+                fileExtension = d.FileExtension,
+                totalFileSize = d.TotalFileSize,
+                folderId = d.FolderId,
+                folderName = d.Folder != null ? d.Folder.FolderName : null,
+                uploaderName = d.Uploader != null ? d.Uploader.FullName : null,
+                createdAt = d.CreatedAt
+            })
+            .ToListAsync();
+
+        // Get folders for this user
+        var foldersQuery = _context.ClientFolders
+            .Include(f => f.Documents.Where(d => d.WorkflowStage != "Archived"))
+            .Where(f => f.FirmId == firmId);
+
+        if (role == "Client")
+        {
+            foldersQuery = foldersQuery.Where(f => f.ClientId == userId);
+        }
+
+        // Apply search to folders too
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var searchLower = search.ToLower();
+            foldersQuery = foldersQuery.Where(f => 
+                f.FolderName.ToLower().Contains(searchLower) ||
+                (f.Description != null && f.Description.ToLower().Contains(searchLower)));
+        }
+
+        var folders = await foldersQuery
+            .OrderBy(f => f.FolderName)
+            .Select(f => new
+            {
+                id = f.FolderId,
+                name = f.FolderName,
+                description = f.Description,
+                color = f.Color,
+                documentCount = f.Documents.Count,
+                createdAt = f.CreatedAt
+            })
+            .ToListAsync();
+
+        // Log the search action
+        await _auditLogService.LogAsync(
+            "DocumentSearch",
+            "Search",
+            null,
+            $"Searched documents with term: '{search}', status: '{status}', type: '{type}'",
+            null,
+            null,
+            "DocumentManagement");
+
+        return Ok(new { success = true, documents, folders });
+    }
+
+    /// <summary>
     /// Archive document (Client can archive their own)
     /// </summary>
     [HttpPost("{id}/archive")]

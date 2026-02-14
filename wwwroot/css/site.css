@@ -1290,7 +1290,6 @@ a:focus {
    Hamburger Menu & Mobile Sidebar
    ================== */
 .sidebar-toggle {
-    display: none;
     position: fixed;
     top: 12px;
     left: 12px;
@@ -1301,6 +1300,7 @@ a:focus {
     border: 1px solid var(--gray-200);
     border-radius: var(--radius-md);
     cursor: pointer;
+    display: flex;
     align-items: center;
     justify-content: center;
     box-shadow: var(--shadow-md);
@@ -1351,6 +1351,28 @@ a:focus {
 .sidebar-toggle.active .hamburger::after {
     transform: rotate(-45deg);
     top: 0;
+}
+
+/* Desktop Sidebar Collapse */
+.sidebar {
+    transition: transform 0.3s ease, width 0.3s ease;
+}
+
+.sidebar.collapsed {
+    transform: translateX(-260px);
+}
+
+.main-content {
+    transition: margin-left 0.3s ease;
+}
+
+.main-content.expanded {
+    margin-left: 0 !important;
+}
+
+/* Adjust hamburger position when sidebar is collapsed */
+.sidebar-toggle {
+    transition: left 0.3s ease;
 }
 
 /* Sidebar Overlay */

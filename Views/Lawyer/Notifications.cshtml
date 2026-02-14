@@ -6,35 +6,133 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h4 class="mb-0">Notifications</h4>
+        <p class="text-muted mb-0" id="notificationSubtitle">Your notifications - Loading...</p>
     </div>
-    <a href="#" class="btn btn-outline-secondary">
-        <i class="bi bi-check-all"></i> Mark All as Read
-    </a>
+    <div>
+        <button class="btn btn-outline-secondary me-2" onclick="loadNotifications()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+        <button class="btn btn-outline-primary" onclick="markAllAsRead()">
+            <i class="bi bi-check-all"></i> Mark All as Read
+        </button>
+    </div>
 </div>
+
+<ul class="nav nav-tabs mb-4" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-filter="all" onclick="filterNotifications('all')">All <span class="badge bg-secondary" id="allCount">0</span></button></li>
+    <li class="nav-item"><button class="nav-link" data-filter="unread" onclick="filterNotifications('unread')">Unread <span class="badge bg-primary" id="unreadCount">0</span></button></li>
+    <li class="nav-item"><button class="nav-link" data-filter="documents" onclick="filterNotifications('documents')">Documents <span class="badge bg-info" id="documentsCount">0</span></button></li>
+</ul>
 
 <div class="card">
     <div class="card-body p-0">
-        <div class="list-group list-group-flush">
-            <a href="#" class="list-group-item list-group-item-action bg-light">
-                <div class="d-flex w-100 justify-content-between">
-                    <div>
-                        <i class="bi bi-file-earmark-plus text-primary me-2"></i>
-                        <strong>New Assignment</strong>
-                    </div>
-                    <small class="text-muted">1 hour ago</small>
-                </div>
-                <p class="mb-0 text-muted">Contract_Review.pdf has been assigned to you</p>
-            </a>
-            <a href="#" class="list-group-item list-group-item-action">
-                <div class="d-flex w-100 justify-content-between">
-                    <div>
-                        <i class="bi bi-check-circle text-success me-2"></i>
-                        <strong>Review Approved</strong>
-                    </div>
-                    <small class="text-muted">3 hours ago</small>
-                </div>
-                <p class="mb-0 text-muted">Your document Brief_001.docx has been approved</p>
-            </a>
+        <div class="list-group list-group-flush" id="notificationsList">
+            <div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="text-muted mt-2">Loading notifications...</p></div>
         </div>
     </div>
 </div>
+
+@section Scripts {
+<script>
+    let currentFilter = 'all';
+    let allNotifications = [];
+
+    document.addEventListener('DOMContentLoaded', loadNotifications);
+
+    async function loadNotifications() {
+        try {
+            const response = await fetch('/api/NotificationApi?take=100');
+            if (response.ok) {
+                const ct = response.headers.get('content-type') || '';
+                if (!ct.includes('application/json')) throw new Error('Not JSON');
+                const data = await response.json();
+                if (data.success) {
+                    allNotifications = data.notifications || [];
+                    updateCounts();
+                    displayNotifications();
+                }
+            }
+        } catch (e) {
+            console.error('Error:', e);
+            document.getElementById('notificationsList').innerHTML = '<div class="text-center text-danger py-5">Error loading notifications</div>';
+        }
+    }
+
+    function updateCounts() {
+        const all = allNotifications.length;
+        const unread = allNotifications.filter(n => !n.isRead).length;
+        const documents = allNotifications.filter(n => n.documentId).length;
+        document.getElementById('allCount').textContent = all;
+        document.getElementById('unreadCount').textContent = unread;
+        document.getElementById('documentsCount').textContent = documents;
+        document.getElementById('notificationSubtitle').textContent = `Your notifications - ${unread} unread of ${all} total`;
+    }
+
+    function filterNotifications(filter) {
+        currentFilter = filter;
+        document.querySelectorAll('.nav-link').forEach(tab => tab.classList.remove('active'));
+        document.querySelector(`[data-filter="${filter}"]`).classList.add('active');
+        displayNotifications();
+    }
+
+    function displayNotifications() {
+        let filtered = allNotifications;
+        if (currentFilter === 'unread') filtered = filtered.filter(n => !n.isRead);
+        else if (currentFilter === 'documents') filtered = filtered.filter(n => n.documentId);
+
+        const container = document.getElementById('notificationsList');
+        if (filtered.length === 0) {
+            container.innerHTML = '<div class="text-center py-5"><i class="bi bi-bell-slash fs-1 text-muted"></i><p class="text-muted mt-2">No notifications found</p></div>';
+            return;
+        }
+        container.innerHTML = filtered.map(n => `
+            <a href="${n.actionUrl || '#'}" class="list-group-item list-group-item-action ${n.isRead ? '' : 'bg-light'}" onclick="markAsRead(${n.id})">
+                <div class="d-flex w-100 justify-content-between align-items-start">
+                    <div class="d-flex align-items-start">
+                        <div class="me-3 ${getColor(n.notificationType)}"><i class="bi ${getIcon(n.notificationType)} fs-4"></i></div>
+                        <div>
+                            <div class="d-flex align-items-center">
+                                <strong>${n.title}</strong>
+                                ${!n.isRead ? '<span class="badge bg-primary ms-2">New</span>' : ''}
+                            </div>
+                            <p class="mb-1 text-muted">${n.message}</p>
+                            <small class="text-muted"><i class="bi bi-clock me-1"></i>${timeAgo(n.createdAt)}</small>
+                        </div>
+                    </div>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteNotif(event, ${n.id})" title="Delete"><i class="bi bi-trash"></i></button>
+                </div>
+            </a>`).join('');
+    }
+
+    function getIcon(type) {
+        return { 'DocumentUploaded': 'bi-file-earmark-plus', 'DocumentReviewed': 'bi-check-circle', 'DocumentApproved': 'bi-check2-circle', 'DocumentRejected': 'bi-x-circle', 'DocumentPendingReview': 'bi-hourglass-split', 'ReviewAssigned': 'bi-person-check', 'ReviewCompleted': 'bi-clipboard-check', 'CommentAdded': 'bi-chat-dots', 'SystemAlert': 'bi-exclamation-triangle' }[type] || 'bi-bell';
+    }
+
+    function getColor(type) {
+        return { 'DocumentUploaded': 'text-primary', 'DocumentApproved': 'text-success', 'DocumentRejected': 'text-danger', 'DocumentPendingReview': 'text-warning', 'ReviewAssigned': 'text-warning', 'ReviewCompleted': 'text-success', 'SystemAlert': 'text-warning' }[type] || 'text-secondary';
+    }
+
+    function timeAgo(dateStr) {
+        const seconds = Math.floor((new Date() - new Date(dateStr)) / 1000);
+        if (seconds < 60) return 'Just now';
+        if (seconds < 3600) return Math.floor(seconds / 60) + ' min ago';
+        if (seconds < 86400) return Math.floor(seconds / 3600) + ' hours ago';
+        if (seconds < 604800) return Math.floor(seconds / 86400) + ' days ago';
+        return new Date(dateStr).toLocaleDateString();
+    }
+
+    async function markAsRead(id) {
+        try { await fetch(`/api/NotificationApi/${id}/read`, { method: 'POST' }); const n = allNotifications.find(x => x.id === id); if (n) n.isRead = true; updateCounts(); displayNotifications(); } catch (e) { console.error(e); }
+    }
+
+    async function markAllAsRead() {
+        try { await fetch('/api/NotificationApi/read-all', { method: 'POST' }); allNotifications.forEach(n => n.isRead = true); updateCounts(); displayNotifications(); } catch (e) { console.error(e); }
+    }
+
+    async function deleteNotif(event, id) {
+        event.preventDefault(); event.stopPropagation();
+        if (!confirm('Delete this notification?')) return;
+        try { await fetch(`/api/NotificationApi/${id}`, { method: 'DELETE' }); allNotifications = allNotifications.filter(n => n.id !== id); updateCounts(); displayNotifications(); } catch (e) { console.error(e); }
+    }
+</script>
+}

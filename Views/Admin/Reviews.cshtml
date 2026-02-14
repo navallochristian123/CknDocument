@@ -465,16 +465,16 @@
                                         <small class="text-muted d-block mb-2">Review Trail</small>
                                         <div class="small">
                                             <div class="d-flex align-items-center mb-2">
-                                                <i class="bi bi-check-circle-fill text-success me-2"></i>
-                                                <span>Staff Review: <strong id="trailStaffStatus">-</strong></span>
+                                                <i class="bi bi-check-circle-fill text-success me-2" id="trailStaffIcon"></i>
+                                                <span>Staff Review: <span class="badge bg-secondary" id="trailStaffStatus">-</span></span>
                                             </div>
                                             <div class="d-flex align-items-center mb-2">
-                                                <i class="bi bi-check-circle-fill text-success me-2"></i>
-                                                <span>Lawyer Review: <strong id="trailLawyerStatus">-</strong></span>
+                                                <i class="bi bi-hourglass text-warning me-2" id="trailLawyerIcon"></i>
+                                                <span>Lawyer Review: <span class="badge bg-secondary" id="trailLawyerStatus">-</span></span>
                                             </div>
                                             <div class="d-flex align-items-center">
                                                 <i class="bi bi-hourglass text-warning me-2"></i>
-                                                <span>Admin Review: <strong>In Progress</strong></span>
+                                                <span>Admin Review: <span class="badge bg-warning text-dark">In Progress</span></span>
                                             </div>
                                         </div>
                                     </div>
@@ -831,17 +831,21 @@
                 // Versions
                 const versionsList = document.getElementById('versionsList');
                 if (doc.versions && doc.versions.length > 0) {
-                    currentVersions = doc.versions.map(v => ({
-                        id: v.versionId,
-                        versionNumber: v.versionNumber,
-                        fileName: v.fileName || doc.originalFileName,
-                        fileSize: v.fileSize,
-                        fileExtension: v.fileExtension || '.' + (doc.originalFileName?.split('.').pop() || ''),
-                        createdAt: v.createdAt,
-                        createdByName: v.changedBy || doc.uploader?.name,
-                        changeDescription: v.changeDescription,
-                        isCurrentVersion: v.isCurrentVersion
-                    }));
+                    currentVersions = doc.versions.map(v => {
+                        const fileName = v.originalFileName || doc.originalFileName || '';
+                        const ext = fileName.lastIndexOf('.') > 0 ? fileName.slice(fileName.lastIndexOf('.')) : '';
+                        return {
+                            id: v.versionId,
+                            versionNumber: v.versionNumber,
+                            fileName: fileName,
+                            fileSize: v.fileSize,
+                            fileExtension: ext,
+                            createdAt: v.createdAt,
+                            createdByName: v.changedBy || doc.uploader?.name,
+                            changeDescription: v.changeDescription,
+                            isCurrentVersion: v.isCurrentVersion
+                        };
+                    });
 
                     versionsList.innerHTML = doc.versions.map(v => `
                         <li class="list-group-item d-flex justify-content-between align-items-center py-2">
@@ -933,16 +937,17 @@
         const ext1 = v1.fileExtension?.toLowerCase() || '';
         const ext2 = v2.fileExtension?.toLowerCase() || '';
         
-        if (ext1 === '.pdf') {
-            frame1.src = `/api/DocumentVersionApi/${v1.id}/download#toolbar=0&navpanes=0`;
+        // Use view endpoint with content-disposition inline
+        if (['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.bmp'].includes(ext1)) {
+            frame1.src = `/api/DocumentApi/${currentDocumentId}/view?versionId=${v1.id}`;
         } else {
-            frame1.srcdoc = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:sans-serif;color:#fff;background:#333;"><div style="text-align:center;"><p>${escapeHtml(v1.fileName)}</p><p>${formatFileSize(v1.fileSize)}</p><p><em>Preview not available</em></p></div></div>`;
+            frame1.srcdoc = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:sans-serif;color:#fff;background:#333;"><div style="text-align:center;"><p>${escapeHtml(v1.fileName)}</p><p>${formatFileSize(v1.fileSize)}</p><p><em>Preview not available for this file type</em></p><a href="/api/DocumentApi/${currentDocumentId}/download?versionId=${v1.id}" style="color:#0d6efd;" target="_blank">Download to view</a></div></div>`;
         }
         
-        if (ext2 === '.pdf') {
-            frame2.src = `/api/DocumentVersionApi/${v2.id}/download#toolbar=0&navpanes=0`;
+        if (['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.bmp'].includes(ext2)) {
+            frame2.src = `/api/DocumentApi/${currentDocumentId}/view?versionId=${v2.id}`;
         } else {
-            frame2.srcdoc = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:sans-serif;color:#fff;background:#333;"><div style="text-align:center;"><p>${escapeHtml(v2.fileName)}</p><p>${formatFileSize(v2.fileSize)}</p><p><em>Preview not available</em></p></div></div>`;
+            frame2.srcdoc = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:sans-serif;color:#fff;background:#333;"><div style="text-align:center;"><p>${escapeHtml(v2.fileName)}</p><p>${formatFileSize(v2.fileSize)}</p><p><em>Preview not available for this file type</em></p><a href="/api/DocumentApi/${currentDocumentId}/download?versionId=${v2.id}" style="color:#0d6efd;" target="_blank">Download to view</a></div></div>`;
         }
 
         // Update metadata
@@ -976,7 +981,10 @@
             document.getElementById('staffReviewer').textContent = staffReview.reviewer || '-';
             document.getElementById('staffReviewDate').textContent = formatDate(staffReview.reviewedAt);
             document.getElementById('staffRemarks').textContent = staffReview.remarks || 'No remarks';
-            document.getElementById('trailStaffStatus').textContent = 'Approved';
+            const trailStaff = document.getElementById('trailStaffStatus');
+            trailStaff.textContent = 'Approved';
+            trailStaff.className = 'badge bg-success';
+            document.getElementById('trailStaffIcon').className = 'bi bi-check-circle-fill text-success me-2';
             
             // Metadata checklist
             const metaContainer = document.getElementById('staffMetadataChecklist');
@@ -1010,6 +1018,10 @@
             document.getElementById('staffRemarks').textContent = 'No staff review data';
             document.getElementById('staffMetadataChecklist').innerHTML = '<p class="text-muted mb-0 small">No data</p>';
             document.getElementById('staffMetadataChanges').innerHTML = '<p class="text-muted mb-0 small">No data</p>';
+            const trailStaff = document.getElementById('trailStaffStatus');
+            trailStaff.textContent = 'Pending';
+            trailStaff.className = 'badge bg-warning text-dark';
+            document.getElementById('trailStaffIcon').className = 'bi bi-hourglass text-warning me-2';
         }
 
         // Lawyer Review
@@ -1019,7 +1031,10 @@
             document.getElementById('lawyerReviewer').textContent = lawyerReview.reviewer || '-';
             document.getElementById('lawyerReviewDate').textContent = formatDate(lawyerReview.reviewedAt);
             document.getElementById('lawyerRemarks').textContent = lawyerReview.remarks || 'No remarks';
-            document.getElementById('trailLawyerStatus').textContent = 'Approved';
+            const trailLawyer = document.getElementById('trailLawyerStatus');
+            trailLawyer.textContent = 'Approved';
+            trailLawyer.className = 'badge bg-success';
+            document.getElementById('trailLawyerIcon').className = 'bi bi-check-circle-fill text-success me-2';
             
             // Content checklist
             const contentContainer = document.getElementById('lawyerContentChecklist');
@@ -1052,7 +1067,10 @@
             document.getElementById('lawyerRemarks').textContent = 'No lawyer review data';
             document.getElementById('lawyerContentChecklist').innerHTML = '<p class="text-muted mb-0 small">No data</p>';
             document.getElementById('lawyerVersionChanges').innerHTML = '<p class="text-muted mb-0 small">No data</p>';
-            document.getElementById('trailLawyerStatus').textContent = 'Pending';
+            const trailLawyer = document.getElementById('trailLawyerStatus');
+            trailLawyer.textContent = 'Pending';
+            trailLawyer.className = 'badge bg-warning text-dark';
+            document.getElementById('trailLawyerIcon').className = 'bi bi-hourglass text-warning me-2';
         }
     }
 

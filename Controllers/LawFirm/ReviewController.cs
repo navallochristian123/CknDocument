@@ -6,7 +6,7 @@ using System.Security.Claims;
 namespace CKNDocument.Controllers.LawFirm;
 
 /// <summary>
-/// Document review controller for Staff and Admin
+/// Document review controller for Staff, Admin and Lawyer
 /// Handles document review workflow
 /// </summary>
 [Authorize(Policy = "AdminOrStaff")]

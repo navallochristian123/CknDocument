@@ -43,7 +43,7 @@ public class AuditController : Controller
 
     /// <summary>
     /// Display audit logs page
-    /// Admin/Auditor see all logs, other roles see only their own logs
+    /// Admin/Auditor see all logs, other roles see their own logs and related documents
     /// </summary>
     public async Task<IActionResult> Index(
         string? action = null,
@@ -52,28 +52,70 @@ public class AuditController : Controller
         DateTime? startDate = null,
         DateTime? endDate = null,
         int page = 1,
-        int pageSize = 20)
+        int pageSize = 50)
     {
         var firmId = GetCurrentFirmId();
         var role = User.FindFirst(ClaimTypes.Role)?.Value ?? "Client";
         var currentUserId = int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out int uid) ? uid : 0;
-        
-        // Non-admin roles only see their own audit logs
-        int? filterUserId = userId;
-        if (role != "Admin" && role != "Auditor")
+
+        // Build query directly for full control and transparency
+        var query = _context.AuditLogs
+            .Include(a => a.User)
+            .Include(a => a.SuperAdmin)
+            .AsNoTracking()
+            .AsQueryable();
+
+        // FirmId filter
+        if (firmId > 0)
         {
-            filterUserId = currentUserId;
+            query = query.Where(a => a.FirmID == firmId || a.FirmID == null);
         }
 
-        var (logs, totalCount) = await _auditLogService.GetAuditLogsAsync(
-            firmId: firmId,
-            userId: filterUserId,
-            action: action,
-            actionCategory: category,
-            startDate: startDate,
-            endDate: endDate,
-            page: page,
-            pageSize: pageSize);
+        // Non-admin/auditor roles only see their own logs
+        if (role != "Admin" && role != "Auditor")
+        {
+            query = query.Where(a => a.UserID == currentUserId);
+        }
+        else if (userId.HasValue)
+        {
+            query = query.Where(a => a.UserID == userId);
+        }
+
+        // Apply filters
+        if (!string.IsNullOrEmpty(action))
+            query = query.Where(a => a.Action == action);
+
+        if (!string.IsNullOrEmpty(category))
+            query = query.Where(a => a.ActionCategory == category);
+
+        if (startDate.HasValue)
+            query = query.Where(a => a.Timestamp >= startDate.Value);
+
+        if (endDate.HasValue)
+            query = query.Where(a => a.Timestamp <= endDate.Value.AddDays(1));
+
+        var totalCount = await query.CountAsync();
+
+        var logs = await query
+            .OrderByDescending(a => a.Timestamp)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        // Prepare serialized data for JS
+        var logsJson = logs.Select(a => new
+        {
+            id = a.AuditID,
+            timestamp = a.Timestamp.ToString("o"),
+            action = a.Action,
+            category = a.ActionCategory ?? "General",
+            entityType = a.EntityType,
+            entityId = a.EntityID,
+            description = a.Description,
+            ipAddress = a.IPAddress,
+            userName = a.User != null ? (a.User.FirstName + " " + a.User.LastName) :
+                       (a.SuperAdmin != null ? (a.SuperAdmin.FirstName + " " + a.SuperAdmin.LastName) : "-")
+        });
 
         // Get filter options - only for Admin/Auditor
         if (role == "Admin" || role == "Auditor")
@@ -83,33 +125,45 @@ public class AuditController : Controller
                 .Select(u => new { u.UserID, Name = u.FirstName + " " + u.LastName })
                 .ToListAsync();
         }
-        else
-        {
-            ViewData["Users"] = null;
-        }
 
-        ViewData["Actions"] = new[]
-        {
-            "Login", "Logout", "LoginFailed", "Registration",
-            "AccountCreated", "AccountStatusChanged", "PasswordChanged", "RoleAssigned",
-            "DocumentCreated", "DocumentUpdated", "DocumentDeleted", "DocumentViewed",
-            "DocumentApproved", "DocumentRejected", "DocumentForwarded", "ReviewSubmitted"
-        };
+        // Provide action/category lists for Auditor view dropdowns
+        ViewData["Actions"] = await _context.AuditLogs
+            .Select(a => a.Action)
+            .Distinct()
+            .OrderBy(a => a)
+            .ToArrayAsync();
 
-        ViewData["Categories"] = new[] { "Authentication", "UserManagement", "DocumentManagement", "Review", "General" };
+        ViewData["Categories"] = await _context.AuditLogs
+            .Select(a => a.ActionCategory)
+            .Where(c => c != null)
+            .Distinct()
+            .OrderBy(c => c)
+            .ToArrayAsync();
+
         ViewData["CurrentRole"] = role;
-
         ViewData["TotalCount"] = totalCount;
         ViewData["CurrentPage"] = page;
         ViewData["PageSize"] = pageSize;
         ViewData["TotalPages"] = (int)Math.Ceiling((double)totalCount / pageSize);
-
-        // Current filter values
         ViewData["FilterAction"] = action;
         ViewData["FilterCategory"] = category;
         ViewData["FilterUserId"] = userId;
         ViewData["FilterStartDate"] = startDate?.ToString("yyyy-MM-dd");
         ViewData["FilterEndDate"] = endDate?.ToString("yyyy-MM-dd");
+
+        // Pass JSON data to view for immediate rendering
+        ViewData["InitialLogsJson"] = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            success = true,
+            logs = logsJson,
+            totalCount,
+            currentPage = page,
+            pageSize,
+            totalPages = (int)Math.Ceiling((double)totalCount / pageSize)
+        });
+
+        // Debug info
+        ViewData["DebugInfo"] = $"FirmId={firmId}, UserId={currentUserId}, Role={role}, TotalInDB={await _context.AuditLogs.CountAsync()}, Filtered={totalCount}";
 
         return View(GetRoleViewPath("AuditLogs"), logs);
     }
@@ -206,52 +260,6 @@ public class AuditController : Controller
         ViewData["TotalPages"] = (int)Math.Ceiling((double)totalCount / pageSize);
 
         return View(GetRoleViewPath("DocumentAuditLogs"), logs);
-    }
-
-    /// <summary>
-    /// API: Get audit logs (for AJAX)
-    /// </summary>
-    [HttpGet]
-    public async Task<IActionResult> GetLogs(
-        string? action = null,
-        string? category = null,
-        int? userId = null,
-        DateTime? startDate = null,
-        DateTime? endDate = null,
-        int page = 1,
-        int pageSize = 20)
-    {
-        var firmId = GetCurrentFirmId();
-
-        var (logs, totalCount) = await _auditLogService.GetAuditLogsAsync(
-            firmId: firmId,
-            userId: userId,
-            action: action,
-            actionCategory: category,
-            startDate: startDate,
-            endDate: endDate,
-            page: page,
-            pageSize: pageSize);
-
-        return Json(new
-        {
-            data = logs.Select(l => new
-            {
-                l.AuditID,
-                l.Action,
-                l.ActionCategory,
-                l.EntityType,
-                l.EntityID,
-                l.Description,
-                l.IPAddress,
-                Timestamp = l.Timestamp.ToString("yyyy-MM-dd HH:mm:ss"),
-                UserName = l.User?.FullName ?? l.SuperAdmin?.FullName ?? "System"
-            }),
-            totalCount,
-            page,
-            pageSize,
-            totalPages = (int)Math.Ceiling((double)totalCount / pageSize)
-        });
     }
 
     /// <summary>
@@ -495,6 +503,107 @@ public class AuditController : Controller
     }
 
     /// <summary>
+    /// Get audit logs as JSON for AJAX calls with auto-refresh
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> GetLogs(
+        string? action = null,
+        string? category = null,
+        int? userId = null,
+        DateTime? startDate = null,
+        DateTime? endDate = null,
+        int page = 1,
+        int pageSize = 20)
+    {
+        try
+        {
+            var firmId = GetCurrentFirmId();
+            var role = User.FindFirst(ClaimTypes.Role)?.Value ?? "Client";
+            var currentUserId = int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out int uid) ? uid : 0;
+            
+            // Build query directly here for full control
+            var query = _context.AuditLogs
+                .Include(a => a.User)
+                .Include(a => a.SuperAdmin)
+                .AsNoTracking()
+                .AsQueryable();
+
+            // FirmId filter: show logs for this firm + system-wide logs (null firmId)
+            if (firmId > 0)
+            {
+                query = query.Where(a => a.FirmID == firmId || a.FirmID == null);
+            }
+
+            // Non-admin/auditor roles only see their own audit logs
+            if (role != "Admin" && role != "Auditor")
+            {
+                query = query.Where(a => a.UserID == currentUserId || a.SuperAdminId == currentUserId);
+            }
+            else if (userId.HasValue)
+            {
+                query = query.Where(a => a.UserID == userId);
+            }
+
+            if (!string.IsNullOrEmpty(action))
+                query = query.Where(a => a.Action == action);
+
+            if (!string.IsNullOrEmpty(category))
+                query = query.Where(a => a.ActionCategory == category);
+
+            if (startDate.HasValue)
+                query = query.Where(a => a.Timestamp >= startDate.Value);
+
+            if (endDate.HasValue)
+                query = query.Where(a => a.Timestamp <= endDate.Value.AddDays(1));
+
+            var totalCount = await query.CountAsync();
+
+            var logs = await query
+                .OrderByDescending(a => a.Timestamp)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(a => new
+                {
+                    id = a.AuditID,
+                    timestamp = a.Timestamp,
+                    action = a.Action,
+                    category = a.ActionCategory ?? "General",
+                    entityType = a.EntityType,
+                    entityId = a.EntityID,
+                    description = a.Description,
+                    ipAddress = a.IPAddress,
+                    userName = a.User != null ? (a.User.FirstName + " " + a.User.LastName) : 
+                               (a.SuperAdmin != null ? (a.SuperAdmin.FirstName + " " + a.SuperAdmin.LastName) : "-")
+                })
+                .ToListAsync();
+
+            return Json(new
+            {
+                success = true,
+                logs,
+                totalCount,
+                currentPage = page,
+                pageSize,
+                totalPages = (int)Math.Ceiling((double)totalCount / pageSize)
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in GetLogs");
+            return Json(new
+            {
+                success = false,
+                error = ex.Message,
+                logs = Array.Empty<object>(),
+                totalCount = 0,
+                currentPage = page,
+                pageSize,
+                totalPages = 0
+            });
+        }
+    }
+
+    /// <summary>
     /// Get audit log statistics
     /// </summary>
     [HttpGet]
@@ -528,5 +637,183 @@ public class AuditController : Controller
         };
 
         return Json(stats);
+    }
+
+    /// <summary>
+    /// Simple test endpoint - bypasses all filtering
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> SimpleTest()
+    {
+        try
+        {
+            var firmIdClaim = User.FindFirst("FirmId")?.Value;
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value;
+            var emailClaim = User.FindFirst(ClaimTypes.Email)?.Value;
+
+            // Just get the latest 5 audit logs - no filtering at all
+            var logs = await _context.AuditLogs
+                .AsNoTracking()
+                .OrderByDescending(a => a.Timestamp)
+                .Take(5)
+                .Select(a => new { a.AuditID, a.Action, a.UserID, a.FirmID, a.Description, a.Timestamp })
+                .ToListAsync();
+
+            var total = await _context.AuditLogs.CountAsync();
+
+            return Json(new
+            {
+                claims = new { firmId = firmIdClaim, userId = userIdClaim, role = roleClaim, email = emailClaim },
+                totalInDb = total,
+                latest5 = logs
+            });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Diagnostic endpoint to debug audit log issues
+    /// Shows raw data about what's in the audit log table
+    /// </summary>
+    [HttpGet]
+    [AllowAnonymous]
+    public async Task<IActionResult> Debug()
+    {
+        try
+        {
+            var totalRecords = await _context.AuditLogs.CountAsync();
+            
+            var recentLogs = await _context.AuditLogs
+                .OrderByDescending(a => a.Timestamp)
+                .Take(10)
+                .Select(a => new
+                {
+                    a.AuditID,
+                    a.UserID,
+                    a.SuperAdminId,
+                    a.FirmID,
+                    a.Action,
+                    a.ActionCategory,
+                    a.EntityType,
+                    a.EntityID,
+                    a.Description,
+                    a.Timestamp,
+                    a.IPAddress
+                })
+                .ToListAsync();
+
+            var firmIds = await _context.AuditLogs
+                .Select(a => a.FirmID)
+                .Distinct()
+                .ToListAsync();
+
+            var userIds = await _context.AuditLogs
+                .Select(a => a.UserID)
+                .Distinct()
+                .Take(20)
+                .ToListAsync();
+
+            var actionCounts = await _context.AuditLogs
+                .GroupBy(a => a.Action)
+                .Select(g => new { Action = g.Key, Count = g.Count() })
+                .ToListAsync();
+
+            // Get all users for cross-reference
+            var allUsers = await _context.Users
+                .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+                .Select(u => new
+                {
+                    u.UserID,
+                    u.FirstName,
+                    u.LastName,
+                    u.Email,
+                    u.FirmID,
+                    roles = u.UserRoles.Select(ur => ur.Role != null ? ur.Role.RoleName : "").ToList(),
+                    auditLogCount = _context.AuditLogs.Count(a => a.UserID == u.UserID)
+                })
+                .ToListAsync();
+
+            // Current user info (if authenticated)
+            string? currentRole = null;
+            int? currentUserId = null;
+            int? currentFirmId = null;
+            if (User?.Identity?.IsAuthenticated == true)
+            {
+                currentRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+                var uid = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                currentUserId = !string.IsNullOrEmpty(uid) && int.TryParse(uid, out int u) ? u : null;
+                var fid = User.FindFirst("FirmId")?.Value;
+                currentFirmId = !string.IsNullOrEmpty(fid) && int.TryParse(fid, out int f) ? f : null;
+            }
+
+            return Json(new
+            {
+                totalRecords,
+                recentLogs,
+                distinctFirmIds = firmIds,
+                distinctUserIds = userIds,
+                actionCounts,
+                allUsers,
+                currentUser = new
+                {
+                    isAuthenticated = User?.Identity?.IsAuthenticated,
+                    role = currentRole,
+                    userId = currentUserId,
+                    firmId = currentFirmId
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { error = ex.Message, stackTrace = ex.StackTrace });
+        }
+    }
+
+    /// <summary>
+    /// Test endpoint to create a sample audit log and verify it saves
+    /// </summary>
+    [HttpGet]
+    [AllowAnonymous]
+    public async Task<IActionResult> TestLog()
+    {
+        try
+        {
+            // Try to insert a test record directly
+            var testLog = new CKNDocument.Models.LawFirmDMS.AuditLog
+            {
+                Action = "TestLog",
+                EntityType = "System",
+                Description = $"Test audit log entry created at {DateTime.UtcNow}",
+                ActionCategory = "General",
+                Timestamp = DateTime.UtcNow,
+                IPAddress = "127.0.0.1"
+            };
+
+            _context.AuditLogs.Add(testLog);
+            await _context.SaveChangesAsync();
+
+            return Json(new
+            {
+                success = true,
+                message = "Test log created successfully",
+                auditId = testLog.AuditID,
+                totalRecords = await _context.AuditLogs.CountAsync()
+            });
+        }
+        catch (Exception ex)
+        {
+            return Json(new
+            {
+                success = false,
+                error = ex.Message,
+                innerError = ex.InnerException?.Message,
+                stackTrace = ex.StackTrace
+            });
+        }
     }
 }

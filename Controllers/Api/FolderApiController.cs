@@ -569,6 +569,115 @@ public class FolderApiController : ControllerBase
         return Ok(new { success = true, documents, totalCount = documents.Count });
     }
 
+    /// <summary>
+    /// Get all clients with folders (Staff only)
+    /// </summary>
+    [HttpGet("staff/clients")]
+    [Authorize(Roles = "Staff,Admin,Auditor,Lawyer")]
+    public async Task<IActionResult> GetStaffClientsWithFolders()
+    {
+        var firmId = GetFirmId();
+
+        var clients = await _context.Users
+            .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+            .Where(u => u.FirmID == firmId && u.UserRoles.Any(ur => ur.Role != null && ur.Role.RoleName == "Client"))
+            .Select(u => new
+            {
+                id = u.UserID,
+                name = u.FullName,
+                email = u.Email
+            })
+            .OrderBy(u => u.name)
+            .ToListAsync();
+
+        return Ok(new { success = true, clients });
+    }
+
+    /// <summary>
+    /// Get all folders with search and filter (Staff only - read only)
+    /// </summary>
+    [HttpGet("staff/all-folders")]
+    [Authorize(Roles = "Staff,Admin,Auditor,Lawyer")]
+    public async Task<IActionResult> GetAllFolders(
+        [FromQuery] string? search = null,
+        [FromQuery] int? clientId = null,
+        [FromQuery] string sortBy = "name")
+    {
+        var firmId = GetFirmId();
+
+        var query = _context.ClientFolders
+            .Include(f => f.Client)
+            .Include(f => f.ChildFolders)
+            .Include(f => f.Documents.Where(d => d.WorkflowStage != "Archived"))
+            .Where(f => f.FirmId == firmId && f.ParentFolderId == null); // Only root folders
+
+        // Apply search filter
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var searchLower = search.ToLower();
+            query = query.Where(f => 
+                f.FolderName.ToLower().Contains(searchLower) ||
+                (f.Description != null && f.Description.ToLower().Contains(searchLower)) ||
+                (f.Client != null && f.Client.FirstName != null && f.Client.FirstName.ToLower().Contains(searchLower)) ||
+                (f.Client != null && f.Client.LastName != null && f.Client.LastName.ToLower().Contains(searchLower)));
+        }
+
+        // Apply client filter
+        if (clientId.HasValue)
+        {
+            query = query.Where(f => f.ClientId == clientId);
+        }
+
+        // Apply sorting
+        query = sortBy switch
+        {
+            "recent" => query.OrderByDescending(f => f.CreatedAt),
+            "documents" => query.OrderByDescending(f => f.Documents.Count),
+            _ => query.OrderBy(f => f.FolderName)
+        };
+
+        var folders = await query
+            .Select(f => new
+            {
+                id = f.FolderId,
+                name = f.FolderName,
+                description = f.Description,
+                color = f.Color,
+                clientId = f.ClientId,
+                clientName = f.Client != null ? f.Client.FullName : "Unknown",
+                documentCount = f.Documents.Count,
+                childFolderCount = f.ChildFolders.Count,
+                createdAt = f.CreatedAt
+            })
+            .ToListAsync();
+
+        // Calculate statistics
+        var totalDocuments = await _context.Documents
+            .Where(d => d.FirmID == firmId && d.WorkflowStage != "Archived")
+            .CountAsync();
+
+        var pendingDocuments = await _context.Documents
+            .Where(d => d.FirmID == firmId && d.Status == "Pending")
+            .CountAsync();
+
+        var totalClients = await _context.Users
+            .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+            .Where(u => u.FirmID == firmId && u.UserRoles.Any(ur => ur.Role != null && ur.Role.RoleName == "Client"))
+            .CountAsync();
+
+        var stats = new
+        {
+            totalFolders = folders.Count,
+            totalClients = totalClients,
+            totalDocuments = totalDocuments,
+            pendingDocuments = pendingDocuments
+        };
+
+        return Ok(new { success = true, folders, stats });
+    }
+
     private List<object> BuildFolderTree(List<ClientFolder> folders, int? parentId)
     {
         return folders

@@ -540,6 +540,13 @@
         }
     }
 
+    // Auto-refresh every 15 seconds
+    const REFRESH_INTERVAL = 15000;
+    function autoRefresh() {
+        location.reload();
+    }
+    setInterval(autoRefresh, REFRESH_INTERVAL);
+
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
         // Show any server-side toast messages

@@ -488,11 +488,15 @@ public class DashboardApiController : ControllerBase
                 status = d.Status,
                 workflowStage = d.WorkflowStage,
                 clientName = d.Uploader != null ? d.Uploader.FullName : null,
-                createdAt = d.CreatedAt
+                createdAt = d.CreatedAt,
+                assignedLawyerId = d.AssignedLawyerId,
+                isAssignedToMe = d.AssignedLawyerId == userId,
+                folderId = d.FolderId,
+                folderName = d.Folder != null ? d.Folder.FolderName : null
             })
             .ToListAsync();
 
-        return Ok(new { success = true, documents });
+        return Ok(new { success = true, documents, currentUserId = userId });
     }
 
     /// <summary>

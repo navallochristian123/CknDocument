@@ -165,7 +165,7 @@ public class AuthController : Controller
             // Check account status
             if (user.Status == "Pending")
             {
-                await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, "Account pending verification");
+                await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, "Account pending verification", user.FirmID);
                 TempData["ToastType"] = "warning";
                 TempData["ToastMessage"] = "Your account is still under verification. Please wait for admin approval. You will be notified once your account is activated.";
                 ViewData["Firms"] = await GetFirmsForDropdown();
@@ -174,7 +174,7 @@ public class AuthController : Controller
 
             if (user.Status != "Active")
             {
-                await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, $"Account inactive: {user.Status}");
+                await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, $"Account inactive: {user.Status}", user.FirmID);
                 TempData["ToastType"] = "error";
                 TempData["ToastMessage"] = "Your account is inactive. Please contact your administrator.";
                 ViewData["Firms"] = await GetFirmsForDropdown();
@@ -185,7 +185,7 @@ public class AuthController : Controller
             if (user.LockoutEnd.HasValue && user.LockoutEnd > DateTime.UtcNow)
             {
                 var remainingMinutes = (user.LockoutEnd.Value - DateTime.UtcNow).TotalMinutes;
-                await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, "Account locked");
+                await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, "Account locked", user.FirmID);
                 TempData["ToastType"] = "error";
                 TempData["ToastMessage"] = $"Account locked. Please try again in {Math.Ceiling(remainingMinutes)} minutes.";
                 ViewData["Firms"] = await GetFirmsForDropdown();
@@ -201,13 +201,13 @@ public class AuthController : Controller
                 if (user.FailedLoginAttempts >= 5)
                 {
                     user.LockoutEnd = DateTime.UtcNow.AddMinutes(15);
-                    await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, "Account locked due to failed attempts");
+                    await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, "Account locked due to failed attempts", user.FirmID);
                     TempData["ToastType"] = "error";
                     TempData["ToastMessage"] = "Account locked due to too many failed attempts. Please try again in 15 minutes.";
                 }
                 else
                 {
-                    await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, "Invalid password");
+                    await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, "Invalid password", user.FirmID);
                     TempData["ToastType"] = "error";
                     TempData["ToastMessage"] = $"Invalid password. {5 - user.FailedLoginAttempts} attempts remaining.";
                 }
@@ -236,7 +236,7 @@ public class AuthController : Controller
                 request.RememberMe);
 
             // Log successful login
-            await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", true);
+            await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", true, null, user.FirmID);
 
             _logger.LogInformation("User {Email} ({Role}) logged in", user.Email, role);
 
@@ -446,6 +446,8 @@ public class AuthController : Controller
         var userEmail = User.FindFirst(ClaimTypes.Email)?.Value;
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
+        var firmIdClaim = User.FindFirst("FirmId")?.Value;
+        int? firmId = !string.IsNullOrEmpty(firmIdClaim) && int.TryParse(firmIdClaim, out int fid) ? fid : null;
 
         // Log logout
         if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out int userId))
@@ -456,7 +458,7 @@ public class AuthController : Controller
             }
             else
             {
-                await _auditLogService.LogLogoutAsync(userId, null, userEmail ?? "");
+                await _auditLogService.LogLogoutAsync(userId, null, userEmail ?? "", firmId);
             }
         }
 

@@ -1,41 +1,376 @@
 @{
-    ViewData["Title"] = "Folders";
+    ViewData["Title"] = "Client Folders";
     Layout = "_StaffLayout";
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h4 class="mb-0">Folders</h4>
-        <p class="text-muted mb-0">Browse document folders</p>
+        <h4 class="mb-0">Client Folders</h4>
+        <p class="text-muted mb-0">Browse all client folders and documents (read-only)</p>
+    </div>
+    <button class="btn btn-outline-secondary" onclick="loadFolders()">
+        <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+    </button>
+</div>
+
+<!-- Search and Filter Section -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label">Search Folders & Documents</label>
+                <input type="text" id="searchTerm" class="form-control" 
+                       placeholder="Search by folder name, client name, or document..." 
+                       onkeypress="if(event.key==='Enter')performSearch()">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Client</label>
+                <select id="filterClient" class="form-select">
+                    <option value="">All Clients</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Sort By</label>
+                <select id="sortBy" class="form-select">
+                    <option value="name">Name A-Z</option>
+                    <option value="recent">Most Recent</option>
+                    <option value="documents">Most Documents</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-primary w-100" onclick="performSearch()">
+                    <i class="bi bi-search me-1"></i> Search
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
-<div class="row">
+<!-- Breadcrumb Navigation -->
+<nav aria-label="breadcrumb" id="breadcrumbNav" style="display: none;">
+    <ol class="breadcrumb" id="breadcrumb">
+        <li class="breadcrumb-item"><a href="#" onclick="loadFolders(); return false;">All Folders</a></li>
+    </ol>
+</nav>
+
+<!-- Folder Statistics -->
+<div class="row mb-4" id="statsRow">
     <div class="col-md-3">
-        <div class="card mb-4" style="cursor: pointer;">
+        <div class="card bg-primary text-white">
             <div class="card-body text-center">
-                <i class="bi bi-folder-fill text-warning fs-1"></i>
-                <h6 class="mt-2 mb-1">Client A - Smith Case</h6>
-                <small class="text-muted">24 documents</small>
+                <h3 class="mb-0" id="totalFolders">0</h3>
+                <small>Total Folders</small>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card mb-4" style="cursor: pointer;">
+        <div class="card bg-info text-white">
             <div class="card-body text-center">
-                <i class="bi bi-folder-fill text-warning fs-1"></i>
-                <h6 class="mt-2 mb-1">Client B - Johnson</h6>
-                <small class="text-muted">18 documents</small>
+                <h3 class="mb-0" id="totalClients">0</h3>
+                <small>Clients</small>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card mb-4" style="cursor: pointer;">
+        <div class="card bg-success text-white">
             <div class="card-body text-center">
-                <i class="bi bi-folder-fill text-warning fs-1"></i>
-                <h6 class="mt-2 mb-1">Client C - Corporate</h6>
-                <small class="text-muted">45 documents</small>
+                <h3 class="mb-0" id="totalDocuments">0</h3>
+                <small>Documents</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body text-center">
+                <h3 class="mb-0" id="pendingDocs">0</h3>
+                <small>Pending Review</small>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Folders Grid -->
+<div class="card" id="foldersCard">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-folder me-2"></i>Folders</h5>
+        <span class="badge bg-primary" id="folderCount">0</span>
+    </div>
+    <div class="card-body">
+        <div class="row" id="foldersContainer">
+            <div class="col-12 text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="text-muted mt-2">Loading folders...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Folder Contents Modal -->
+<div class="modal fade" id="folderModal" tabindex="-1" aria-labelledby="folderModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="folderModalLabel">
+                    <i class="bi bi-folder-fill text-warning me-2"></i>
+                    <span id="modalFolderName">Folder</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <small class="text-muted">
+                        <i class="bi bi-person me-1"></i> Client: <span id="modalClientName">-</span> |
+                        <i class="bi bi-calendar me-1"></i> Created: <span id="modalCreatedAt">-</span>
+                    </small>
+                </div>
+                <p class="text-muted" id="modalFolderDescription"></p>
+                
+                <!-- Subfolders -->
+                <div id="subfoldersSection" style="display: none;">
+                    <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-folder me-2"></i>Subfolders</h6>
+                    <div class="row mb-4" id="subfoldersContainer"></div>
+                </div>
+                
+                <!-- Documents Table -->
+                <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-file-earmark-text me-2"></i>Documents</h6>
+                <div class="alert alert-info mb-3">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Read-Only View:</strong> You can view document details but cannot download or modify files.
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Document</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>Uploaded</th>
+                                <th>View</th>
+                            </tr>
+                        </thead>
+                        <tbody id="folderDocumentsTable">
+                            <tr><td colspan="5" class="text-center py-4">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let allFolders = [];
+    let allClients = [];
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadClients();
+        loadFolders();
+    });
+
+    async function loadClients() {
+        try {
+            const response = await fetch('/api/FolderApi/staff/clients');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.clients) {
+                    allClients = data.clients;
+                    const select = document.getElementById('filterClient');
+                    data.clients.forEach(c => {
+                        const option = document.createElement('option');
+                        option.value = c.id;
+                        option.textContent = c.name;
+                        select.appendChild(option);
+                    });
+                }
+            }
+        } catch (e) {
+            console.error('Error loading clients:', e);
+        }
+    }
+
+    async function loadFolders() {
+        document.getElementById('breadcrumbNav').style.display = 'none';
+        await performSearch();
+    }
+
+    async function performSearch() {
+        const search = document.getElementById('searchTerm').value;
+        const clientId = document.getElementById('filterClient').value;
+        const sortBy = document.getElementById('sortBy').value;
+
+        let url = `/api/FolderApi/staff/all-folders?sortBy=${sortBy}`;
+        if (search) url += `&search=${encodeURIComponent(search)}`;
+        if (clientId) url += `&clientId=${clientId}`;
+
+        try {
+            const container = document.getElementById('foldersContainer');
+            container.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>';
+
+            const response = await fetch(url);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    displayFolders(data.folders, data.stats);
+                }
+            }
+        } catch (e) {
+            console.error('Search error:', e);
+            document.getElementById('foldersContainer').innerHTML = 
+                '<div class="col-12 text-center text-danger py-5">Error loading folders</div>';
+        }
+    }
+
+    function displayFolders(folders, stats) {
+        // Update statistics
+        if (stats) {
+            document.getElementById('totalFolders').textContent = stats.totalFolders || 0;
+            document.getElementById('totalClients').textContent = stats.totalClients || 0;
+            document.getElementById('totalDocuments').textContent = stats.totalDocuments || 0;
+            document.getElementById('pendingDocs').textContent = stats.pendingDocuments || 0;
+        }
+
+        document.getElementById('folderCount').textContent = folders ? folders.length : 0;
+
+        const container = document.getElementById('foldersContainer');
+        if (!folders || folders.length === 0) {
+            container.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <i class="bi bi-folder-x fs-1 text-muted"></i>
+                    <p class="text-muted mt-2">No folders found matching your criteria</p>
+                </div>`;
+            return;
+        }
+
+        container.innerHTML = folders.map(f => `
+            <div class="col-md-3 mb-4">
+                <div class="card h-100 folder-card" style="cursor:pointer;" onclick="viewFolder(${f.id})">
+                    <div class="card-body text-center">
+                        <div class="position-relative d-inline-block">
+                            <i class="bi bi-folder-fill fs-1" style="color: ${f.color || '#ffc107'};"></i>
+                            ${f.documentCount > 0 ? `<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-primary">${f.documentCount}</span>` : ''}
+                        </div>
+                        <h6 class="mt-2 mb-1 text-truncate" title="${f.name}">${f.name}</h6>
+                        <small class="text-muted d-block text-truncate">
+                            <i class="bi bi-person me-1"></i>${f.clientName || 'Unknown'}
+                        </small>
+                        <small class="text-muted">${f.documentCount} document(s)</small>
+                        ${f.childFolderCount > 0 ? `<br><small class="text-info">${f.childFolderCount} subfolder(s)</small>` : ''}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function viewFolder(folderId) {
+        const modal = new bootstrap.Modal(document.getElementById('folderModal'));
+        
+        // Reset modal
+        document.getElementById('modalFolderName').textContent = 'Loading...';
+        document.getElementById('modalClientName').textContent = '-';
+        document.getElementById('modalCreatedAt').textContent = '-';
+        document.getElementById('modalFolderDescription').textContent = '';
+        document.getElementById('subfoldersSection').style.display = 'none';
+        document.getElementById('folderDocumentsTable').innerHTML = 
+            '<tr><td colspan="5" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></td></tr>';
+        
+        modal.show();
+
+        try {
+            const response = await fetch(`/api/FolderApi/${folderId}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.folder) {
+                    const folder = data.folder;
+                    
+                    document.getElementById('modalFolderName').textContent = folder.name;
+                    document.getElementById('modalClientName').textContent = folder.clientName || 'Unknown';
+                    document.getElementById('modalCreatedAt').textContent = formatDate(folder.createdAt);
+                    document.getElementById('modalFolderDescription').textContent = folder.description || '';
+
+                    // Display subfolders
+                    if (folder.childFolders && folder.childFolders.length > 0) {
+                        document.getElementById('subfoldersSection').style.display = 'block';
+                        document.getElementById('subfoldersContainer').innerHTML = folder.childFolders.map(sf => `
+                            <div class="col-md-4 mb-2">
+                                <div class="card" style="cursor:pointer;" onclick="viewFolder(${sf.id})">
+                                    <div class="card-body py-2 text-center">
+                                        <i class="bi bi-folder-fill text-warning me-2"></i>
+                                        <span class="small">${sf.name}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+
+                    // Display documents
+                    const docs = folder.documents;
+                    const tbody = document.getElementById('folderDocumentsTable');
+                    if (!docs || docs.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No documents in this folder</td></tr>';
+                    } else {
+                        tbody.innerHTML = docs.map(d => `
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi ${getFileIcon(d.fileExtension)} text-primary me-2"></i>
+                                        <div>
+                                            <div class="fw-medium">${d.title || d.originalFileName}</div>
+                                            <small class="text-muted">${d.originalFileName}</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>${d.workflowStage || '-'}</td>
+                                <td>${getStatusBadge(d.status)}</td>
+                                <td><small>${formatDate(d.createdAt)}</small></td>
+                                <td>
+                                    <a href="/Document/Details/${d.id}" class="btn btn-sm btn-outline-primary" title="View Details">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        `).join('');
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Error loading folder:', e);
+            document.getElementById('folderDocumentsTable').innerHTML = 
+                '<tr><td colspan="5" class="text-center text-danger py-4">Error loading folder contents</td></tr>';
+        }
+    }
+
+    function getFileIcon(ext) {
+        const icons = {
+            '.pdf': 'bi-file-pdf',
+            '.doc': 'bi-file-word',
+            '.docx': 'bi-file-word',
+            '.xls': 'bi-file-excel',
+            '.xlsx': 'bi-file-excel',
+            '.jpg': 'bi-file-image',
+            '.jpeg': 'bi-file-image',
+            '.png': 'bi-file-image',
+            '.txt': 'bi-file-text'
+        };
+        return icons[ext?.toLowerCase()] || 'bi-file-earmark';
+    }
+
+    function getStatusBadge(status) {
+        const badges = {
+            'Pending': '<span class="badge bg-warning text-dark">Pending</span>',
+            'Approved': '<span class="badge bg-success">Approved</span>',
+            'Rejected': '<span class="badge bg-danger">Rejected</span>',
+            'Under Review': '<span class="badge bg-info">Under Review</span>'
+        };
+        return badges[status] || `<span class="badge bg-secondary">${status}</span>`;
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+</script>
+}

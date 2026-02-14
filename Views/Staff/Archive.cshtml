@@ -6,20 +6,65 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h4 class="mb-0">Archived Documents</h4>
-        <p class="text-muted mb-0">View archived and old version documents</p>
+        <p class="text-muted mb-0">View archived, rejected, and old version documents</p>
+    </div>
+    <button class="btn btn-outline-secondary" onclick="refreshAll()">
+        <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+    </button>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-secondary text-white">
+            <div class="card-body text-center py-3">
+                <h4 class="mb-0" id="totalArchived">0</h4>
+                <small>Total Archived</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body text-center py-3">
+                <h4 class="mb-0" id="totalRejected">0</h4>
+                <small>Rejected Documents</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center py-3">
+                <h4 class="mb-0" id="totalVersions">0</h4>
+                <small>Old Versions</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body text-center py-3">
+                <h4 class="mb-0" id="totalRetention">0</h4>
+                <small>Retention Queue</small>
+            </div>
+        </div>
     </div>
 </div>
 
 <!-- Archive Type Tabs -->
 <ul class="nav nav-tabs mb-4" id="archiveTabs" role="tablist">
     <li class="nav-item" role="presentation">
-        <button class="nav-link active" id="archived-tab" data-bs-toggle="tab" data-bs-target="#archived" type="button" role="tab">
+        <button class="nav-link active" id="rejected-tab" data-bs-toggle="tab" data-bs-target="#rejected" type="button" role="tab" onclick="loadRejectedDocuments()">
+            <i class="bi bi-x-circle text-danger me-1"></i> Rejected
+            <span class="badge bg-danger" id="rejectedCount">0</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="archived-tab" data-bs-toggle="tab" data-bs-target="#archived" type="button" role="tab" onclick="loadArchivedDocuments()">
             <i class="bi bi-archive me-1"></i> Archived
             <span class="badge bg-secondary" id="archivedCount">0</span>
         </button>
     </li>
     <li class="nav-item" role="presentation">
-        <button class="nav-link" id="versions-tab" data-bs-toggle="tab" data-bs-target="#versions" type="button" role="tab">
+        <button class="nav-link" id="versions-tab" data-bs-toggle="tab" data-bs-target="#versions" type="button" role="tab" onclick="loadArchivedVersions()">
             <i class="bi bi-clock-history me-1"></i> Old Versions
             <span class="badge bg-info" id="versionsCount">0</span>
         </button>
@@ -27,8 +72,65 @@
 </ul>
 
 <div class="tab-content" id="archiveTabContent">
+    <!-- Rejected Documents Tab (Default) -->
+    <div class="tab-pane fade show active" id="rejected" role="tabpanel">
+        <div class="alert alert-danger mb-3">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>Rejected Documents:</strong> These documents were rejected during the review process and are stored here for reference.
+        </div>
+        <div class="card">
+            <div class="card-header bg-white">
+                <div class="row align-items-center g-3">
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" id="searchRejected" placeholder="Search rejected documents...">
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="filterRejectedClient">
+                            <option value="">All Clients</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="sortRejected">
+                            <option value="archivedAt-desc">Newest First</option>
+                            <option value="archivedAt-asc">Oldest First</option>
+                            <option value="title-asc">Title A-Z</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 text-end">
+                        <button class="btn btn-outline-secondary" onclick="loadRejectedDocuments()">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Document</th>
+                                <th>Type</th>
+                                <th>Client</th>
+                                <th>Rejected Date</th>
+                                <th>Rejection Reason</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rejectedTbody">
+                            <tr>
+                                <td colspan="6" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Archived Documents Tab -->
-    <div class="tab-pane fade show active" id="archived" role="tabpanel">
+    <div class="tab-pane fade" id="archived" role="tabpanel">
         <div class="card">
             <div class="card-header bg-white">
                 <div class="row align-items-center g-3">
@@ -110,7 +212,7 @@
                             <tr>
                                 <th>Document</th>
                                 <th>Version</th>
-                                <th>Replaced By</th>
+                                <th>Client</th>
                                 <th>Archived Date</th>
                                 <th>Actions</th>
                             </tr>
@@ -145,8 +247,14 @@
                     <dd class="col-sm-9" id="viewType">-</dd>
                     <dt class="col-sm-3">Client:</dt>
                     <dd class="col-sm-9" id="viewClient">-</dd>
-                    <dt class="col-sm-3">Archived:</dt>
+                    <dt class="col-sm-3">Original Status:</dt>
+                    <dd class="col-sm-9" id="viewOriginalStatus">-</dd>
+                    <dt class="col-sm-3">Archive Type:</dt>
+                    <dd class="col-sm-9" id="viewArchiveType">-</dd>
+                    <dt class="col-sm-3">Archived Date:</dt>
                     <dd class="col-sm-9" id="viewArchivedAt">-</dd>
+                    <dt class="col-sm-3">Archived By:</dt>
+                    <dd class="col-sm-9" id="viewArchivedBy">-</dd>
                     <dt class="col-sm-3">Reason:</dt>
                     <dd class="col-sm-9" id="viewReason">-</dd>
                 </dl>
@@ -160,25 +268,73 @@
 
 @section Scripts {
 <script>
-    let archivedDocs = [], versionDocs = [];
+    let rejectedDocs = [], archivedDocs = [], versionDocs = [];
 
     document.addEventListener('DOMContentLoaded', function() {
-        loadArchivedDocuments();
-        loadArchivedVersions();
+        loadRejectedDocuments();
+        loadCounts();
 
+        // Add event listeners for search/filter
+        document.getElementById('searchRejected').addEventListener('input', debounce(renderRejectedTable, 300));
         document.getElementById('searchArchived').addEventListener('input', debounce(renderArchivedTable, 300));
         document.getElementById('searchVersions').addEventListener('input', debounce(renderVersionsTable, 300));
-        document.getElementById('filterArchivedType').addEventListener('change', renderArchivedTable);
+        document.getElementById('sortRejected').addEventListener('change', renderRejectedTable);
         document.getElementById('sortArchived').addEventListener('change', renderArchivedTable);
         document.getElementById('sortVersions').addEventListener('change', renderVersionsTable);
+        document.getElementById('filterArchivedType').addEventListener('change', renderArchivedTable);
+        document.getElementById('filterRejectedClient').addEventListener('change', renderRejectedTable);
     });
+
+    async function loadCounts() {
+        try {
+            const [rejected, archived, versions, retention] = await Promise.all([
+                fetch('/api/ArchiveApi?type=rejected').then(r => r.json()),
+                fetch('/api/ArchiveApi?type=archived').then(r => r.json()),
+                fetch('/api/ArchiveApi?type=version').then(r => r.json()),
+                fetch('/api/ArchiveApi?type=retention').then(r => r.json())
+            ]);
+
+            document.getElementById('totalRejected').textContent = rejected.archives?.length || 0;
+            document.getElementById('totalArchived').textContent = archived.archives?.length || 0;
+            document.getElementById('totalVersions').textContent = versions.archives?.length || 0;
+            document.getElementById('totalRetention').textContent = retention.archives?.length || 0;
+        } catch(e) {
+            console.error('Error loading counts:', e);
+        }
+    }
+
+    function refreshAll() {
+        loadCounts();
+        loadRejectedDocuments();
+    }
+
+    async function loadRejectedDocuments() {
+        try {
+            const response = await fetch('/api/ArchiveApi?type=rejected');
+            const data = await response.json();
+            if (data.success) {
+                rejectedDocs = data.archives || [];
+                document.getElementById('rejectedCount').textContent = rejectedDocs.length;
+                
+                // Build client filter options
+                const clients = [...new Set(rejectedDocs.map(d => d.clientName).filter(Boolean))];
+                const select = document.getElementById('filterRejectedClient');
+                select.innerHTML = '<option value="">All Clients</option>' + 
+                    clients.map(c => `<option value="${c}">${c}</option>`).join('');
+                
+                renderRejectedTable();
+            }
+        } catch (error) {
+            console.error('Error loading rejected documents:', error);
+        }
+    }
 
     async function loadArchivedDocuments() {
         try {
             const response = await fetch('/api/ArchiveApi?type=archived');
             const data = await response.json();
             if (data.success) {
-                archivedDocs = data.archives;
+                archivedDocs = data.archives || [];
                 document.getElementById('archivedCount').textContent = archivedDocs.length;
                 renderArchivedTable();
             }
@@ -192,13 +348,67 @@
             const response = await fetch('/api/ArchiveApi?type=version');
             const data = await response.json();
             if (data.success) {
-                versionDocs = data.archives;
+                versionDocs = data.archives || [];
                 document.getElementById('versionsCount').textContent = versionDocs.length;
                 renderVersionsTable();
             }
         } catch (error) {
             console.error('Error loading archived versions:', error);
         }
+    }
+
+    function renderRejectedTable() {
+        const tbody = document.getElementById('rejectedTbody');
+        const search = document.getElementById('searchRejected').value.toLowerCase();
+        const clientFilter = document.getElementById('filterRejectedClient').value;
+        const sort = document.getElementById('sortRejected').value;
+
+        let filtered = rejectedDocs.filter(d => {
+            const matchSearch = (d.documentTitle || '').toLowerCase().includes(search) || 
+                               (d.clientName || '').toLowerCase().includes(search) ||
+                               (d.archiveReason || '').toLowerCase().includes(search);
+            const matchClient = !clientFilter || d.clientName === clientFilter;
+            return matchSearch && matchClient;
+        });
+
+        filtered = sortData(filtered, sort);
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-5 text-muted">
+                <i class="bi bi-check-circle fs-1 text-success"></i>
+                <p class="mt-2">No rejected documents found</p>
+            </td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(d => `
+            <tr>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <i class="bi ${getFileIcon(d.fileExtension)} me-2 fs-5"></i>
+                        <div>
+                            <strong>${escapeHtml(d.documentTitle)}</strong>
+                            <br><small class="text-muted">${d.originalFileName || ''}</small>
+                        </div>
+                    </div>
+                </td>
+                <td><span class="badge bg-secondary">${d.documentType || 'Unknown'}</span></td>
+                <td>
+                    <small><i class="bi bi-person me-1"></i>${d.clientName || '-'}</small>
+                </td>
+                <td><small>${formatDate(d.archivedAt)}</small></td>
+                <td>
+                    <span class="text-truncate d-inline-block text-danger" style="max-width: 200px;" title="${escapeHtml(d.archiveReason || '')}">
+                        ${escapeHtml(d.archiveReason || '-')}
+                    </span>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewDocument(${d.archiveId}, 'rejected')">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
     }
 
     function renderArchivedTable() {
@@ -208,22 +418,13 @@
         const sort = document.getElementById('sortArchived').value;
 
         let filtered = archivedDocs.filter(d => {
-            const matchSearch = d.documentTitle.toLowerCase().includes(search) || 
+            const matchSearch = (d.documentTitle || '').toLowerCase().includes(search) || 
                                (d.clientName || '').toLowerCase().includes(search);
             const matchType = !typeFilter || d.documentType === typeFilter;
             return matchSearch && matchType;
         });
 
-        const [sortField, sortDir] = sort.split('-');
-        filtered.sort((a, b) => {
-            let aVal = sortField === 'title' ? a.documentTitle : a[sortField];
-            let bVal = sortField === 'title' ? b.documentTitle : b[sortField];
-            if (sortField === 'archivedAt') {
-                aVal = new Date(aVal || 0);
-                bVal = new Date(bVal || 0);
-            }
-            return sortDir === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
-        });
+        filtered = sortData(filtered, sort);
 
         if (filtered.length === 0) {
             tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted">No archived documents found</td></tr>`;
@@ -241,8 +442,8 @@
                 <td>${formatDate(d.archivedAt)}</td>
                 <td><span class="text-truncate d-inline-block" style="max-width: 150px;">${escapeHtml(d.archiveReason || '-')}</span></td>
                 <td>
-                    <button class="btn btn-sm btn-outline-primary" onclick="viewDocument(${d.archiveId})">
-                        <i class="bi bi-eye"></i> View
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewDocument(${d.archiveId}, 'archived')">
+                        <i class="bi bi-eye"></i>
                     </button>
                 </td>
             </tr>
@@ -254,14 +455,8 @@
         const search = document.getElementById('searchVersions').value.toLowerCase();
         const sort = document.getElementById('sortVersions').value;
 
-        let filtered = versionDocs.filter(d => d.documentTitle.toLowerCase().includes(search));
-
-        const [sortField, sortDir] = sort.split('-');
-        filtered.sort((a, b) => {
-            let aVal = new Date(a[sortField] || 0);
-            let bVal = new Date(b[sortField] || 0);
-            return sortDir === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
-        });
+        let filtered = versionDocs.filter(d => (d.documentTitle || '').toLowerCase().includes(search));
+        filtered = sortData(filtered, sort);
 
         if (filtered.length === 0) {
             tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-muted">No archived versions found</td></tr>`;
@@ -275,25 +470,45 @@
                     <strong>${escapeHtml(d.documentTitle)}</strong>
                 </td>
                 <td><span class="badge bg-info">v${d.versionNumber || '1'}</span></td>
-                <td>v${(d.versionNumber || 1) + 1}</td>
+                <td>${d.clientName || '-'}</td>
                 <td>${formatDate(d.archivedAt)}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-primary" onclick="viewDocument(${d.archiveId})">
-                        <i class="bi bi-eye"></i> View
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewDocument(${d.archiveId}, 'version')">
+                        <i class="bi bi-eye"></i>
                     </button>
                 </td>
             </tr>
         `).join('');
     }
 
-    function viewDocument(archiveId) {
-        const doc = [...archivedDocs, ...versionDocs].find(d => d.archiveId === archiveId);
+    function sortData(data, sort) {
+        const [sortField, sortDir] = sort.split('-');
+        return data.sort((a, b) => {
+            let aVal = sortField === 'title' ? a.documentTitle : a[sortField];
+            let bVal = sortField === 'title' ? b.documentTitle : b[sortField];
+            if (sortField === 'archivedAt') {
+                aVal = new Date(aVal || 0);
+                bVal = new Date(bVal || 0);
+            }
+            return sortDir === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
+        });
+    }
+
+    function viewDocument(archiveId, type) {
+        let source = rejectedDocs;
+        if (type === 'archived') source = archivedDocs;
+        if (type === 'version') source = versionDocs;
+        
+        const doc = source.find(d => d.archiveId === archiveId);
         if (!doc) return;
 
         document.getElementById('viewTitle').textContent = doc.documentTitle || '-';
         document.getElementById('viewType').textContent = doc.documentType || '-';
         document.getElementById('viewClient').textContent = doc.clientName || '-';
+        document.getElementById('viewOriginalStatus').textContent = doc.originalStatus || '-';
+        document.getElementById('viewArchiveType').textContent = doc.archiveType || '-';
         document.getElementById('viewArchivedAt').textContent = formatDate(doc.archivedAt);
+        document.getElementById('viewArchivedBy').textContent = doc.archivedByName || '-';
         document.getElementById('viewReason').textContent = doc.archiveReason || '-';
 
         new bootstrap.Modal(document.getElementById('viewModal')).show();
@@ -303,7 +518,12 @@
         const icons = {
             '.pdf': 'bi-file-pdf text-danger',
             '.doc': 'bi-file-word text-primary',
-            '.docx': 'bi-file-word text-primary'
+            '.docx': 'bi-file-word text-primary',
+            '.xls': 'bi-file-excel text-success',
+            '.xlsx': 'bi-file-excel text-success',
+            '.jpg': 'bi-file-image text-info',
+            '.jpeg': 'bi-file-image text-info',
+            '.png': 'bi-file-image text-info'
         };
         return icons[ext?.toLowerCase()] || 'bi-file-earmark text-secondary';
     }

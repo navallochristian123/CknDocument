@@ -104,7 +104,7 @@ public class AuditLogService
     /// <summary>
     /// Log user login event
     /// </summary>
-    public async Task LogLoginAsync(int? userId, int? superAdminId, string email, bool isSuccessful, string? failureReason = null)
+    public async Task LogLoginAsync(int? userId, int? superAdminId, string email, bool isSuccessful, string? failureReason = null, int? firmId = null)
     {
         var description = isSuccessful
             ? $"User {email} logged in successfully"
@@ -117,13 +117,14 @@ public class AuditLogService
             description: description,
             actionCategory: "Authentication",
             userId: userId,
-            superAdminId: superAdminId);
+            superAdminId: superAdminId,
+            firmId: firmId);
     }
 
     /// <summary>
     /// Log user logout event
     /// </summary>
-    public async Task LogLogoutAsync(int? userId, int? superAdminId, string email)
+    public async Task LogLogoutAsync(int? userId, int? superAdminId, string email, int? firmId = null)
     {
         await LogAsync(
             action: "Logout",
@@ -132,7 +133,8 @@ public class AuditLogService
             description: $"User {email} logged out",
             actionCategory: "Authentication",
             userId: userId,
-            superAdminId: superAdminId);
+            superAdminId: superAdminId,
+            firmId: firmId);
     }
 
     /// <summary>
@@ -263,8 +265,9 @@ public class AuditLogService
             .Include(a => a.Firm)
             .AsQueryable();
 
+        // For firmId filtering, include logs that either match the firmId OR have null firmId (system-wide/auth logs)
         if (firmId.HasValue)
-            query = query.Where(a => a.FirmID == firmId);
+            query = query.Where(a => a.FirmID == firmId || a.FirmID == null);
 
         if (userId.HasValue)
             query = query.Where(a => a.UserID == userId);

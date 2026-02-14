@@ -4,38 +4,341 @@
 }
 
 <div class="mb-4">
-    <h4 class="mb-0">Search Documents</h4>
-    <p class="text-muted mb-0">Search through your documents</p>
+    <h4 class="mb-0">Search Documents & Folders</h4>
+    <p class="text-muted mb-0">Search through your documents and folders by name, type, or status</p>
 </div>
 
 <div class="card mb-4">
     <div class="card-body">
-        <div class="row">
-            <div class="col-md-8">
-                <input type="text" class="form-control form-control-lg" placeholder="Search by name, type, or content...">
+        <div class="row g-3">
+            <div class="col-md-5">
+                <label class="form-label">Search Term</label>
+                <input type="text" id="searchTerm" class="form-control form-control-lg" 
+                       placeholder="Search by name, description..." onkeypress="if(event.key==='Enter')performSearch()">
             </div>
             <div class="col-md-2">
-                <select class="form-select form-select-lg">
-                    <option value="">All Types</option>
-                    <option>Contract</option>
-                    <option>Agreement</option>
+                <label class="form-label">Status</label>
+                <select id="filterStatus" class="form-select form-select-lg">
+                    <option value="">All Status</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Rejected">Rejected</option>
+                    <option value="Under Review">Under Review</option>
                 </select>
             </div>
             <div class="col-md-2">
-                <button class="btn btn-primary btn-lg w-100">
-                    <i class="bi bi-search"></i> Search
+                <label class="form-label">Type</label>
+                <select id="filterType" class="form-select form-select-lg">
+                    <option value="">All Types</option>
+                    <option value="Contract">Contract</option>
+                    <option value="Agreement">Agreement</option>
+                    <option value="Invoice">Invoice</option>
+                    <option value="Legal Brief">Legal Brief</option>
+                    <option value="Power of Attorney">Power of Attorney</option>
+                    <option value="Affidavit">Affidavit</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Folder</label>
+                <select id="filterFolder" class="form-select form-select-lg">
+                    <option value="">All Folders</option>
+                </select>
+            </div>
+            <div class="col-md-1 d-flex align-items-end">
+                <button class="btn btn-primary btn-lg w-100" onclick="performSearch()">
+                    <i class="bi bi-search"></i>
                 </button>
             </div>
         </div>
     </div>
 </div>
 
-<div class="card">
-    <div class="card-header bg-white">
-        <h5 class="mb-0">Search Results</h5>
-    </div>
-    <div class="card-body text-center text-muted py-5">
-        <i class="bi bi-search fs-1"></i>
-        <p class="mt-2">Enter search terms to find documents</p>
+<!-- Quick Filters -->
+<div class="mb-4">
+    <div class="btn-group" role="group" aria-label="Quick filters">
+        <button type="button" class="btn btn-outline-primary" onclick="quickFilter('')">
+            <i class="bi bi-grid me-1"></i> All
+        </button>
+        <button type="button" class="btn btn-outline-warning" onclick="quickFilter('Pending')">
+            <i class="bi bi-clock me-1"></i> Pending
+        </button>
+        <button type="button" class="btn btn-outline-success" onclick="quickFilter('Approved')">
+            <i class="bi bi-check-circle me-1"></i> Approved
+        </button>
+        <button type="button" class="btn btn-outline-danger" onclick="quickFilter('Rejected')">
+            <i class="bi bi-x-circle me-1"></i> Rejected
+        </button>
+        <button type="button" class="btn btn-outline-info" onclick="quickFilter('Under Review')">
+            <i class="bi bi-hourglass-split me-1"></i> Under Review
+        </button>
     </div>
 </div>
+
+<!-- Search Results Summary -->
+<div class="card mb-4" id="searchSummary" style="display: none;">
+    <div class="card-body">
+        <div class="row text-center">
+            <div class="col-md-3">
+                <h3 class="text-primary mb-0" id="totalDocuments">0</h3>
+                <small class="text-muted">Total Documents</small>
+            </div>
+            <div class="col-md-3">
+                <h3 class="text-warning mb-0" id="pendingCount">0</h3>
+                <small class="text-muted">Pending</small>
+            </div>
+            <div class="col-md-3">
+                <h3 class="text-success mb-0" id="approvedCount">0</h3>
+                <small class="text-muted">Approved</small>
+            </div>
+            <div class="col-md-3">
+                <h3 class="text-danger mb-0" id="rejectedCount">0</h3>
+                <small class="text-muted">Rejected</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Folders Section -->
+<div class="card mb-4" id="foldersSection" style="display: none;">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-folder me-2"></i>Folders</h5>
+        <span class="badge bg-primary" id="folderCount">0</span>
+    </div>
+    <div class="card-body">
+        <div class="row" id="foldersContainer">
+        </div>
+    </div>
+</div>
+
+<!-- Documents Section -->
+<div class="card">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-file-earmark-text me-2"></i>Documents</h5>
+        <span class="badge bg-primary" id="documentCount">0</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Document</th>
+                        <th>Type</th>
+                        <th>Folder</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="documentsTable">
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-5">
+                            <i class="bi bi-search fs-1"></i>
+                            <p class="mt-2">Enter search terms or use filters to find documents</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let allDocuments = [];
+    let allFolders = [];
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadFolders();
+        loadAllData();
+    });
+
+    async function loadFolders() {
+        try {
+            const response = await fetch('/api/FolderApi');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.folders) {
+                    allFolders = data.folders;
+                    const select = document.getElementById('filterFolder');
+                    data.folders.forEach(f => {
+                        const option = document.createElement('option');
+                        option.value = f.id;
+                        option.textContent = f.name;
+                        select.appendChild(option);
+                    });
+                }
+            }
+        } catch (e) {
+            console.error('Error loading folders:', e);
+        }
+    }
+
+    async function loadAllData() {
+        try {
+            const response = await fetch('/api/DocumentApi/search/client');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    allDocuments = data.documents || [];
+                    displayResults(data.documents, data.folders || []);
+                }
+            }
+        } catch (e) {
+            console.error('Error loading data:', e);
+        }
+    }
+
+    async function performSearch() {
+        const searchTerm = document.getElementById('searchTerm').value;
+        const status = document.getElementById('filterStatus').value;
+        const type = document.getElementById('filterType').value;
+        const folderId = document.getElementById('filterFolder').value;
+
+        let url = `/api/DocumentApi/search/client?search=${encodeURIComponent(searchTerm)}`;
+        if (status) url += `&status=${encodeURIComponent(status)}`;
+        if (type) url += `&type=${encodeURIComponent(type)}`;
+        if (folderId) url += `&folderId=${folderId}`;
+
+        try {
+            const tbody = document.getElementById('documentsTable');
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></td></tr>';
+
+            const response = await fetch(url);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    allDocuments = data.documents || [];
+                    displayResults(data.documents, data.folders || []);
+                }
+            }
+        } catch (e) {
+            console.error('Search error:', e);
+            document.getElementById('documentsTable').innerHTML = 
+                '<tr><td colspan="6" class="text-center text-danger py-4">Error performing search</td></tr>';
+        }
+    }
+
+    function quickFilter(status) {
+        document.getElementById('filterStatus').value = status;
+        document.getElementById('searchTerm').value = '';
+        document.getElementById('filterType').value = '';
+        document.getElementById('filterFolder').value = '';
+        performSearch();
+    }
+
+    function displayResults(documents, folders) {
+        const summaryEl = document.getElementById('searchSummary');
+        const foldersSection = document.getElementById('foldersSection');
+        
+        // Update summary
+        if (documents && documents.length > 0) {
+            summaryEl.style.display = 'block';
+            document.getElementById('totalDocuments').textContent = documents.length;
+            document.getElementById('pendingCount').textContent = documents.filter(d => d.status === 'Pending').length;
+            document.getElementById('approvedCount').textContent = documents.filter(d => d.status === 'Approved').length;
+            document.getElementById('rejectedCount').textContent = documents.filter(d => d.status === 'Rejected').length;
+        } else {
+            summaryEl.style.display = 'none';
+        }
+
+        // Display folders
+        if (folders && folders.length > 0) {
+            foldersSection.style.display = 'block';
+            document.getElementById('folderCount').textContent = folders.length;
+            const container = document.getElementById('foldersContainer');
+            container.innerHTML = folders.map(f => `
+                <div class="col-md-3 mb-3">
+                    <div class="card h-100 folder-card" style="cursor:pointer;" onclick="filterByFolder(${f.id})">
+                        <div class="card-body text-center">
+                            <i class="bi bi-folder-fill text-warning fs-1"></i>
+                            <h6 class="mt-2 mb-1">${f.name}</h6>
+                            <small class="text-muted">${f.documentCount} document(s)</small>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            foldersSection.style.display = 'none';
+        }
+
+        // Display documents
+        const tbody = document.getElementById('documentsTable');
+        document.getElementById('documentCount').textContent = documents ? documents.length : 0;
+
+        if (!documents || documents.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center py-5">
+                        <i class="bi bi-inbox fs-1 text-muted"></i>
+                        <p class="text-muted mt-2">No documents found matching your criteria</p>
+                    </td>
+                </tr>`;
+            return;
+        }
+
+        tbody.innerHTML = documents.map(doc => `
+            <tr>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <i class="bi ${getFileIcon(doc.fileExtension)} text-primary me-2 fs-5"></i>
+                        <div>
+                            <div class="fw-medium">${doc.title || doc.originalFileName}</div>
+                            <small class="text-muted">${doc.originalFileName}</small>
+                        </div>
+                    </div>
+                </td>
+                <td>${doc.documentType || '-'}</td>
+                <td>${doc.folderName || '<span class="text-muted">Root</span>'}</td>
+                <td>${getStatusBadge(doc.status)}</td>
+                <td>${formatDate(doc.createdAt)}</td>
+                <td>
+                    <a href="/Document/Details/${doc.id}" class="btn btn-sm btn-outline-primary" title="View">
+                        <i class="bi bi-eye"></i>
+                    </a>
+                    ${doc.status === 'Approved' ? `
+                    <a href="/api/DocumentApi/${doc.id}/download" class="btn btn-sm btn-outline-success" title="Download">
+                        <i class="bi bi-download"></i>
+                    </a>` : ''}
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function filterByFolder(folderId) {
+        document.getElementById('filterFolder').value = folderId;
+        performSearch();
+    }
+
+    function getFileIcon(ext) {
+        const icons = {
+            '.pdf': 'bi-file-pdf',
+            '.doc': 'bi-file-word',
+            '.docx': 'bi-file-word',
+            '.xls': 'bi-file-excel',
+            '.xlsx': 'bi-file-excel',
+            '.jpg': 'bi-file-image',
+            '.jpeg': 'bi-file-image',
+            '.png': 'bi-file-image',
+            '.txt': 'bi-file-text'
+        };
+        return icons[ext?.toLowerCase()] || 'bi-file-earmark';
+    }
+
+    function getStatusBadge(status) {
+        const badges = {
+            'Pending': '<span class="badge bg-warning text-dark">Pending</span>',
+            'Approved': '<span class="badge bg-success">Approved</span>',
+            'Rejected': '<span class="badge bg-danger">Rejected</span>',
+            'Under Review': '<span class="badge bg-info">Under Review</span>'
+        };
+        return badges[status] || `<span class="badge bg-secondary">${status}</span>`;
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+</script>
+}

@@ -134,7 +134,7 @@
     
     async function loadDocuments() {
         try {
-            const response = await fetch('/api/DashboardApi/staff-recent?take=100');
+            const response = await fetch('/api/DashboardApi/lawyer-recent?take=100');
             if (response.ok) {
                 const data = await response.json();
                 if (data.success) {
