@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using CKNDocument.Models;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace CKNDocument.Controllers
 {
@@ -15,6 +16,21 @@ namespace CKNDocument.Controllers
 
         public IActionResult Index()
         {
+            // If user is already authenticated, redirect to their dashboard
+            if (User.Identity?.IsAuthenticated == true)
+            {
+                var role = User.FindFirst(ClaimTypes.Role)?.Value;
+                return role switch
+                {
+                    "SuperAdmin" => RedirectToAction("Index", "SuperAdminDashboard"),
+                    "Admin" => RedirectToAction("Index", "Dashboard"),
+                    "Lawyer" => RedirectToAction("Index", "Dashboard"),
+                    "Staff" => RedirectToAction("Index", "Dashboard"),
+                    "Client" => RedirectToAction("Index", "Dashboard"),
+                    "Auditor" => RedirectToAction("Index", "Dashboard"),
+                    _ => View()
+                };
+            }
             return View();
         }
 

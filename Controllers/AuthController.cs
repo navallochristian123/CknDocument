@@ -20,15 +20,18 @@ public class AuthController : Controller
     private readonly LawFirmDMSDbContext _context;
     private readonly AuditLogService _auditLogService;
     private readonly ILogger<AuthController> _logger;
+    private readonly PayMongoService _payMongoService;
 
     public AuthController(
         LawFirmDMSDbContext context,
         AuditLogService auditLogService,
-        ILogger<AuthController> logger)
+        ILogger<AuthController> logger,
+        PayMongoService payMongoService)
     {
         _context = context;
         _auditLogService = auditLogService;
         _logger = logger;
+        _payMongoService = payMongoService;
     }
 
     #region Views
@@ -756,6 +759,560 @@ public class AuthController : Controller
             "Auditor" => RedirectToAction("Index", "Dashboard"),
             _ => RedirectToAction("Index", "Home")
         };
+    }
+
+    #endregion
+
+    #region Firm Registration
+
+    /// <summary>
+    /// Law Firm registration page - admin registers a new firm + admin account
+    /// </summary>
+    [HttpGet]
+    [AllowAnonymous]
+    public IActionResult RegisterFirm(string? plan = null)
+    {
+        if (User.Identity?.IsAuthenticated == true)
+        {
+            return RedirectBasedOnRole();
+        }
+        var model = new FirmRegisterRequestDto();
+        if (!string.IsNullOrEmpty(plan))
+        {
+            model.Plan = plan;
+        }
+        return View("~/Views/Auth/RegisterFirm.cshtml", model);
+    }
+
+    /// <summary>
+    /// Process law firm registration
+    /// </summary>
+    [HttpPost]
+    [AllowAnonymous]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RegisterFirm([FromForm] FirmRegisterRequestDto request)
+    {
+        try
+        {
+            if (!ModelState.IsValid)
+            {
+                TempData["ToastType"] = "error";
+                TempData["ToastMessage"] = "Please fill in all required fields correctly.";
+                return View("~/Views/Auth/RegisterFirm.cshtml", request);
+            }
+
+            // Check duplicate email
+            var emailExists = await _context.Users.AnyAsync(u => u.Email != null && u.Email.ToLower() == request.Email.ToLower());
+            if (emailExists)
+            {
+                ModelState.AddModelError("Email", "This email is already registered.");
+                TempData["ToastType"] = "error";
+                TempData["ToastMessage"] = "This email is already registered.";
+                return View("~/Views/Auth/RegisterFirm.cshtml", request);
+            }
+
+            // Check duplicate username
+            var usernameExists = await _context.Users.AnyAsync(u => u.Username != null && u.Username.ToLower() == request.Username.ToLower());
+            if (usernameExists)
+            {
+                ModelState.AddModelError("Username", "This username is already taken.");
+                TempData["ToastType"] = "error";
+                TempData["ToastMessage"] = "This username is already taken.";
+                return View("~/Views/Auth/RegisterFirm.cshtml", request);
+            }
+
+            // Check duplicate firm name
+            var firmExists = await _context.Firms.AnyAsync(f => f.FirmName.ToLower() == request.FirmName.ToLower());
+            if (firmExists)
+            {
+                ModelState.AddModelError("FirmName", "A law firm with this name already exists.");
+                TempData["ToastType"] = "error";
+                TempData["ToastMessage"] = "A law firm with this name already exists.";
+                return View("~/Views/Auth/RegisterFirm.cshtml", request);
+            }
+
+            // Determine plan details
+            var (storageMb, maxUsers, monthlyPrice) = request.Plan switch
+            {
+                "Starter" => (2048, 5, 1499m),
+                "Professional" => (10240, 25, 3499m),
+                "Enterprise" => (51200, -1, 7999m), // -1 = unlimited
+                _ => (2048, 5, 1499m)
+            };
+
+            // Generate a unique firm code
+            var firmCode = GenerateFirmCode();
+
+            // Create the Firm
+            var firm = new Firm
+            {
+                FirmName = request.FirmName,
+                ContactEmail = request.FirmEmail,
+                Address = request.FirmAddress,
+                PhoneNumber = request.FirmPhone,
+                Status = "PendingPayment",
+                FirmCode = firmCode
+            };
+
+            _context.Firms.Add(firm);
+            await _context.SaveChangesAsync();
+
+            // Create the Admin role if not exists
+            var adminRole = await _context.Roles.FirstOrDefaultAsync(r => r.RoleName == "Admin");
+            if (adminRole == null)
+            {
+                adminRole = new Role { RoleName = "Admin", Description = "Law Firm Administrator" };
+                _context.Roles.Add(adminRole);
+                await _context.SaveChangesAsync();
+            }
+
+            // Create the Admin user
+            var adminUser = new User
+            {
+                FirmID = firm.FirmID,
+                FirstName = request.FirstName,
+                MiddleName = request.MiddleName,
+                LastName = request.LastName,
+                Email = request.Email,
+                Username = request.Username,
+                PasswordHash = PasswordHelper.HashPassword(request.Password),
+                PhoneNumber = request.PhoneNumber,
+                Status = "Active",
+                EmailConfirmed = true
+            };
+
+            _context.Users.Add(adminUser);
+            await _context.SaveChangesAsync();
+
+            // Assign Admin role
+            _context.UserRoles.Add(new UserRole
+            {
+                UserID = adminUser.UserID,
+                RoleID = adminRole.RoleID
+            });
+
+            // Create subscription record
+            var subscription = new FirmSubscription
+            {
+                FirmID = firm.FirmID,
+                SubscriptionName = request.Plan,
+                ContactEmail = request.FirmEmail,
+                BillingAddress = request.FirmAddress,
+                Status = "PendingPayment",
+                PlanType = request.Plan,
+                StartDate = DateTime.UtcNow,
+                EndDate = DateTime.UtcNow.AddMonths(1)
+            };
+
+            _context.FirmSubscriptions.Add(subscription);
+            await _context.SaveChangesAsync();
+
+            // Log the registration
+            await _auditLogService.LogAsync(
+                action: "FirmRegistered",
+                entityType: "Firm",
+                entityId: firm.FirmID,
+                description: $"Law firm '{firm.FirmName}' registered with {request.Plan} plan",
+                actionCategory: "Registration",
+                userId: adminUser.UserID,
+                firmId: firm.FirmID);
+
+            // Sign in the admin user
+            await SignInUser(
+                adminUser.UserID,
+                adminUser.FullName,
+                adminUser.Email ?? "",
+                adminUser.Username ?? "",
+                "Admin",
+                firm.FirmID,
+                false);
+
+            TempData["ToastType"] = "success";
+            TempData["ToastMessage"] = $"Your law firm '{firm.FirmName}' has been registered. Please complete payment to activate your account.";
+            TempData["FirmCode"] = firmCode;
+            TempData["Plan"] = request.Plan;
+            TempData["MonthlyPrice"] = monthlyPrice.ToString("N0");
+            TempData["SubscriptionId"] = subscription.SubscriptionID;
+
+            // Redirect to payment page (NOT dashboard)
+            return RedirectToAction("SubscriptionPayment", new { subscriptionId = subscription.SubscriptionID });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Firm registration error: {Message}", ex.Message);
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = "An error occurred during registration. Please try again.";
+            return View("~/Views/Auth/RegisterFirm.cshtml", request);
+        }
+    }
+
+    /// <summary>
+    /// Show Subscription Payment page — user must pay before accessing the system
+    /// </summary>
+    [HttpGet]
+    [Authorize]
+    public async Task<IActionResult> SubscriptionPayment(int? subscriptionId = null)
+    {
+        var firmIdClaim = User.FindFirstValue("FirmId");
+        if (string.IsNullOrEmpty(firmIdClaim) || !int.TryParse(firmIdClaim, out var firmId))
+            return RedirectToAction("Login");
+
+        // Get the subscription record
+        FirmSubscription? subscription;
+        if (subscriptionId.HasValue)
+        {
+            subscription = await _context.FirmSubscriptions
+                .Include(s => s.Firm)
+                .FirstOrDefaultAsync(s => s.SubscriptionID == subscriptionId.Value && s.FirmID == firmId);
+        }
+        else
+        {
+            subscription = await _context.FirmSubscriptions
+                .Include(s => s.Firm)
+                .Where(s => s.FirmID == firmId && s.Status == "PendingPayment")
+                .OrderByDescending(s => s.CreatedAt)
+                .FirstOrDefaultAsync();
+        }
+
+        if (subscription == null)
+            return RedirectToAction("Index", "Dashboard");
+
+        // If already active, go to dashboard
+        if (subscription.Status == "Active")
+            return RedirectToAction("Index", "Dashboard");
+
+        // Get pricing info
+        var monthlyPrice = subscription.PlanType switch
+        {
+            "Starter" => 1499m,
+            "Professional" => 3499m,
+            "Enterprise" => 7999m,
+            _ => 1499m
+        };
+
+        // Check if there's an existing pending payment
+        var pendingPayment = await _context.Payments
+            .Where(p => p.SubscriptionID == subscription.SubscriptionID && p.Status == "Pending" && p.PayMongoCheckoutUrl != null)
+            .OrderByDescending(p => p.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        ViewBag.Subscription = subscription;
+        ViewBag.MonthlyPrice = monthlyPrice;
+        ViewBag.FirmName = subscription.Firm?.FirmName ?? "Your Firm";
+        ViewBag.FirmCode = subscription.Firm?.FirmCode ?? "";
+        ViewBag.PendingPayment = pendingPayment;
+        ViewBag.PayMongoConfigured = _payMongoService.IsConfigured;
+
+        return View("~/Views/Auth/SubscriptionPayment.cshtml");
+    }
+
+    /// <summary>
+    /// Process subscription payment via PayMongo
+    /// </summary>
+    [HttpPost]
+    [Authorize]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ProcessSubscriptionPayment(int subscriptionId, string paymentMethod = "gcash")
+    {
+        var firmIdClaim = User.FindFirstValue("FirmId");
+        if (string.IsNullOrEmpty(firmIdClaim) || !int.TryParse(firmIdClaim, out var firmId))
+            return RedirectToAction("Login");
+
+        var subscription = await _context.FirmSubscriptions
+            .Include(s => s.Firm)
+            .FirstOrDefaultAsync(s => s.SubscriptionID == subscriptionId && s.FirmID == firmId);
+
+        if (subscription == null)
+        {
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = "Subscription not found.";
+            return RedirectToAction("SubscriptionPayment");
+        }
+
+        if (!_payMongoService.IsConfigured)
+        {
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = "Payment system is currently unavailable. Please contact support.";
+            return RedirectToAction("SubscriptionPayment", new { subscriptionId });
+        }
+
+        // Validate payment method
+        if (!PayMongoService.SupportedMethods.ContainsKey(paymentMethod))
+        {
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = "Invalid payment method. Please select GCash or GrabPay.";
+            return RedirectToAction("SubscriptionPayment", new { subscriptionId });
+        }
+
+        var monthlyPrice = subscription.PlanType switch
+        {
+            "Starter" => 1499m,
+            "Professional" => 3499m,
+            "Enterprise" => 7999m,
+            _ => 1499m
+        };
+
+        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+        var successUrl = $"{baseUrl}/Auth/SubscriptionPaymentSuccess?subscriptionId={subscriptionId}";
+        var failedUrl = $"{baseUrl}/Auth/SubscriptionPaymentFailed?subscriptionId={subscriptionId}";
+        var description = $"CKN Document - {subscription.PlanType} Plan Subscription for {subscription.Firm?.FirmName}";
+
+        // Create PayMongo Source
+        var result = await _payMongoService.CreateSource(monthlyPrice, paymentMethod, successUrl, failedUrl, description);
+
+        if (!result.Success)
+        {
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = $"Payment initialization failed: {result.ErrorMessage}";
+            return RedirectToAction("SubscriptionPayment", new { subscriptionId });
+        }
+
+        // Create a pending payment record
+        var payment = new Payment
+        {
+            SubscriptionID = subscription.SubscriptionID,
+            Amount = monthlyPrice,
+            TaxAmount = Math.Round(monthlyPrice * 0.12m / 1.12m, 2),
+            NetAmount = Math.Round(monthlyPrice / 1.12m, 2),
+            PaymentMethod = paymentMethod,
+            PaymentDate = DateTime.Today,
+            Status = "Pending",
+            PayMongoCheckoutSessionId = result.SourceId,
+            PayMongoCheckoutUrl = result.CheckoutUrl,
+            PayMongoStatus = result.Status,
+            PaymentReference = $"REG-{DateTime.Now:yyyyMMddHHmmss}",
+            Notes = $"Initial subscription payment for {subscription.PlanType} plan",
+            CreatedAt = DateTime.Now
+        };
+
+        _context.Payments.Add(payment);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Subscription payment initiated: PaymentID={PaymentId}, SourceId={SourceId}, Method={Method}",
+            payment.PaymentID, result.SourceId, paymentMethod);
+
+        // Redirect to PayMongo e-wallet authorization page
+        return Redirect(result.CheckoutUrl!);
+    }
+
+    /// <summary>
+    /// PayMongo success callback for subscription payment
+    /// </summary>
+    [Authorize]
+    public async Task<IActionResult> SubscriptionPaymentSuccess(int subscriptionId)
+    {
+        var firmIdClaim = User.FindFirstValue("FirmId");
+        if (string.IsNullOrEmpty(firmIdClaim) || !int.TryParse(firmIdClaim, out var firmId))
+            return RedirectToAction("Login");
+
+        var subscription = await _context.FirmSubscriptions
+            .Include(s => s.Firm)
+            .FirstOrDefaultAsync(s => s.SubscriptionID == subscriptionId && s.FirmID == firmId);
+
+        if (subscription == null)
+        {
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = "Subscription not found.";
+            return RedirectToAction("Login");
+        }
+
+        // Find the pending payment
+        var payment = await _context.Payments
+            .Where(p => p.SubscriptionID == subscriptionId && p.Status == "Pending" && p.PayMongoCheckoutSessionId != null)
+            .OrderByDescending(p => p.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        if (payment == null)
+        {
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = "Payment record not found.";
+            return RedirectToAction("SubscriptionPayment", new { subscriptionId });
+        }
+
+        // Check source status from PayMongo
+        var sourceStatus = await _payMongoService.GetSourceStatus(payment.PayMongoCheckoutSessionId!);
+
+        if (sourceStatus.Status == "chargeable")
+        {
+            // Source is chargeable — create a payment to capture funds
+            var payResult = await _payMongoService.CreatePayment(
+                payment.PayMongoCheckoutSessionId!,
+                payment.Amount ?? 0,
+                $"CKN Document - {subscription.PlanType} Plan Activation"
+            );
+
+            if (payResult.Success)
+            {
+                payment.Status = "Completed";
+                payment.PayMongoPaymentId = payResult.PaymentId;
+                payment.PayMongoStatus = "paid";
+                payment.PaymentMethod = payResult.PaymentMethod ?? payment.PaymentMethod;
+                payment.UpdatedAt = DateTime.Now;
+
+                // Activate the subscription
+                subscription.Status = "Active";
+                subscription.StartDate = DateTime.UtcNow;
+                subscription.EndDate = DateTime.UtcNow.AddMonths(1);
+                subscription.UpdatedAt = DateTime.Now;
+
+                // Activate the firm
+                if (subscription.Firm != null)
+                {
+                    subscription.Firm.Status = "Active";
+                    subscription.Firm.UpdatedAt = DateTime.Now;
+                }
+
+                // Create revenue record
+                var revenue = new Revenue
+                {
+                    SubscriptionID = subscription.SubscriptionID,
+                    PaymentID = payment.PaymentID,
+                    Source = "Subscription",
+                    GrossAmount = payment.Amount,
+                    TaxAmount = payment.TaxAmount,
+                    NetAmount = payment.NetAmount,
+                    TaxRate = 12.00m,
+                    Amount = payment.Amount,
+                    RevenueDate = DateTime.Today,
+                    Description = $"{subscription.PlanType} Plan - Initial Payment ({subscription.Firm?.FirmName})",
+                    Category = "Subscription",
+                    CreatedAt = DateTime.Now
+                };
+                _context.Revenues.Add(revenue);
+
+                // Create an invoice for records
+                var invoice = new Invoice
+                {
+                    SubscriptionID = subscription.SubscriptionID,
+                    InvoiceNumber = $"INV-{DateTime.Now:yyyyMMdd}-{subscription.SubscriptionID:D4}",
+                    InvoiceDate = DateTime.Today,
+                    DueDate = DateTime.Today,
+                    TotalAmount = payment.Amount,
+                    PaidAmount = payment.Amount,
+                    Status = "Paid",
+                    Notes = $"Initial subscription payment for {subscription.PlanType} plan",
+                    CreatedAt = DateTime.Now
+                };
+                _context.Invoices.Add(invoice);
+
+                await _context.SaveChangesAsync();
+
+                // Link invoice to payment
+                payment.InvoiceID = invoice.InvoiceID;
+                await _context.SaveChangesAsync();
+
+                // Log the successful payment
+                var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                await _auditLogService.LogAsync(
+                    action: "SubscriptionActivated",
+                    entityType: "FirmSubscription",
+                    entityId: subscription.SubscriptionID,
+                    description: $"Subscription activated via {payment.PaymentMethod} payment (₱{payment.Amount:N2})",
+                    actionCategory: "Payment",
+                    userId: userId,
+                    firmId: firmId);
+
+                TempData["ToastType"] = "success";
+                TempData["ToastMessage"] = $"Payment successful! Your {subscription.PlanType} plan has been activated. Welcome to CKN Document!";
+                TempData["FirmCode"] = subscription.Firm?.FirmCode ?? "";
+
+                return RedirectToAction("Index", "Dashboard");
+            }
+            else
+            {
+                // Charge failed
+                payment.PayMongoStatus = "charge_failed";
+                payment.Status = "Failed";
+                payment.Notes = payResult.ErrorMessage;
+                payment.UpdatedAt = DateTime.Now;
+                await _context.SaveChangesAsync();
+
+                TempData["ToastType"] = "error";
+                TempData["ToastMessage"] = $"Payment capture failed: {payResult.ErrorMessage}. Please try again.";
+                return RedirectToAction("SubscriptionPayment", new { subscriptionId });
+            }
+        }
+        else if (sourceStatus.Status == "paid")
+        {
+            // Already processed
+            payment.Status = "Completed";
+            payment.PayMongoStatus = "paid";
+            payment.UpdatedAt = DateTime.Now;
+
+            subscription.Status = "Active";
+            subscription.StartDate = DateTime.UtcNow;
+            subscription.EndDate = DateTime.UtcNow.AddMonths(1);
+            subscription.UpdatedAt = DateTime.Now;
+
+            if (subscription.Firm != null)
+            {
+                subscription.Firm.Status = "Active";
+                subscription.Firm.UpdatedAt = DateTime.Now;
+            }
+
+            await _context.SaveChangesAsync();
+
+            TempData["ToastType"] = "success";
+            TempData["ToastMessage"] = $"Payment confirmed! Your {subscription.PlanType} plan is now active.";
+            return RedirectToAction("Index", "Dashboard");
+        }
+        else
+        {
+            // Still pending or expired
+            payment.PayMongoStatus = sourceStatus.Status;
+            payment.UpdatedAt = DateTime.Now;
+            await _context.SaveChangesAsync();
+
+            TempData["ToastType"] = "warning";
+            TempData["ToastMessage"] = $"Payment is still being processed (status: {sourceStatus.Status}). Please wait or try again.";
+            return RedirectToAction("SubscriptionPayment", new { subscriptionId });
+        }
+    }
+
+    /// <summary>
+    /// PayMongo failed callback for subscription payment
+    /// </summary>
+    [Authorize]
+    public async Task<IActionResult> SubscriptionPaymentFailed(int subscriptionId)
+    {
+        var payment = await _context.Payments
+            .Where(p => p.SubscriptionID == subscriptionId && p.Status == "Pending")
+            .OrderByDescending(p => p.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        if (payment != null)
+        {
+            payment.Status = "Failed";
+            payment.PayMongoStatus = "failed";
+            payment.UpdatedAt = DateTime.Now;
+            await _context.SaveChangesAsync();
+        }
+
+        TempData["ToastType"] = "error";
+        TempData["ToastMessage"] = "Payment was cancelled or failed. Please try again to activate your subscription.";
+        return RedirectToAction("SubscriptionPayment", new { subscriptionId });
+    }
+
+    /// <summary>
+    /// API: Check payment status for polling from the payment page
+    /// </summary>
+    [HttpGet]
+    [Authorize]
+    public async Task<IActionResult> CheckSubscriptionPaymentStatus(string sourceId)
+    {
+        if (string.IsNullOrEmpty(sourceId))
+            return Json(new { status = "error", message = "No source ID" });
+
+        var status = await _payMongoService.GetSourceStatus(sourceId);
+        return Json(new { status = status.Status, amount = status.Amount });
+    }
+
+    private string GenerateFirmCode()
+    {
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        var random = new Random();
+        var code = new string(Enumerable.Range(0, 8).Select(_ => chars[random.Next(chars.Length)]).ToArray());
+        return code;
     }
 
     #endregion

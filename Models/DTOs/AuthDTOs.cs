@@ -266,4 +266,78 @@ public class FirmDropdownDto
     public string FirmName { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// Law Firm registration request DTO - Admin registers a new law firm + admin account
+/// </summary>
+public class FirmRegisterRequestDto
+{
+    // ---- Firm Info ----
+    [Required(ErrorMessage = "Firm name is required")]
+    [StringLength(150, ErrorMessage = "Firm name cannot exceed 150 characters")]
+    [Display(Name = "Law Firm Name")]
+    public string FirmName { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Firm contact email is required")]
+    [EmailAddress(ErrorMessage = "Please enter a valid email")]
+    [StringLength(100)]
+    [Display(Name = "Firm Contact Email")]
+    public string FirmEmail { get; set; } = string.Empty;
+
+    [StringLength(255)]
+    [Display(Name = "Firm Address")]
+    public string? FirmAddress { get; set; }
+
+    [StringLength(20)]
+    [Display(Name = "Firm Phone")]
+    public string? FirmPhone { get; set; }
+
+    // ---- Admin User Info ----
+    [Required(ErrorMessage = "First name is required")]
+    [StringLength(100)]
+    [Display(Name = "First Name")]
+    public string FirstName { get; set; } = string.Empty;
+
+    [StringLength(100)]
+    [Display(Name = "Middle Name")]
+    public string? MiddleName { get; set; }
+
+    [Required(ErrorMessage = "Last name is required")]
+    [StringLength(100)]
+    [Display(Name = "Last Name")]
+    public string LastName { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Email is required")]
+    [EmailAddress(ErrorMessage = "Please enter a valid email")]
+    [StringLength(100)]
+    [Display(Name = "Admin Email")]
+    public string Email { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Username is required")]
+    [StringLength(100, MinimumLength = 4, ErrorMessage = "Username must be between 4 and 100 characters")]
+    [RegularExpression(@"^[a-zA-Z0-9_]+$", ErrorMessage = "Username can only contain letters, numbers, and underscores")]
+    public string Username { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Password is required")]
+    [StringLength(100, MinimumLength = 12, ErrorMessage = "Password must be at least 12 characters")]
+    [DataType(DataType.Password)]
+    public string Password { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Please confirm your password")]
+    [Compare("Password", ErrorMessage = "Passwords do not match")]
+    [DataType(DataType.Password)]
+    [Display(Name = "Confirm Password")]
+    public string ConfirmPassword { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Phone number is required")]
+    [StringLength(11, MinimumLength = 10)]
+    [RegularExpression(@"^[0-9]+$", ErrorMessage = "Phone number can only contain digits")]
+    [Display(Name = "Phone Number")]
+    public string PhoneNumber { get; set; } = string.Empty;
+
+    // ---- Package ----
+    [Required(ErrorMessage = "Please select a plan")]
+    [Display(Name = "Plan")]
+    public string Plan { get; set; } = string.Empty; // Starter, Professional, Enterprise
+}
+
 #endregion

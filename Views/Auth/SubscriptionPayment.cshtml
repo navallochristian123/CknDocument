@@ -1,0 +1,560 @@
+@{
+    Layout = null;
+    var subscription = ViewBag.Subscription as CKNDocument.Models.LawFirmDMS.FirmSubscription;
+    var monthlyPrice = (decimal)ViewBag.MonthlyPrice;
+    var firmName = (string)ViewBag.FirmName;
+    var firmCode = (string)ViewBag.FirmCode;
+    var pendingPayment = ViewBag.PendingPayment as CKNDocument.Models.LawFirmDMS.Payment;
+    var isConfigured = (bool)ViewBag.PayMongoConfigured;
+    var planType = subscription?.PlanType ?? "Starter";
+
+    var planFeatures = planType switch
+    {
+        "Starter" => new[] { "Up to 5 users", "2 GB storage", "Basic document management", "Email support" },
+        "Professional" => new[] { "Up to 25 users", "10 GB storage", "Advanced workflows", "Priority support", "AI document analysis" },
+        "Enterprise" => new[] { "Unlimited users", "50 GB storage", "Custom workflows", "Dedicated support", "AI analysis + retention policies", "Advanced analytics" },
+        _ => new[] { "Up to 5 users", "2 GB storage", "Basic document management" }
+    };
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Complete Payment — CKN Document</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+    <style>
+        :root {
+            --primary: #714B67;
+            --primary-dark: #5a3c53;
+            --primary-light: #8e6384;
+            --accent-yellow: #F0C040;
+            --accent-cyan: #5BCEFA;
+            --surface: #faf9fb;
+            --card-bg: #ffffff;
+            --text-primary: #2d2d2d;
+            --text-secondary: #6c757d;
+            --border-color: #e9ecef;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--surface);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top bar */
+        .top-bar {
+            background: var(--primary);
+            padding: 16px 0;
+        }
+
+        .top-bar .brand {
+            color: #fff;
+            font-family: 'Playfair Display', serif;
+            font-size: 1.35rem;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .top-bar .brand:hover { color: var(--accent-yellow); }
+
+        .top-bar .step-indicator {
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 0.85rem;
+        }
+
+        .top-bar .step-indicator .step {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .top-bar .step-indicator .step.active {
+            color: var(--accent-yellow);
+            font-weight: 600;
+        }
+
+        .top-bar .step-indicator .step.done {
+            color: #8f8;
+        }
+
+        .top-bar .step-indicator .separator {
+            margin: 0 10px;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        /* Main */
+        .payment-container {
+            flex: 1;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        .payment-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+            max-width: 900px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .payment-header {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #fff;
+            padding: 32px 40px;
+        }
+
+        .payment-header h2 {
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .payment-header p {
+            opacity: 0.85;
+            margin: 0;
+        }
+
+        .payment-body {
+            padding: 40px;
+        }
+
+        /* Plan summary */
+        .plan-summary {
+            background: var(--surface);
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+
+        .plan-summary .plan-badge {
+            display: inline-block;
+            background: var(--primary);
+            color: #fff;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .plan-summary .plan-price {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .plan-summary .plan-price small {
+            font-size: 0.9rem;
+            font-weight: 400;
+            color: var(--text-secondary);
+        }
+
+        .plan-features {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .plan-features li {
+            padding: 5px 0;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .plan-features li i {
+            color: #28a745;
+            margin-right: 8px;
+        }
+
+        /* Firm info */
+        .firm-info {
+            background: #f0f7ff;
+            border: 1px solid #b8daff;
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            font-size: 0.9rem;
+        }
+
+        .firm-info .firm-code {
+            font-family: monospace;
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--primary);
+            background: #fff;
+            padding: 4px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        /* Payment methods */
+        .payment-methods h5 {
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .method-card {
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .method-card:hover {
+            border-color: var(--primary-light);
+            box-shadow: 0 2px 12px rgba(113, 75, 103, 0.12);
+        }
+
+        .method-card.selected {
+            border-color: var(--primary);
+            background: rgba(113, 75, 103, 0.04);
+        }
+
+        .method-card .method-radio {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+        }
+
+        .method-card .method-icon {
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+
+        .method-card .method-name {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .method-card .method-desc {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin: 0;
+        }
+
+        /* Pay button */
+        .btn-pay {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 14px 40px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 10px;
+            transition: all 0.2s;
+            width: 100%;
+        }
+
+        .btn-pay:hover {
+            background: var(--primary-dark);
+            color: #fff;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(113, 75, 103, 0.3);
+        }
+
+        .btn-pay:disabled {
+            opacity: 0.6;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-pay .spinner-border {
+            width: 20px;
+            height: 20px;
+            border-width: 2px;
+        }
+
+        /* Secure badge */
+        .secure-badge {
+            text-align: center;
+            margin-top: 16px;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        .secure-badge i {
+            color: #28a745;
+        }
+
+        /* Breakdown */
+        .price-breakdown {
+            border-top: 1px solid var(--border-color);
+            padding-top: 16px;
+            margin-top: 16px;
+        }
+
+        .price-breakdown .row {
+            margin-bottom: 6px;
+        }
+
+        .price-breakdown .total-row {
+            border-top: 2px solid var(--primary);
+            padding-top: 10px;
+            margin-top: 10px;
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        /* Alert styles */
+        .alert-custom {
+            border-radius: 10px;
+            border: none;
+            padding: 16px 20px;
+        }
+
+        /* Footer */
+        .payment-footer {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        .payment-footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .payment-footer a:hover {
+            text-decoration: underline;
+        }
+
+        @@media (max-width: 768px) {
+            .payment-body { padding: 24px; }
+            .payment-header { padding: 24px; }
+            .plan-summary .plan-price { font-size: 1.6rem; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <div class="container d-flex align-items-center justify-content-between">
+            <a href="/" class="brand">
+                <i class="bi bi-file-earmark-text-fill me-2"></i>CKN Document
+            </a>
+            <div class="step-indicator d-none d-md-block">
+                <span class="step done">
+                    <i class="bi bi-check-circle-fill"></i> Registration
+                </span>
+                <span class="separator"><i class="bi bi-chevron-right"></i></span>
+                <span class="step active">
+                    <i class="bi bi-circle-fill" style="font-size: 0.5rem; vertical-align: middle;"></i> Payment
+                </span>
+                <span class="separator"><i class="bi bi-chevron-right"></i></span>
+                <span class="step">
+                    <i class="bi bi-circle" style="font-size: 0.5rem; vertical-align: middle;"></i> Dashboard
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    @if (TempData["ToastMessage"] != null)
+    {
+        var toastType = TempData["ToastType"]?.ToString() ?? "info";
+        var bgClass = toastType switch
+        {
+            "success" => "bg-success",
+            "error" => "bg-danger",
+            "warning" => "bg-warning text-dark",
+            _ => "bg-info"
+        };
+        <div class="position-fixed top-0 end-0 p-3" style="z-index: 9999;">
+            <div class="toast show align-items-center text-white @bgClass border-0" role="alert">
+                <div class="d-flex">
+                    <div class="toast-body">@TempData["ToastMessage"]</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Main Content -->
+    <div class="payment-container">
+        <div class="payment-card">
+            <div class="payment-header">
+                <h2><i class="bi bi-shield-lock-fill me-2"></i>Complete Your Payment</h2>
+                <p>Activate your @planType plan to start managing your legal documents</p>
+            </div>
+            <div class="payment-body">
+                <!-- Firm Info -->
+                <div class="firm-info">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div>
+                            <strong><i class="bi bi-building me-1"></i>@firmName</strong>
+                            <span class="text-muted ms-2">— registered successfully</span>
+                        </div>
+                        <div>
+                            Firm Code: <span class="firm-code">@firmCode</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <!-- Left: Plan Summary -->
+                    <div class="col-lg-5">
+                        <div class="plan-summary">
+                            <div class="d-flex align-items-center justify-content-between mb-3">
+                                <span class="plan-badge">@planType Plan</span>
+                                <span class="text-muted" style="font-size: 0.8rem;">Monthly</span>
+                            </div>
+
+                            <div class="plan-price mb-3">
+                                ₱@monthlyPrice.ToString("N0") <small>/month</small>
+                            </div>
+
+                            <ul class="plan-features">
+                                @foreach (var feature in planFeatures)
+                                {
+                                    <li><i class="bi bi-check-circle-fill"></i>@feature</li>
+                                }
+                            </ul>
+
+                            <div class="price-breakdown">
+                                <div class="row">
+                                    <div class="col">Subtotal</div>
+                                    <div class="col-auto">₱@(Math.Round(monthlyPrice / 1.12m, 2).ToString("N2"))</div>
+                                </div>
+                                <div class="row">
+                                    <div class="col">VAT (12%)</div>
+                                    <div class="col-auto">₱@(Math.Round(monthlyPrice * 0.12m / 1.12m, 2).ToString("N2"))</div>
+                                </div>
+                                <div class="row total-row">
+                                    <div class="col">Total Due Today</div>
+                                    <div class="col-auto" style="color: var(--primary);">₱@monthlyPrice.ToString("N2")</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Payment Methods -->
+                    <div class="col-lg-7">
+                        @if (!isConfigured)
+                        {
+                            <div class="alert alert-warning alert-custom">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                <strong>Payment Unavailable</strong>
+                                <p class="mb-0 mt-1">Online payment is currently not configured. Please contact the system administrator.</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <form asp-action="ProcessSubscriptionPayment" asp-controller="Auth" method="post" id="paymentForm">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="subscriptionId" value="@subscription?.SubscriptionID" />
+                                <input type="hidden" name="paymentMethod" id="selectedMethod" value="gcash" />
+
+                                <div class="payment-methods">
+                                    <h5><i class="bi bi-wallet2 me-2"></i>Select Payment Method</h5>
+
+                                    <div class="row g-3 mb-4">
+                                        <div class="col-6">
+                                            <div class="method-card selected" onclick="selectMethod('gcash', this)" id="method-gcash">
+                                                <input type="radio" name="pm" class="method-radio form-check-input" checked />
+                                                <div class="method-icon">
+                                                    <i class="bi bi-phone-fill" style="color: #007DFE;"></i>
+                                                </div>
+                                                <div class="method-name">GCash</div>
+                                                <p class="method-desc">Pay with your GCash wallet</p>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="method-card" onclick="selectMethod('grab_pay', this)" id="method-grab_pay">
+                                                <input type="radio" name="pm" class="method-radio form-check-input" />
+                                                <div class="method-icon">
+                                                    <i class="bi bi-phone-fill" style="color: #00B14F;"></i>
+                                                </div>
+                                                <div class="method-name">GrabPay</div>
+                                                <p class="method-desc">Pay with GrabPay wallet</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <button type="submit" class="btn btn-pay" id="payBtn">
+                                        <i class="bi bi-lock-fill me-2"></i>Pay ₱@monthlyPrice.ToString("N2") Now
+                                    </button>
+
+                                    <div class="secure-badge">
+                                        <i class="bi bi-shield-check me-1"></i>
+                                        Secured by PayMongo — 256-bit SSL encryption
+                                    </div>
+                                </div>
+                            </form>
+                        }
+
+                        <div class="mt-4 p-3" style="background: #fff8e5; border-radius: 10px; border: 1px solid #ffe69c;">
+                            <h6 class="mb-2" style="font-weight: 600;">
+                                <i class="bi bi-info-circle-fill text-warning me-1"></i> Important Notes
+                            </h6>
+                            <ul class="mb-0" style="font-size: 0.85rem; color: var(--text-secondary); padding-left: 20px;">
+                                <li>You will be redirected to the payment gateway to complete your transaction</li>
+                                <li>Your subscription will be activated immediately after payment confirmation</li>
+                                <li>Share your Firm Code <strong>@firmCode</strong> with team members so they can join</li>
+                                <li>You can manage billing and view invoices from your dashboard after activation</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="payment-footer">
+                <p>
+                    Need help? <a href="mailto:support@ckndocument.com">Contact Support</a>
+                    &nbsp;|&nbsp;
+                    <a href="@Url.Action("Logout", "Auth")">Sign out and return later</a>
+                </p>
+                <p class="mb-0">&copy; @DateTime.Now.Year CKN Document. All rights reserved.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Payment method selection
+        function selectMethod(method, card) {
+            document.querySelectorAll('.method-card').forEach(c => {
+                c.classList.remove('selected');
+                c.querySelector('.method-radio').checked = false;
+            });
+            card.classList.add('selected');
+            card.querySelector('.method-radio').checked = true;
+            document.getElementById('selectedMethod').value = method;
+        }
+
+        // Form submission - show loading
+        const form = document.getElementById('paymentForm');
+        if (form) {
+            form.addEventListener('submit', function (e) {
+                const btn = document.getElementById('payBtn');
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Redirecting to payment...';
+            });
+        }
+
+        // Auto-dismiss toasts
+        setTimeout(() => {
+            document.querySelectorAll('.toast').forEach(t => {
+                var toast = bootstrap.Toast.getOrCreateInstance(t);
+                toast.hide();
+            });
+        }, 5000);
+    </script>
+</body>
+</html>

@@ -158,13 +158,70 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 // ===========================================
+// MIDDLEWARE: Block unpaid firms from accessing the system
+// ===========================================
+app.Use(async (context, next) =>
+{
+    var user = context.User;
+    if (user.Identity?.IsAuthenticated == true)
+    {
+        var firmIdClaim = user.FindFirst("FirmId")?.Value;
+        if (!string.IsNullOrEmpty(firmIdClaim) && int.TryParse(firmIdClaim, out var firmId))
+        {
+            var path = context.Request.Path.Value?.ToLower() ?? "";
+
+            // Allow access to Auth controller actions, Home, static files, and signout
+            var allowedPaths = new[]
+            {
+                "/auth/subscriptionpayment",
+                "/auth/processsubscriptionpayment",
+                "/auth/subscriptionpaymentsuccess",
+                "/auth/subscriptionpaymentfailed",
+                "/auth/checksubscriptionpaymentstatus",
+                "/auth/logout",
+                "/auth/login",
+                "/home",
+                "/"
+            };
+
+            var isAllowed = allowedPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase))
+                            || path.StartsWith("/css") || path.StartsWith("/js") || path.StartsWith("/lib")
+                            || path.StartsWith("/images") || path.StartsWith("/_");
+
+            if (!isAllowed)
+            {
+                // Check firm status from database
+                var dbContext = context.RequestServices.GetRequiredService<CKNDocument.Data.LawFirmDMSDbContext>();
+                var firm = await dbContext.Firms.AsNoTracking().FirstOrDefaultAsync(f => f.FirmID == firmId);
+                if (firm != null && firm.Status == "PendingPayment")
+                {
+                    // Find the pending subscription to redirect to payment page
+                    var sub = await dbContext.FirmSubscriptions.AsNoTracking()
+                        .Where(s => s.FirmID == firmId && s.Status == "PendingPayment")
+                        .OrderByDescending(s => s.CreatedAt)
+                        .FirstOrDefaultAsync();
+
+                    var redirectUrl = sub != null
+                        ? $"/Auth/SubscriptionPayment?subscriptionId={sub.SubscriptionID}"
+                        : "/Auth/SubscriptionPayment";
+
+                    context.Response.Redirect(redirectUrl);
+                    return;
+                }
+            }
+        }
+    }
+    await next();
+});
+
+// ===========================================
 // ROUTE MAPPING
 // ===========================================
 
-// Default route - redirect to Auth/Login
+// Default route - landing page
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Auth}/{action=Login}/{id?}");
+    pattern: "{controller=Home}/{action=Index}/{id?}");
 
 app.MapRazorPages();
 

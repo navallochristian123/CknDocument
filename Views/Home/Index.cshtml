@@ -1,8 +1,934 @@
 ﻿@{
-    ViewData["Title"] = "Home Page";
+    ViewData["Title"] = "CKN Document - Legal Document Management";
+    Layout = null;
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
-</div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CKN Document — All your legal documents on one platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700;800;900&display=swap" rel="stylesheet" />
+    <style>
+        :root {
+            --primary: #714B67;
+            --primary-dark: #5a3c53;
+            --primary-light: #8b6580;
+            --accent-yellow: #F0C040;
+            --accent-cyan: #5BCEFA;
+            --bg-light: #F9F7F8;
+            --bg-white: #FFFFFF;
+            --text-dark: #2D2D2D;
+            --text-muted: #6B6B6B;
+            --text-light: #9B9B9B;
+            --border: #E8E4E6;
+            --success: #28A745;
+            --card-shadow: 0 2px 16px rgba(113,75,103,0.08);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--text-dark);
+            background: var(--bg-white);
+            overflow-x: hidden;
+        }
+
+        /* ======= NAVBAR ======= */
+        .navbar-main {
+            background: var(--bg-white);
+            padding: 16px 0;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .navbar-main .container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+
+        .nav-brand img {
+            height: 36px;
+            width: 36px;
+            object-fit: contain;
+        }
+
+        .nav-brand-text {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            letter-spacing: -0.5px;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: var(--text-dark);
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-signin {
+            background: none;
+            border: none;
+            color: var(--text-dark);
+            font-weight: 500;
+            font-size: 0.95rem;
+            padding: 8px 16px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .btn-signin:hover {
+            color: var(--primary);
+        }
+
+        .btn-try-free {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .btn-try-free:hover {
+            background: var(--primary-dark);
+            color: white;
+            transform: translateY(-1px);
+        }
+
+        /* ======= HERO ======= */
+        .hero-section {
+            padding: 80px 0 60px;
+            text-align: center;
+            background: var(--bg-white);
+            position: relative;
+        }
+
+        .hero-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 3.5rem;
+            font-weight: 800;
+            line-height: 1.2;
+            color: var(--text-dark);
+            margin-bottom: 20px;
+        }
+
+        .hero-title .highlight {
+            position: relative;
+            display: inline;
+        }
+
+        .hero-title .highlight::after {
+            content: '';
+            position: absolute;
+            bottom: 4px;
+            left: -4px;
+            right: -4px;
+            height: 40%;
+            background: var(--accent-yellow);
+            z-index: -1;
+            border-radius: 4px;
+            transform: rotate(-1deg);
+        }
+
+        .hero-subtitle {
+            font-family: 'Playfair Display', serif;
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 40px;
+        }
+
+        .hero-subtitle .underline-accent {
+            position: relative;
+            display: inline;
+        }
+
+        .hero-subtitle .underline-accent::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 6px;
+            background: var(--accent-cyan);
+            border-radius: 3px;
+        }
+
+        .hero-actions {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 40px;
+        }
+
+        .btn-start {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 16px 36px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-start:hover {
+            background: var(--primary-dark);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(113,75,103,0.3);
+        }
+
+        .btn-client-login {
+            background: var(--bg-white);
+            color: var(--text-dark);
+            border: 2px solid var(--border);
+            padding: 16px 36px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-client-login:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .price-callout {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 16px;
+            font-family: 'Playfair Display', serif;
+            font-size: 1.2rem;
+            color: var(--primary-dark);
+        }
+
+        .price-callout .arrow-svg {
+            width: 40px;
+            height: 40px;
+        }
+
+        /* ======= FEATURES STRIP ======= */
+        .features-strip {
+            background: linear-gradient(180deg, var(--bg-light) 0%, var(--bg-white) 100%);
+            padding: 60px 0;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 32px;
+        }
+
+        .feature-card {
+            text-align: center;
+            padding: 32px 20px;
+            border-radius: 16px;
+            background: var(--bg-white);
+            box-shadow: var(--card-shadow);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 32px rgba(113,75,103,0.12);
+        }
+
+        .feature-icon-circle {
+            width: 64px;
+            height: 64px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+            color: white;
+            font-size: 1.5rem;
+        }
+
+        .feature-card h4 {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .feature-card p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+            margin: 0;
+        }
+
+        /* ======= HOW IT WORKS ======= */
+        .how-section {
+            padding: 80px 0;
+            background: var(--bg-white);
+        }
+
+        .section-title {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .section-title h2 {
+            font-family: 'Playfair Display', serif;
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 12px;
+        }
+
+        .section-title p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        .steps-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 32px;
+        }
+
+        .step-card {
+            text-align: center;
+            position: relative;
+        }
+
+        .step-num {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            font-weight: 800;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+        }
+
+        .step-card h4 {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .step-card p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* ======= PRICING ======= */
+        .pricing-section {
+            padding: 80px 0;
+            background: var(--bg-light);
+        }
+
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 28px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .pricing-card {
+            background: var(--bg-white);
+            border-radius: 16px;
+            padding: 36px 28px;
+            text-align: center;
+            box-shadow: var(--card-shadow);
+            border: 2px solid transparent;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .pricing-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 32px rgba(113,75,103,0.15);
+        }
+
+        .pricing-card.popular {
+            border-color: var(--primary);
+            transform: translateY(-8px);
+            box-shadow: 0 12px 40px rgba(113,75,103,0.2);
+        }
+
+        .pricing-badge {
+            position: absolute;
+            top: -14px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary);
+            color: white;
+            padding: 4px 20px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .pricing-card h3 {
+            font-weight: 700;
+            font-size: 1.3rem;
+            margin-bottom: 8px;
+        }
+
+        .pricing-card .price {
+            font-family: 'Playfair Display', serif;
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--primary);
+            margin-bottom: 4px;
+        }
+
+        .pricing-card .price-period {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-bottom: 20px;
+        }
+
+        .pricing-features {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 24px;
+            text-align: left;
+        }
+
+        .pricing-features li {
+            padding: 8px 0;
+            font-size: 0.9rem;
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .pricing-features li:last-child {
+            border-bottom: none;
+        }
+
+        .pricing-features li i {
+            color: var(--success);
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .btn-plan {
+            width: 100%;
+            padding: 14px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-plan-outline {
+            background: transparent;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-plan-outline:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-plan-solid {
+            background: var(--primary);
+            border: 2px solid var(--primary);
+            color: white;
+        }
+
+        .btn-plan-solid:hover {
+            background: var(--primary-dark);
+            border-color: var(--primary-dark);
+            color: white;
+        }
+
+        /* ======= CLIENT LOGIN SECTION ======= */
+        .client-section {
+            padding: 60px 0;
+            background: var(--bg-white);
+        }
+
+        .client-card {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            border-radius: 20px;
+            padding: 50px 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 40px;
+            color: white;
+        }
+
+        .client-card h3 {
+            font-family: 'Playfair Display', serif;
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .client-card p {
+            font-size: 1rem;
+            opacity: 0.9;
+            margin: 0;
+        }
+
+        .btn-client-white {
+            background: white;
+            color: var(--primary);
+            border: none;
+            padding: 14px 32px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-client-white:hover {
+            background: var(--bg-light);
+            color: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
+        /* ======= FOOTER ======= */
+        .footer-main {
+            background: var(--text-dark);
+            color: rgba(255,255,255,0.7);
+            padding: 50px 0 30px;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+
+        .footer-brand img {
+            height: 36px;
+            margin-bottom: 12px;
+            filter: brightness(0) invert(1);
+        }
+
+        .footer-brand p {
+            font-size: 0.9rem;
+            line-height: 1.6;
+            max-width: 280px;
+        }
+
+        .footer-col h5 {
+            color: white;
+            font-size: 0.9rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+        }
+
+        .footer-col ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .footer-col ul li {
+            margin-bottom: 8px;
+        }
+
+        .footer-col ul li a {
+            color: rgba(255,255,255,0.7);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+
+        .footer-col ul li a:hover {
+            color: white;
+        }
+
+        .footer-bottom {
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 24px;
+            text-align: center;
+            font-size: 0.85rem;
+        }
+
+        /* ======= RESPONSIVE ======= */
+        @@media (max-width: 992px) {
+            .hero-title { font-size: 2.5rem; }
+            .hero-subtitle { font-size: 1.6rem; }
+            .steps-grid { grid-template-columns: repeat(2, 1fr); }
+            .pricing-grid { grid-template-columns: 1fr; max-width: 400px; }
+            .client-card { flex-direction: column; text-align: center; padding: 40px 30px; }
+            .footer-grid { grid-template-columns: 1fr 1fr; }
+            .nav-links { display: none; }
+        }
+
+        @@media (max-width: 576px) {
+            .hero-title { font-size: 2rem; }
+            .hero-subtitle { font-size: 1.3rem; }
+            .hero-actions { flex-direction: column; align-items: center; }
+            .steps-grid { grid-template-columns: 1fr; }
+            .features-grid { grid-template-columns: 1fr 1fr; }
+            .footer-grid { grid-template-columns: 1fr; }
+        }
+
+        /* ======= ANIMATION ======= */
+        .fade-up {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .fade-up.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ======= NAVBAR ======= -->
+    <nav class="navbar-main">
+        <div class="container">
+            <a href="/" class="nav-brand">
+                <img src="/images/document_logo.png" alt="CKN Document" />
+                <span class="nav-brand-text">CKN Document</span>
+            </a>
+
+            <ul class="nav-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#how-it-works">How It Works</a></li>
+                <li><a href="#pricing">Pricing</a></li>
+                <li><a href="#client-login">Client Login</a></li>
+            </ul>
+
+            <div class="nav-actions">
+                <a href="/Auth/Login" class="btn-signin">Sign in</a>
+                <a href="#pricing" class="btn-try-free">Try it free</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ======= HERO ======= -->
+    <section class="hero-section">
+        <div class="container">
+            <h1 class="hero-title">
+                All your legal documents on<br /><span class="highlight">one platform.</span>
+            </h1>
+            <p class="hero-subtitle">
+                Simple, efficient, yet <span class="underline-accent">affordable!</span>
+            </p>
+
+            <div class="hero-actions">
+                <a href="#pricing" class="btn-start">
+                    Start now — It's free to try
+                </a>
+                <a href="#client-login" class="btn-client-login">
+                    Login as Client <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+
+            <div class="price-callout">
+                <svg class="arrow-svg" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M10 10 C 20 5, 40 15, 40 40" stroke="var(--primary-dark)" stroke-width="2" fill="none" stroke-linecap="round"/>
+                    <path d="M35 35 L40 42 L44 34" stroke="var(--primary-dark)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Starting at &#x20B1;1,499/mo for ALL features</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- ======= FEATURES ======= -->
+    <section class="features-strip" id="features">
+        <div class="container">
+            <div class="features-grid">
+                <div class="feature-card fade-up">
+                    <div class="feature-icon-circle">
+                        <i class="bi bi-file-earmark-lock"></i>
+                    </div>
+                    <h4>Secure Documents</h4>
+                    <p>AES-256 encrypted storage with role-based access control for every file.</p>
+                </div>
+                <div class="feature-card fade-up">
+                    <div class="feature-icon-circle">
+                        <i class="bi bi-people-fill"></i>
+                    </div>
+                    <h4>Team Management</h4>
+                    <p>Create lawyers, staff, auditors & clients within your firm hierarchy.</p>
+                </div>
+                <div class="feature-card fade-up">
+                    <div class="feature-icon-circle">
+                        <i class="bi bi-clipboard-check"></i>
+                    </div>
+                    <h4>Document Review</h4>
+                    <p>Built-in approval workflows with AI-powered analysis and audit trails.</p>
+                </div>
+                <div class="feature-card fade-up">
+                    <div class="feature-icon-circle">
+                        <i class="bi bi-graph-up-arrow"></i>
+                    </div>
+                    <h4>Analytics & Reports</h4>
+                    <p>Real-time dashboards, retention policies, and compliance reporting.</p>
+                </div>
+                <div class="feature-card fade-up">
+                    <div class="feature-icon-circle">
+                        <i class="bi bi-cloud-arrow-up"></i>
+                    </div>
+                    <h4>Cloud Storage</h4>
+                    <p>Scalable storage packages — upload, version, and archive with ease.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ======= HOW IT WORKS ======= -->
+    <section class="how-section" id="how-it-works">
+        <div class="container">
+            <div class="section-title">
+                <h2>Get started in 4 easy steps</h2>
+                <p>Register your law firm and start managing documents in minutes</p>
+            </div>
+
+            <div class="steps-grid">
+                <div class="step-card fade-up">
+                    <div class="step-num">1</div>
+                    <h4>Register Your Firm</h4>
+                    <p>Fill in your law firm details, contact information, and admin credentials.</p>
+                </div>
+                <div class="step-card fade-up">
+                    <div class="step-num">2</div>
+                    <h4>Choose a Package</h4>
+                    <p>Select a plan that fits your firm's size — from Starter to Enterprise.</p>
+                </div>
+                <div class="step-card fade-up">
+                    <div class="step-num">3</div>
+                    <h4>Pay & Activate</h4>
+                    <p>Securely pay via PayMongo. Instant activation — no waiting.</p>
+                </div>
+                <div class="step-card fade-up">
+                    <div class="step-num">4</div>
+                    <h4>Manage Everything</h4>
+                    <p>Add lawyers, staff & clients. Upload documents and start collaborating.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ======= PRICING ======= -->
+    <section class="pricing-section" id="pricing">
+        <div class="container">
+            <div class="section-title">
+                <h2>Choose Your Plan</h2>
+                <p>Transparent pricing — no hidden fees. Cancel anytime.</p>
+            </div>
+
+            <div class="pricing-grid">
+                <!-- Starter Plan -->
+                <div class="pricing-card fade-up">
+                    <h3>Starter</h3>
+                    <div class="price">&#x20B1;1,499</div>
+                    <div class="price-period">per month</div>
+                    <ul class="pricing-features">
+                        <li><i class="bi bi-check-circle-fill"></i> Up to 5 users</li>
+                        <li><i class="bi bi-check-circle-fill"></i> 2 GB storage</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Document management</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Basic review workflows</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Audit logging</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Email support</li>
+                    </ul>
+                    <a href="/Auth/RegisterFirm?plan=Starter" class="btn-plan btn-plan-outline">Get Started</a>
+                </div>
+
+                <!-- Professional Plan -->
+                <div class="pricing-card popular fade-up">
+                    <span class="pricing-badge">Most Popular</span>
+                    <h3>Professional</h3>
+                    <div class="price">&#x20B1;3,499</div>
+                    <div class="price-period">per month</div>
+                    <ul class="pricing-features">
+                        <li><i class="bi bi-check-circle-fill"></i> Up to 25 users</li>
+                        <li><i class="bi bi-check-circle-fill"></i> 10 GB storage</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Advanced workflows</li>
+                        <li><i class="bi bi-check-circle-fill"></i> AI document analysis</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Retention & archiving</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Priority support</li>
+                    </ul>
+                    <a href="/Auth/RegisterFirm?plan=Professional" class="btn-plan btn-plan-solid">Get Started</a>
+                </div>
+
+                <!-- Enterprise Plan -->
+                <div class="pricing-card fade-up">
+                    <h3>Enterprise</h3>
+                    <div class="price">&#x20B1;7,999</div>
+                    <div class="price-period">per month</div>
+                    <ul class="pricing-features">
+                        <li><i class="bi bi-check-circle-fill"></i> Unlimited users</li>
+                        <li><i class="bi bi-check-circle-fill"></i> 50 GB storage</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Everything in Professional</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Digital signatures</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Custom branding</li>
+                        <li><i class="bi bi-check-circle-fill"></i> Dedicated account manager</li>
+                    </ul>
+                    <a href="/Auth/RegisterFirm?plan=Enterprise" class="btn-plan btn-plan-outline">Contact Sales</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ======= CLIENT LOGIN SECTION ======= -->
+    <section class="client-section" id="client-login">
+        <div class="container">
+            <div class="client-card fade-up">
+                <div>
+                    <h3>Already a law firm client?</h3>
+                    <p>If your law firm is already registered on CKN Document, you can sign in or register as a client to access your documents, submit files, and collaborate with your legal team.</p>
+                </div>
+                <div>
+                    <a href="/Auth/Login" class="btn-client-white mb-2" style="display:flex;">
+                        <i class="bi bi-box-arrow-in-right"></i> Sign In
+                    </a>
+                    <a href="/Auth/Register" class="btn-client-white" style="display:flex; background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.3);">
+                        <i class="bi bi-person-plus"></i> Register as Client
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ======= FOOTER ======= -->
+    <footer class="footer-main">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <img src="/images/document_logo.png" alt="CKN Document" />
+                    <p>Secure legal document management platform for modern law firms. Trusted by legal professionals across the Philippines.</p>
+                </div>
+                <div class="footer-col">
+                    <h5>Product</h5>
+                    <ul>
+                        <li><a href="#features">Features</a></li>
+                        <li><a href="#pricing">Pricing</a></li>
+                        <li><a href="#how-it-works">How It Works</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h5>Company</h5>
+                    <ul>
+                        <li><a href="/Home/Privacy">Privacy Policy</a></li>
+                        <li><a href="/Home/Privacy">Terms of Service</a></li>
+                        <li><a href="mailto:support@ckndocument.com">Contact Us</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h5>Support</h5>
+                    <ul>
+                        <li><a href="mailto:support@ckndocument.com">Help Center</a></li>
+                        <li><a href="/Auth/Login">Sign In</a></li>
+                        <li><a href="#pricing">Get Started</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                &copy; @DateTime.Now.Year CKN Document. All rights reserved. Built in the Philippines &#x1F1F5;&#x1F1ED;
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        // Fade-in on scroll animation
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry, index) => {
+                if (entry.isIntersecting) {
+                    setTimeout(() => {
+                        entry.target.classList.add('visible');
+                    }, index * 100);
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+    </script>
+</body>
+</html>

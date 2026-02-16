@@ -763,7 +763,7 @@ public class DocumentApiController : ControllerBase
             // Create new version
             var uploaderName = await _context.Users
                 .Where(u => u.UserID == userId)
-                .Select(u => u.FullName)
+                .Select(u => ((u.FirstName ?? "") + " " + (u.LastName ?? "")).Trim())
                 .FirstOrDefaultAsync() ?? role;
 
             var newVersion = new DocumentVersion

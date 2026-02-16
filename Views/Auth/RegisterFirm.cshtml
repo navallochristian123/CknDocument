@@ -1,0 +1,669 @@
+@using CKNDocument.Models.DTOs
+@model FirmRegisterRequestDto
+@{
+    ViewData["Title"] = "Register Your Law Firm";
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Register Your Law Firm - CKN Document</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet" />
+    <style>
+        :root {
+            --primary: #714B67;
+            --primary-dark: #5a3c53;
+            --primary-light: #8b6580;
+            --accent-yellow: #F0C040;
+            --bg-light: #F9F7F8;
+            --bg-white: #FFFFFF;
+            --text-dark: #2D2D2D;
+            --text-muted: #6B6B6B;
+            --border: #E8E4E6;
+            --success: #28A745;
+            --danger: #EF4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-light);
+            min-height: 100vh;
+        }
+
+        /* Top bar */
+        .top-bar {
+            background: var(--bg-white);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 0;
+        }
+
+        .top-bar .container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .top-bar a.brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: var(--primary);
+            font-weight: 700;
+            font-size: 1.3rem;
+        }
+
+        .top-bar a.brand img {
+            height: 32px;
+            width: 32px;
+            object-fit: contain;
+        }
+
+        .top-bar a.back-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: color 0.2s;
+        }
+
+        .top-bar a.back-link:hover {
+            color: var(--primary);
+        }
+
+        /* Main content */
+        .reg-container {
+            max-width: 760px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        .reg-header {
+            text-align: center;
+            margin-bottom: 36px;
+        }
+
+        .reg-header h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+            color: var(--text-dark);
+        }
+
+        .reg-header p {
+            color: var(--text-muted);
+            font-size: 1rem;
+        }
+
+        /* Steps indicator */
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            margin-bottom: 36px;
+        }
+
+        .step-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .step-item.active {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .step-item.completed {
+            color: var(--success);
+        }
+
+        .step-dot {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--border);
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.85rem;
+        }
+
+        .step-item.active .step-dot {
+            background: var(--primary);
+            color: white;
+        }
+
+        .step-item.completed .step-dot {
+            background: var(--success);
+            color: white;
+        }
+
+        /* Card sections */
+        .reg-card {
+            background: var(--bg-white);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 12px rgba(113,75,103,0.06);
+        }
+
+        .reg-card h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .reg-card h3 i {
+            color: var(--primary);
+        }
+
+        /* Plan selector */
+        .plan-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 8px;
+        }
+
+        .plan-card {
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .plan-card:hover {
+            border-color: var(--primary-light);
+        }
+
+        .plan-card.selected {
+            border-color: var(--primary);
+            background: #FAF5F8;
+        }
+
+        .plan-card.popular-plan::before {
+            content: 'Popular';
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary);
+            color: white;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 2px 12px;
+            border-radius: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .plan-card h4 {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .plan-card .plan-price {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--primary);
+            margin-bottom: 4px;
+        }
+
+        .plan-card .plan-detail {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .plan-card input[type="radio"] {
+            display: none;
+        }
+
+        /* Form */
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 6px;
+        }
+
+        .form-label .req {
+            color: var(--danger);
+        }
+
+        .form-input,
+        .form-select {
+            width: 100%;
+            padding: 12px 14px;
+            font-size: 0.9rem;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--bg-white);
+            transition: border-color 0.2s, box-shadow 0.2s;
+            outline: none;
+            color: var(--text-dark);
+        }
+
+        .form-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(113,75,103,0.1);
+        }
+
+        .form-input.is-invalid {
+            border-color: var(--danger);
+        }
+
+        .password-wrapper {
+            position: relative;
+        }
+
+        .password-wrapper .form-input {
+            padding-right: 44px;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1.1rem;
+        }
+
+        .field-validation-error {
+            color: var(--danger);
+            font-size: 0.8rem;
+            margin-top: 4px;
+            display: block;
+        }
+
+        .btn-register {
+            width: 100%;
+            padding: 16px;
+            font-size: 1rem;
+            font-weight: 700;
+            color: white;
+            background: var(--primary);
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-register:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+
+        .form-footer-text {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .form-footer-text a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .form-footer-text a:hover {
+            text-decoration: underline;
+        }
+
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+
+        @@media (max-width: 768px) {
+            .plan-cards { grid-template-columns: 1fr; }
+            .form-row { grid-template-columns: 1fr; }
+            .step-indicator { gap: 16px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <div class="container">
+            <a href="/" class="brand">
+                <img src="/images/document_logo.png" alt="CKN" />
+                CKN Document
+            </a>
+            <a href="/" class="back-link">
+                <i class="bi bi-arrow-left"></i> Back to Home
+            </a>
+        </div>
+    </div>
+
+    <div class="reg-container">
+        <!-- Header -->
+        <div class="reg-header">
+            <h1>Register Your Law Firm</h1>
+            <p>Set up your firm, choose a plan, and start managing documents today.</p>
+        </div>
+
+        <!-- Steps -->
+        <div class="step-indicator">
+            <div class="step-item active" id="step1indicator">
+                <div class="step-dot">1</div>
+                <span>Choose Plan</span>
+            </div>
+            <div class="step-item" id="step2indicator">
+                <div class="step-dot">2</div>
+                <span>Firm Details</span>
+            </div>
+            <div class="step-item" id="step3indicator">
+                <div class="step-dot">3</div>
+                <span>Admin Account</span>
+            </div>
+        </div>
+
+        <!-- Toast partial -->
+        @if (TempData["ToastMessage"] != null)
+        {
+            <div class="alert alert-@(TempData["ToastType"]?.ToString() == "success" ? "success" : "danger") alert-dismissible fade show" role="alert">
+                <i class="bi bi-@(TempData["ToastType"]?.ToString() == "success" ? "check-circle" : "exclamation-triangle") me-2"></i>
+                @TempData["ToastMessage"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        <form method="post" asp-controller="Auth" asp-action="RegisterFirm" id="firmRegForm" novalidate>
+            @Html.AntiForgeryToken()
+
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert" style="display:none;"></div>
+
+            <!-- STEP 1: Plan Selection -->
+            <div class="reg-card" id="step1">
+                <h3><i class="bi bi-box-seam"></i> Select Your Plan</h3>
+
+                <div class="plan-cards">
+                    <label class="plan-card @(Model?.Plan == "Starter" ? "selected" : "")" id="planStarter" onclick="selectPlan('Starter')">
+                        <input type="radio" name="Plan" value="Starter" @(Model?.Plan == "Starter" ? "checked" : "") />
+                        <h4>Starter</h4>
+                        <div class="plan-price">&#x20B1;1,499</div>
+                        <div class="plan-detail">per month</div>
+                        <div class="plan-detail mt-1">5 users &bull; 2 GB</div>
+                    </label>
+
+                    <label class="plan-card popular-plan @(Model?.Plan == "Professional" || string.IsNullOrEmpty(Model?.Plan) ? "selected" : "")" id="planProfessional" onclick="selectPlan('Professional')">
+                        <input type="radio" name="Plan" value="Professional" @(Model?.Plan == "Professional" || string.IsNullOrEmpty(Model?.Plan) ? "checked" : "") />
+                        <h4>Professional</h4>
+                        <div class="plan-price">&#x20B1;3,499</div>
+                        <div class="plan-detail">per month</div>
+                        <div class="plan-detail mt-1">25 users &bull; 10 GB</div>
+                    </label>
+
+                    <label class="plan-card @(Model?.Plan == "Enterprise" ? "selected" : "")" id="planEnterprise" onclick="selectPlan('Enterprise')">
+                        <input type="radio" name="Plan" value="Enterprise" @(Model?.Plan == "Enterprise" ? "checked" : "") />
+                        <h4>Enterprise</h4>
+                        <div class="plan-price">&#x20B1;7,999</div>
+                        <div class="plan-detail">per month</div>
+                        <div class="plan-detail mt-1">Unlimited &bull; 50 GB</div>
+                    </label>
+                </div>
+                <span asp-validation-for="Plan" class="field-validation-error"></span>
+            </div>
+
+            <!-- STEP 2: Firm Details -->
+            <div class="reg-card" id="step2">
+                <h3><i class="bi bi-building"></i> Law Firm Information</h3>
+
+                <div class="form-group">
+                    <label class="form-label">Law Firm Name <span class="req">*</span></label>
+                    <input type="text" class="form-input" name="FirmName" value="@Model?.FirmName" placeholder="e.g. Santos & Associates Law Office" required maxlength="150" />
+                    <span asp-validation-for="FirmName" class="field-validation-error"></span>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Firm Contact Email <span class="req">*</span></label>
+                        <input type="email" class="form-input" name="FirmEmail" value="@Model?.FirmEmail" placeholder="info@lawfirm.com" required />
+                        <span asp-validation-for="FirmEmail" class="field-validation-error"></span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Firm Phone</label>
+                        <input type="tel" class="form-input" name="FirmPhone" value="@Model?.FirmPhone" placeholder="09XXXXXXXXX" maxlength="20" />
+                        <span asp-validation-for="FirmPhone" class="field-validation-error"></span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Firm Address</label>
+                    <input type="text" class="form-input" name="FirmAddress" value="@Model?.FirmAddress" placeholder="Complete office address" maxlength="255" />
+                    <span asp-validation-for="FirmAddress" class="field-validation-error"></span>
+                </div>
+            </div>
+
+            <!-- STEP 3: Admin Account -->
+            <div class="reg-card" id="step3">
+                <h3><i class="bi bi-person-gear"></i> Administrator Account</h3>
+                <p class="text-muted mb-3" style="font-size: 0.85rem;">This will be the main admin account for your law firm. You can create additional users after registration.</p>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">First Name <span class="req">*</span></label>
+                        <input type="text" class="form-input" name="FirstName" value="@Model?.FirstName" placeholder="Juan" required />
+                        <span asp-validation-for="FirstName" class="field-validation-error"></span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Middle Name</label>
+                        <input type="text" class="form-input" name="MiddleName" value="@Model?.MiddleName" placeholder="Dela" />
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Last Name <span class="req">*</span></label>
+                        <input type="text" class="form-input" name="LastName" value="@Model?.LastName" placeholder="Cruz" required />
+                        <span asp-validation-for="LastName" class="field-validation-error"></span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Phone Number <span class="req">*</span></label>
+                        <input type="tel" class="form-input" name="PhoneNumber" value="@Model?.PhoneNumber" placeholder="09XXXXXXXXX" required minlength="10" maxlength="11" />
+                        <span asp-validation-for="PhoneNumber" class="field-validation-error"></span>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Email <span class="req">*</span></label>
+                        <input type="email" class="form-input" name="Email" id="email" value="@Model?.Email" placeholder="admin@lawfirm.com" required />
+                        <span asp-validation-for="Email" class="field-validation-error"></span>
+                        <div id="emailCheck" style="font-size:0.8rem; margin-top:4px;"></div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Username <span class="req">*</span></label>
+                        <input type="text" class="form-input" name="Username" id="username" value="@Model?.Username" placeholder="admin_santos" required minlength="4" maxlength="100" pattern="^[a-zA-Z0-9_]+$" />
+                        <span asp-validation-for="Username" class="field-validation-error"></span>
+                        <div id="usernameCheck" style="font-size:0.8rem; margin-top:4px;"></div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Password <span class="req">*</span></label>
+                        <div class="password-wrapper">
+                            <input type="password" class="form-input" name="Password" id="password" placeholder="Min. 12 characters" required minlength="12" />
+                            <button class="password-toggle" type="button" onclick="togglePwd('password','pwdIcon1')">
+                                <i class="bi bi-eye" id="pwdIcon1"></i>
+                            </button>
+                        </div>
+                        <span asp-validation-for="Password" class="field-validation-error"></span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Confirm Password <span class="req">*</span></label>
+                        <div class="password-wrapper">
+                            <input type="password" class="form-input" name="ConfirmPassword" id="confirmPassword" placeholder="Re-enter password" required />
+                            <button class="password-toggle" type="button" onclick="togglePwd('confirmPassword','pwdIcon2')">
+                                <i class="bi bi-eye" id="pwdIcon2"></i>
+                            </button>
+                        </div>
+                        <span asp-validation-for="ConfirmPassword" class="field-validation-error"></span>
+                        <div id="passwordMatch" style="font-size:0.8rem; margin-top:4px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Terms + Submit -->
+            <div class="reg-card">
+                <div class="form-group mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="terms" required style="width:18px; height:18px; accent-color: var(--primary);">
+                        <label class="form-check-label ms-1" for="terms" style="font-size:0.9rem;">
+                            I agree to the <a href="/Home/Privacy" target="_blank" style="color: var(--primary);">Terms of Service</a> and <a href="/Home/Privacy" target="_blank" style="color: var(--primary);">Privacy Policy</a>
+                        </label>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-register" id="submitBtn">
+                    <i class="bi bi-rocket-takeoff"></i> Register & Continue to Payment
+                </button>
+            </div>
+        </form>
+
+        <div class="form-footer-text">
+            Already have an account? <a href="/Auth/Login">Sign in</a>
+            <span class="mx-2">|</span>
+            <a href="/">Back to Home</a>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function selectPlan(plan) {
+            document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
+            document.getElementById('plan' + plan).classList.add('selected');
+            document.querySelector(`input[value="${plan}"]`).checked = true;
+        }
+
+        function togglePwd(inputId, iconId) {
+            const input = document.getElementById(inputId);
+            const icon = document.getElementById(iconId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.replace('bi-eye', 'bi-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.replace('bi-eye-slash', 'bi-eye');
+            }
+        }
+
+        // Email uniqueness check
+        let emailTimeout;
+        document.getElementById('email')?.addEventListener('input', function () {
+            clearTimeout(emailTimeout);
+            const el = document.getElementById('emailCheck');
+            const v = this.value.trim();
+            if (v.length < 5) { el.textContent = ''; return; }
+            emailTimeout = setTimeout(async () => {
+                try {
+                    const r = await fetch(`/Auth/CheckEmail?email=${encodeURIComponent(v)}`);
+                    if (r.ok) {
+                        const d = await r.json();
+                        el.textContent = d.available ? '✓ Available' : '✗ Already taken';
+                        el.style.color = d.available ? 'var(--success)' : 'var(--danger)';
+                    }
+                } catch { }
+            }, 500);
+        });
+
+        // Username uniqueness check
+        let usernameTimeout;
+        document.getElementById('username')?.addEventListener('input', function () {
+            clearTimeout(usernameTimeout);
+            const el = document.getElementById('usernameCheck');
+            const v = this.value.trim();
+            if (v.length < 4) { el.textContent = ''; return; }
+            usernameTimeout = setTimeout(async () => {
+                try {
+                    const r = await fetch(`/Auth/CheckUsername?username=${encodeURIComponent(v)}`);
+                    if (r.ok) {
+                        const d = await r.json();
+                        el.textContent = d.available ? '✓ Available' : '✗ Already taken';
+                        el.style.color = d.available ? 'var(--success)' : 'var(--danger)';
+                    }
+                } catch { }
+            }, 500);
+        });
+
+        // Password match check
+        document.getElementById('confirmPassword')?.addEventListener('input', function () {
+            const el = document.getElementById('passwordMatch');
+            const pw = document.getElementById('password').value;
+            if (this.value.length === 0) { el.textContent = ''; return; }
+            if (this.value === pw) {
+                el.textContent = '✓ Passwords match';
+                el.style.color = 'var(--success)';
+            } else {
+                el.textContent = '✗ Passwords do not match';
+                el.style.color = 'var(--danger)';
+            }
+        });
+
+        // Step indicator scroll highlight
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const id = entry.target.id;
+                    document.querySelectorAll('.step-item').forEach(s => s.classList.remove('active'));
+                    document.getElementById(id + 'indicator')?.classList.add('active');
+                }
+            });
+        }, { threshold: 0.3 });
+
+        ['step1', 'step2', 'step3'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) observer.observe(el);
+        });
+    </script>
+</body>
+</html>

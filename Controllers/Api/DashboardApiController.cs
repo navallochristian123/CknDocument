@@ -385,7 +385,7 @@ public class DashboardApiController : ControllerBase
 
         var activities = await _context.AuditLogs
             .Include(a => a.User)
-            .Where(a => a.FirmID == firmId)
+            .Where(a => a.FirmID == firmId || a.FirmID == null)
             .OrderByDescending(a => a.Timestamp)
             .Take(take)
             .Select(a => new
@@ -394,7 +394,7 @@ public class DashboardApiController : ControllerBase
                 action = a.Action,
                 entityType = a.EntityType,
                 description = a.Description,
-                userName = a.User != null ? a.User.FullName : "System",
+                userName = a.User != null ? ((a.User.FirstName ?? "") + " " + (a.User.LastName ?? "")).Trim() : "System",
                 timestamp = a.Timestamp
             })
             .ToListAsync();
@@ -605,7 +605,7 @@ public class DashboardApiController : ControllerBase
                     entityId = a.EntityID,
                     description = a.Description,
                     ipAddress = a.IPAddress,
-                    userName = a.User != null ? a.User.FullName : "System"
+                    userName = a.User != null ? ((a.User.FirstName ?? "") + " " + (a.User.LastName ?? "")).Trim() : "System"
                 })
                 .ToListAsync();
 
@@ -631,7 +631,7 @@ public class DashboardApiController : ControllerBase
             {
                 users = await _context.Users
                     .Where(u => u.FirmID == firmId)
-                    .Select(u => new { id = u.UserID, name = u.FullName })
+                    .Select(u => new { id = u.UserID, name = ((u.FirstName ?? "") + " " + (u.LastName ?? "")).Trim() })
                     .OrderBy(u => u.name)
                     .ToListAsync();
             }

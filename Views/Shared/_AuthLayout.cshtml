@@ -501,11 +501,21 @@
                 <div class="form-footer">
                     @if (isLoginPage)
                     {
-                        <span>Don't have an account? <a href="/Auth/Register">Sign up</a></span>
+                        <span>Don't have an account? <a href="/Auth/Register">Sign up as Client</a></span>
+                        <br />
+                        <span style="font-size: 0.85rem; margin-top: 8px; display:inline-block;">
+                            Law firm admin? <a href="/Auth/RegisterFirm">Register your firm</a>
+                            <span class="mx-1">|</span>
+                            <a href="/" style="color: var(--text-gray);">Back to Home</a>
+                        </span>
                     }
                     else
                     {
                         <span>Already have an account? <a href="/Auth/Login">Sign in</a></span>
+                        <br />
+                        <span style="font-size: 0.85rem; margin-top: 8px; display:inline-block;">
+                            <a href="/" style="color: var(--text-gray);">Back to Home</a>
+                        </span>
                     }
                 </div>
             </div>
