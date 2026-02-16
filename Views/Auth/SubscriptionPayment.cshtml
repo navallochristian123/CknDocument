@@ -318,6 +318,56 @@
             padding: 16px 20px;
         }
 
+        /* Card form */
+        .card-form-container {
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        .card-form-header {
+            background: linear-gradient(135deg, #6f42c1, #5a2d91);
+            color: #fff;
+            padding: 12px 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .card-form-body {
+            padding: 20px;
+        }
+
+        .card-form-body .form-control,
+        .card-form-body .form-select {
+            border-radius: 8px;
+            border: 1.5px solid var(--border-color);
+            padding: 10px 14px;
+            font-size: 0.95rem;
+        }
+
+        .card-form-body .form-control:focus,
+        .card-form-body .form-select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(113, 75, 103, 0.15);
+        }
+
+        .card-form-body .input-group-text {
+            background: var(--surface);
+            border-radius: 8px 0 0 8px;
+            border: 1.5px solid var(--border-color);
+            border-right: 0;
+            color: var(--text-secondary);
+        }
+
+        .card-form-body code {
+            background: #f0e8f5;
+            color: #6f42c1;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+
         /* Footer */
         .payment-footer {
             text-align: center;
@@ -464,18 +514,22 @@
                                 <div class="payment-methods">
                                     <h5><i class="bi bi-wallet2 me-2"></i>Select Payment Method</h5>
 
-                                    <div class="row g-3 mb-4">
-                                        <div class="col-6">
+                                    <!-- E-Wallets -->
+                                    <p class="text-muted mb-2" style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                                        <i class="bi bi-phone me-1"></i>E-Wallets
+                                    </p>
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-6 col-md-4">
                                             <div class="method-card selected" onclick="selectMethod('gcash', this)" id="method-gcash">
                                                 <input type="radio" name="pm" class="method-radio form-check-input" checked />
                                                 <div class="method-icon">
                                                     <i class="bi bi-phone-fill" style="color: #007DFE;"></i>
                                                 </div>
                                                 <div class="method-name">GCash</div>
-                                                <p class="method-desc">Pay with your GCash wallet</p>
+                                                <p class="method-desc">Pay with GCash wallet</p>
                                             </div>
                                         </div>
-                                        <div class="col-6">
+                                        <div class="col-6 col-md-4">
                                             <div class="method-card" onclick="selectMethod('grab_pay', this)" id="method-grab_pay">
                                                 <input type="radio" name="pm" class="method-radio form-check-input" />
                                                 <div class="method-icon">
@@ -483,6 +537,108 @@
                                                 </div>
                                                 <div class="method-name">GrabPay</div>
                                                 <p class="method-desc">Pay with GrabPay wallet</p>
+                                            </div>
+                                        </div>
+                                        <div class="col-6 col-md-4">
+                                            <div class="method-card" onclick="selectMethod('paymaya', this)" id="method-paymaya">
+                                                <input type="radio" name="pm" class="method-radio form-check-input" />
+                                                <div class="method-icon">
+                                                    <i class="bi bi-phone-fill" style="color: #22B573;"></i>
+                                                </div>
+                                                <div class="method-name">Maya</div>
+                                                <p class="method-desc">Pay with Maya wallet</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Cards & Banks -->
+                                    <p class="text-muted mb-2" style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                                        <i class="bi bi-bank me-1"></i>Cards &amp; Online Banking
+                                    </p>
+                                    <div class="row g-3 mb-4">
+                                        <div class="col-6 col-md-4">
+                                            <div class="method-card" onclick="selectMethod('card', this)" id="method-card">
+                                                <input type="radio" name="pm" class="method-radio form-check-input" />
+                                                <div class="method-icon">
+                                                    <i class="bi bi-credit-card-fill" style="color: #6f42c1;"></i>
+                                                </div>
+                                                <div class="method-name">Card</div>
+                                                <p class="method-desc">Visa, Mastercard, etc.</p>
+                                            </div>
+                                        </div>
+                                        <div class="col-6 col-md-4">
+                                            <div class="method-card" onclick="selectMethod('dob', this)" id="method-dob">
+                                                <input type="radio" name="pm" class="method-radio form-check-input" />
+                                                <div class="method-icon">
+                                                    <i class="bi bi-bank2" style="color: #D4272E;"></i>
+                                                </div>
+                                                <div class="method-name">BPI</div>
+                                                <p class="method-desc">BPI Online Banking</p>
+                                            </div>
+                                        </div>
+                                        <div class="col-6 col-md-4">
+                                            <div class="method-card" onclick="selectMethod('dob_ubp', this)" id="method-dob_ubp">
+                                                <input type="radio" name="pm" class="method-radio form-check-input" />
+                                                <div class="method-icon">
+                                                    <i class="bi bi-bank2" style="color: #F58220;"></i>
+                                                </div>
+                                                <div class="method-name">UnionBank</div>
+                                                <p class="method-desc">UnionBank Online</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Card Details Form (shown when card is selected) -->
+                                    <div id="cardDetailsForm" style="display: none;">
+                                        <div class="card-form-container mb-4">
+                                            <div class="card-form-header">
+                                                <i class="bi bi-credit-card-2-front-fill me-2"></i>Enter Card Details
+                                            </div>
+                                            <div class="card-form-body">
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-semibold">Card Number</label>
+                                                    <div class="input-group">
+                                                        <span class="input-group-text"><i class="bi bi-credit-card"></i></span>
+                                                        <input type="text" class="form-control" id="cardNumberInput" name="cardNumber"
+                                                               placeholder="4343 4343 4343 4345" maxlength="19"
+                                                               oninput="formatCardNumber(this)" autocomplete="cc-number" />
+                                                    </div>
+                                                    <div class="form-text text-muted">
+                                                        <i class="bi bi-info-circle me-1"></i>Test: <code>4343 4343 4343 4345</code> (Visa) or <code>5555 4444 4444 4457</code> (MC)
+                                                    </div>
+                                                </div>
+                                                <div class="row g-3">
+                                                    <div class="col-4">
+                                                        <label class="form-label fw-semibold">Month</label>
+                                                        <select class="form-select" id="expMonthInput" name="expMonth">
+                                                            <option value="">MM</option>
+                                                            @for (int m = 1; m <= 12; m++)
+                                                            {
+                                                                <option value="@m">@m.ToString("D2")</option>
+                                                            }
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-4">
+                                                        <label class="form-label fw-semibold">Year</label>
+                                                        <select class="form-select" id="expYearInput" name="expYear">
+                                                            <option value="">YYYY</option>
+                                                            @for (int y = DateTime.Now.Year; y <= DateTime.Now.Year + 10; y++)
+                                                            {
+                                                                <option value="@y">@y</option>
+                                                            }
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-4">
+                                                        <label class="form-label fw-semibold">CVC</label>
+                                                        <div class="input-group">
+                                                            <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                                                            <input type="text" class="form-control" id="cvcInput" name="cvc"
+                                                                   placeholder="123" maxlength="4" autocomplete="cc-csc"
+                                                                   oninput="this.value=this.value.replace(/[^0-9]/g,'')" />
+                                                        </div>
+                                                        <div class="form-text text-muted">Test: <code>123</code></div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -536,16 +692,86 @@
             card.classList.add('selected');
             card.querySelector('.method-radio').checked = true;
             document.getElementById('selectedMethod').value = method;
+
+            // Show/hide card details form
+            const cardForm = document.getElementById('cardDetailsForm');
+            if (method === 'card') {
+                cardForm.style.display = 'block';
+            } else {
+                cardForm.style.display = 'none';
+            }
+
+            // Update button text based on method
+            const btn = document.getElementById('payBtn');
+            const methodNames = {
+                'gcash': 'GCash',
+                'grab_pay': 'GrabPay',
+                'paymaya': 'Maya',
+                'card': 'Card',
+                'dob': 'BPI Online',
+                'dob_ubp': 'UnionBank Online'
+            };
+            btn.innerHTML = `<i class="bi bi-lock-fill me-2"></i>Pay ₱@monthlyPrice.ToString("N2") via ${methodNames[method] || method}`;
         }
 
-        // Form submission - show loading
+        // Format card number with spaces
+        function formatCardNumber(input) {
+            let v = input.value.replace(/[^0-9]/g, '');
+            let formatted = v.match(/.{1,4}/g)?.join(' ') || v;
+            input.value = formatted;
+        }
+
+        // Form submission - validate and show loading
         const form = document.getElementById('paymentForm');
         if (form) {
             form.addEventListener('submit', function (e) {
+                const method = document.getElementById('selectedMethod').value;
+
+                // Validate card details if card method selected
+                if (method === 'card') {
+                    const cardNum = document.getElementById('cardNumberInput').value.replace(/\s/g, '');
+                    const expMonth = document.getElementById('expMonthInput').value;
+                    const expYear = document.getElementById('expYearInput').value;
+                    const cvc = document.getElementById('cvcInput').value;
+
+                    if (!cardNum || cardNum.length < 13) {
+                        e.preventDefault();
+                        showAlert('Please enter a valid card number.');
+                        return;
+                    }
+                    if (!expMonth || !expYear) {
+                        e.preventDefault();
+                        showAlert('Please select card expiry month and year.');
+                        return;
+                    }
+                    if (!cvc || cvc.length < 3) {
+                        e.preventDefault();
+                        showAlert('Please enter a valid CVC code.');
+                        return;
+                    }
+                }
+
                 const btn = document.getElementById('payBtn');
                 btn.disabled = true;
-                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Redirecting to payment...';
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Processing payment...';
             });
+        }
+
+        function showAlert(msg) {
+            // Remove any existing alert
+            const existing = document.getElementById('validationAlert');
+            if (existing) existing.remove();
+
+            const alert = document.createElement('div');
+            alert.id = 'validationAlert';
+            alert.className = 'alert alert-danger d-flex align-items-center mb-3';
+            alert.style.cssText = 'border-radius: 10px; font-size: 0.9rem;';
+            alert.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i>${msg}`;
+
+            const payBtn = document.getElementById('payBtn');
+            payBtn.parentNode.insertBefore(alert, payBtn);
+
+            setTimeout(() => { if (alert) alert.remove(); }, 4000);
         }
 
         // Auto-dismiss toasts

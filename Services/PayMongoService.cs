@@ -21,13 +21,27 @@ public class PayMongoService
     public bool IsConfigured => !string.IsNullOrEmpty(_secretKey);
 
     /// <summary>
-    /// Supported payment methods (e-wallets via Sources API)
+    /// All supported payment methods
     /// </summary>
     public static readonly Dictionary<string, string> SupportedMethods = new()
     {
         { "gcash", "GCash" },
         { "grab_pay", "GrabPay" },
+        { "paymaya", "Maya" },
+        { "card", "Credit / Debit Card" },
+        { "dob", "Online Banking (BPI)" },
+        { "dob_ubp", "Online Banking (UnionBank)" },
     };
+
+    /// <summary>
+    /// Methods that use the Sources API (e-wallets)
+    /// </summary>
+    public static readonly HashSet<string> SourceBasedMethods = new() { "gcash", "grab_pay" };
+
+    /// <summary>
+    /// Methods that use the Payment Intents API
+    /// </summary>
+    public static readonly HashSet<string> IntentBasedMethods = new() { "paymaya", "card", "dob", "dob_ubp" };
 
     public PayMongoService(HttpClient httpClient, ILogger<PayMongoService> logger, IConfiguration configuration)
     {
@@ -79,12 +93,12 @@ public class PayMongoService
             };
         }
 
-        if (!SupportedMethods.ContainsKey(type))
+        if (!SourceBasedMethods.Contains(type))
         {
             return new PayMongoSourceResult
             {
                 Success = false,
-                ErrorMessage = $"Unsupported payment method: {type}. Supported: {string.Join(", ", SupportedMethods.Keys)}"
+                ErrorMessage = $"Unsupported source method: {type}. Use CreatePaymentViaIntent for intent-based methods."
             };
         }
 
@@ -289,6 +303,234 @@ public class PayMongoService
         }
     }
 
+    /// <summary>
+    /// Create a PayMongo Payment Intent + Payment Method + Attach for non-source payment methods
+    /// Supports: paymaya, card, dob, dob_ubp
+    /// </summary>
+    public async Task<PayMongoSourceResult> CreatePaymentViaIntent(
+        decimal amount,
+        string type,
+        string returnUrl,
+        string? description = null,
+        CardDetails? cardDetails = null)
+    {
+        if (!IsConfigured)
+            return new PayMongoSourceResult { Success = false, ErrorMessage = "PayMongo is not configured." };
+
+        if (!IntentBasedMethods.Contains(type))
+            return new PayMongoSourceResult { Success = false, ErrorMessage = $"Unsupported intent method: {type}" };
+
+        try
+        {
+            var amountInCentavos = (int)(amount * 100);
+            if (amountInCentavos < 100)
+                return new PayMongoSourceResult { Success = false, ErrorMessage = "Amount must be at least ₱1.00" };
+
+            // Step 1: Create Payment Intent
+            var intentPayload = new
+            {
+                data = new
+                {
+                    attributes = new
+                    {
+                        amount = amountInCentavos,
+                        payment_method_allowed = new[] { type },
+                        currency = "PHP",
+                        description = description ?? "CKN Document Subscription Payment"
+                    }
+                }
+            };
+
+            var intentJson = JsonSerializer.Serialize(intentPayload);
+            _logger.LogInformation("Creating PayMongo PaymentIntent for {Type}, {Amount} centavos", type, amountInCentavos);
+
+            var intentRequest = CreateRequest(HttpMethod.Post, $"{BaseUrl}/payment_intents");
+            intentRequest.Content = new StringContent(intentJson, Encoding.UTF8, "application/json");
+
+            var intentResponse = await _httpClient.SendAsync(intentRequest);
+            var intentBody = await intentResponse.Content.ReadAsStringAsync();
+
+            if (!intentResponse.IsSuccessStatusCode)
+            {
+                _logger.LogError("PayMongo PI create error: {Code} - {Body}", intentResponse.StatusCode, intentBody);
+                return new PayMongoSourceResult { Success = false, ErrorMessage = ParseErrorMessage(intentBody) ?? "Failed to create payment intent" };
+            }
+
+            var intentResult = JsonSerializer.Deserialize<JsonElement>(intentBody);
+            var intentData = intentResult.GetProperty("data");
+            var intentId = intentData.GetProperty("id").GetString()!;
+            var clientKey = intentData.GetProperty("attributes").GetProperty("client_key").GetString()!;
+
+            // Step 2: Create Payment Method (with details for banks/cards)
+            object methodAttributes;
+
+            if (type == "dob")
+            {
+                methodAttributes = new { type = type, details = new { bank_code = "bpi" } };
+            }
+            else if (type == "dob_ubp")
+            {
+                methodAttributes = new { type = type, details = new { bank_code = "ubp" } };
+            }
+            else if (type == "card" && cardDetails != null)
+            {
+                methodAttributes = new
+                {
+                    type = type,
+                    details = new
+                    {
+                        card_number = cardDetails.CardNumber,
+                        exp_month = cardDetails.ExpMonth,
+                        exp_year = cardDetails.ExpYear,
+                        cvc = cardDetails.Cvc
+                    }
+                };
+            }
+            else
+            {
+                methodAttributes = new { type = type };
+            }
+
+            var methodPayload = new { data = new { attributes = methodAttributes } };
+
+            var methodJson = JsonSerializer.Serialize(methodPayload);
+            var methodRequest = CreateRequest(HttpMethod.Post, $"{BaseUrl}/payment_methods");
+            methodRequest.Content = new StringContent(methodJson, Encoding.UTF8, "application/json");
+
+            var methodResponse = await _httpClient.SendAsync(methodRequest);
+            var methodBody = await methodResponse.Content.ReadAsStringAsync();
+
+            if (!methodResponse.IsSuccessStatusCode)
+            {
+                _logger.LogError("PayMongo PM create error: {Code} - {Body}", methodResponse.StatusCode, methodBody);
+                return new PayMongoSourceResult { Success = false, ErrorMessage = ParseErrorMessage(methodBody) ?? "Failed to create payment method" };
+            }
+
+            var methodResult = JsonSerializer.Deserialize<JsonElement>(methodBody);
+            var methodId = methodResult.GetProperty("data").GetProperty("id").GetString()!;
+
+            // Step 3: Attach Payment Method to Payment Intent
+            var attachPayload = new
+            {
+                data = new
+                {
+                    attributes = new
+                    {
+                        payment_method = methodId,
+                        client_key = clientKey,
+                        return_url = returnUrl
+                    }
+                }
+            };
+
+            var attachJson = JsonSerializer.Serialize(attachPayload);
+            var attachRequest = CreateRequest(HttpMethod.Post, $"{BaseUrl}/payment_intents/{intentId}/attach");
+            attachRequest.Content = new StringContent(attachJson, Encoding.UTF8, "application/json");
+
+            var attachResponse = await _httpClient.SendAsync(attachRequest);
+            var attachBody = await attachResponse.Content.ReadAsStringAsync();
+
+            if (!attachResponse.IsSuccessStatusCode)
+            {
+                _logger.LogError("PayMongo attach error: {Code} - {Body}", attachResponse.StatusCode, attachBody);
+                return new PayMongoSourceResult { Success = false, ErrorMessage = ParseErrorMessage(attachBody) ?? "Failed to attach payment method" };
+            }
+
+            var attachResult = JsonSerializer.Deserialize<JsonElement>(attachBody);
+            var attachAttrs = attachResult.GetProperty("data").GetProperty("attributes");
+            var status = attachAttrs.GetProperty("status").GetString()!;
+
+            string? redirectUrl = null;
+            if (status == "awaiting_next_action" && attachAttrs.TryGetProperty("next_action", out var nextAction))
+            {
+                if (nextAction.TryGetProperty("redirect", out var redirect))
+                    redirectUrl = redirect.GetProperty("url").GetString();
+            }
+
+            // If already succeeded (e.g. card with no 3DS), no redirect needed
+            if (status == "succeeded")
+            {
+                return new PayMongoSourceResult
+                {
+                    Success = true,
+                    SourceId = intentId,
+                    CheckoutUrl = null,
+                    Status = "succeeded",
+                    Type = type
+                };
+            }
+
+            if (string.IsNullOrEmpty(redirectUrl))
+            {
+                return new PayMongoSourceResult { Success = false, ErrorMessage = "No redirect URL returned. Payment may not be supported for this method." };
+            }
+
+            _logger.LogInformation("PayMongo PI created: {IntentId}, method: {Type}, status: {Status}", intentId, type, status);
+
+            return new PayMongoSourceResult
+            {
+                Success = true,
+                SourceId = intentId,
+                CheckoutUrl = redirectUrl,
+                Status = status,
+                Type = type
+            };
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Network error connecting to PayMongo");
+            return new PayMongoSourceResult { Success = false, ErrorMessage = "Unable to connect to PayMongo. Please check your internet connection." };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating PayMongo payment intent");
+            return new PayMongoSourceResult { Success = false, ErrorMessage = $"Payment processing error: {ex.Message}" };
+        }
+    }
+
+    /// <summary>
+    /// Get the status of a Payment Intent
+    /// </summary>
+    public async Task<PayMongoSourceStatus> GetPaymentIntentStatus(string intentId)
+    {
+        if (!IsConfigured)
+            return new PayMongoSourceStatus { Status = "error", ErrorMessage = "PayMongo not configured" };
+
+        try
+        {
+            var request = CreateRequest(HttpMethod.Get, $"{BaseUrl}/payment_intents/{intentId}");
+            var response = await _httpClient.SendAsync(request);
+            var body = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("PayMongo PI status error: {Code}", response.StatusCode);
+                return new PayMongoSourceStatus { Status = "error" };
+            }
+
+            var result = JsonSerializer.Deserialize<JsonElement>(body);
+            var attrs = result.GetProperty("data").GetProperty("attributes");
+
+            string? paymentId = null;
+            if (attrs.TryGetProperty("payments", out var payments) && payments.ValueKind == JsonValueKind.Array && payments.GetArrayLength() > 0)
+            {
+                paymentId = payments[0].GetProperty("id").GetString();
+            }
+
+            return new PayMongoSourceStatus
+            {
+                Status = attrs.GetProperty("status").GetString() ?? "pending",
+                Amount = attrs.GetProperty("amount").GetInt64() / 100m,
+                Type = paymentId
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting payment intent status");
+            return new PayMongoSourceStatus { Status = "error", ErrorMessage = ex.Message };
+        }
+    }
+
     private string? ParseErrorMessage(string responseBody)
     {
         try
@@ -363,4 +605,15 @@ public class PayMongoPaymentDetails
     public string Currency { get; set; } = "PHP";
     public string Status { get; set; } = string.Empty;
     public DateTime? PaidAt { get; set; }
+}
+
+/// <summary>
+/// Card details for card payment method
+/// </summary>
+public class CardDetails
+{
+    public string CardNumber { get; set; } = string.Empty;
+    public int ExpMonth { get; set; }
+    public int ExpYear { get; set; }
+    public string Cvc { get; set; } = string.Empty;
 }
