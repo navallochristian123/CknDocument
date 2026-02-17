@@ -42,6 +42,17 @@ public class AuditController : Controller
     }
 
     /// <summary>
+    /// Get the list of UserIDs that belong to this firm (for filtering null-FirmID audit logs)
+    /// </summary>
+    private async Task<List<int>> GetFirmUserIdsAsync(int firmId)
+    {
+        return await _context.Users
+            .Where(u => u.FirmID == firmId)
+            .Select(u => u.UserID)
+            .ToListAsync();
+    }
+
+    /// <summary>
     /// Display audit logs page
     /// Admin/Auditor see all logs, other roles see their own logs and related documents
     /// </summary>
@@ -65,10 +76,12 @@ public class AuditController : Controller
             .AsNoTracking()
             .AsQueryable();
 
-        // FirmId filter
+        // STRICT FirmId filter: only show logs that belong to this firm
+        // Include null-FirmID logs ONLY if the user belongs to this firm
         if (firmId > 0)
         {
-            query = query.Where(a => a.FirmID == firmId || a.FirmID == null);
+            var firmUserIds = await GetFirmUserIdsAsync(firmId);
+            query = query.Where(a => a.FirmID == firmId || (a.FirmID == null && a.UserID != null && firmUserIds.Contains(a.UserID.Value)));
         }
 
         // Non-admin/auditor roles only see their own logs
@@ -126,14 +139,17 @@ public class AuditController : Controller
                 .ToListAsync();
         }
 
-        // Provide action/category lists for Auditor view dropdowns
+        // Provide action/category lists for Auditor view dropdowns - scoped to firm
+        var filterFirmUserIds = await GetFirmUserIdsAsync(firmId);
         ViewData["Actions"] = await _context.AuditLogs
+            .Where(a => a.FirmID == firmId || (a.FirmID == null && a.UserID != null && filterFirmUserIds.Contains(a.UserID.Value)))
             .Select(a => a.Action)
             .Distinct()
             .OrderBy(a => a)
             .ToArrayAsync();
 
         ViewData["Categories"] = await _context.AuditLogs
+            .Where(a => a.FirmID == firmId || (a.FirmID == null && a.UserID != null && filterFirmUserIds.Contains(a.UserID.Value)))
             .Select(a => a.ActionCategory)
             .Where(c => c != null)
             .Distinct()
@@ -175,11 +191,12 @@ public class AuditController : Controller
     {
         var firmId = GetCurrentFirmId();
 
+        var firmUserIds = await GetFirmUserIdsAsync(firmId);
         var log = await _context.AuditLogs
             .Include(a => a.User)
             .Include(a => a.SuperAdmin)
             .Include(a => a.Firm)
-            .FirstOrDefaultAsync(a => a.AuditID == id && (a.FirmID == firmId || a.FirmID == null));
+            .FirstOrDefaultAsync(a => a.AuditID == id && (a.FirmID == firmId || (a.FirmID == null && a.UserID != null && firmUserIds.Contains(a.UserID.Value))));
 
         if (log == null)
         {
@@ -285,10 +302,11 @@ public class AuditController : Controller
             }
         }
 
+        var firmUserIds = await GetFirmUserIdsAsync(firmId);
         var query = _context.AuditLogs
             .Include(a => a.User)
             .Include(a => a.SuperAdmin)
-            .Where(a => a.FirmID == firmId || a.FirmID == null);
+            .Where(a => a.FirmID == firmId || (a.FirmID == null && a.UserID != null && firmUserIds.Contains(a.UserID.Value)));
 
         if (!string.IsNullOrEmpty(action))
             query = query.Where(a => a.Action == action);
@@ -347,10 +365,11 @@ public class AuditController : Controller
             }
         }
 
+        var firmUserIds = await GetFirmUserIdsAsync(firmId);
         var query = _context.AuditLogs
             .Include(a => a.User)
             .Include(a => a.SuperAdmin)
-            .Where(a => a.FirmID == firmId || a.FirmID == null);
+            .Where(a => a.FirmID == firmId || (a.FirmID == null && a.UserID != null && firmUserIds.Contains(a.UserID.Value)));
 
         if (!string.IsNullOrEmpty(action))
             query = query.Where(a => a.Action == action);
@@ -414,10 +433,11 @@ public class AuditController : Controller
             }
         }
 
+        var firmUserIds = await GetFirmUserIdsAsync(firmId);
         var query = _context.AuditLogs
             .Include(a => a.User)
             .Include(a => a.SuperAdmin)
-            .Where(a => a.FirmID == firmId || a.FirmID == null);
+            .Where(a => a.FirmID == firmId || (a.FirmID == null && a.UserID != null && firmUserIds.Contains(a.UserID.Value)));
 
         if (!string.IsNullOrEmpty(action))
             query = query.Where(a => a.Action == action);
@@ -528,16 +548,17 @@ public class AuditController : Controller
                 .AsNoTracking()
                 .AsQueryable();
 
-            // FirmId filter: show logs for this firm + system-wide logs (null firmId)
+            // STRICT FirmId filter: only show logs that belong to this firm
             if (firmId > 0)
             {
-                query = query.Where(a => a.FirmID == firmId || a.FirmID == null);
+                var firmUserIds = await GetFirmUserIdsAsync(firmId);
+                query = query.Where(a => a.FirmID == firmId || (a.FirmID == null && a.UserID != null && firmUserIds.Contains(a.UserID.Value)));
             }
 
             // Non-admin/auditor roles only see their own audit logs
             if (role != "Admin" && role != "Auditor")
             {
-                query = query.Where(a => a.UserID == currentUserId || a.SuperAdminId == currentUserId);
+                query = query.Where(a => a.UserID == currentUserId);
             }
             else if (userId.HasValue)
             {
@@ -614,8 +635,9 @@ public class AuditController : Controller
         startDate ??= DateTime.UtcNow.AddDays(-30);
         endDate ??= DateTime.UtcNow;
 
+        var firmUserIds = await GetFirmUserIdsAsync(firmId);
         var query = _context.AuditLogs
-            .Where(a => (a.FirmID == firmId || a.FirmID == null) && a.Timestamp >= startDate && a.Timestamp <= endDate);
+            .Where(a => (a.FirmID == firmId || (a.FirmID == null && a.UserID != null && firmUserIds.Contains(a.UserID.Value))) && a.Timestamp >= startDate && a.Timestamp <= endDate);
 
         var stats = new
         {

@@ -22,6 +22,20 @@
         justify-content: center;
         font-size: 1.5rem;
     }
+    .storage-progress {
+        height: 12px;
+        border-radius: 6px;
+        background: #e9ecef;
+        overflow: hidden;
+    }
+    .storage-progress-bar {
+        height: 100%;
+        border-radius: 6px;
+        transition: width 0.6s ease;
+    }
+    .storage-label {
+        font-size: 0.85rem;
+    }
 </style>
 }
 
@@ -91,6 +105,42 @@
                         <i class="bi bi-x-circle text-danger"></i>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Storage Usage Card -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon-circle bg-info-subtle me-3">
+                            <i class="bi bi-hdd text-info"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-0 fw-semibold">Firm Storage Usage</h6>
+                            <small class="text-muted" id="storageFirmName">Loading...</small>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <span class="fw-bold fs-5" id="storageUsedText">
+                            <span class="spinner-border spinner-border-sm"></span>
+                        </span>
+                        <span class="text-muted" id="storageTotalText"></span>
+                    </div>
+                </div>
+                <div class="storage-progress mb-2">
+                    <div class="storage-progress-bar bg-info" id="storageProgressBar" style="width: 0%"></div>
+                </div>
+                <div class="d-flex justify-content-between storage-label">
+                    <span class="text-muted">Plan: <strong id="storagePlanType">-</strong></span>
+                    <span id="storageMyUsage" class="text-muted"></span>
+                    <span class="text-muted">Remaining: <strong id="storageRemaining">-</strong></span>
+                </div>
+                <div id="storageWarning" class="mt-2" style="display:none;"></div>
             </div>
         </div>
     </div>
@@ -188,7 +238,8 @@
         await Promise.all([
             loadStats(),
             loadRecentDocuments(),
-            loadRecentActivity()
+            loadRecentActivity(),
+            loadStorageInfo()
         ]);
     }
     
@@ -335,6 +386,46 @@
         return div.innerHTML;
     }
     
+    async function loadStorageInfo() {
+        try {
+            const response = await fetch('/api/DashboardApi/storage-info');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    const s = data.storage;
+                    document.getElementById('storageFirmName').textContent = s.firmName || 'Your Firm';
+                    document.getElementById('storageUsedText').textContent = s.usedStorageDisplay;
+                    document.getElementById('storageTotalText').textContent = ' / ' + s.maxStorageDisplay;
+                    document.getElementById('storagePlanType').textContent = s.planType || 'Standard';
+                    document.getElementById('storageRemaining').textContent = s.remainingStorageDisplay;
+                    document.getElementById('storageMyUsage').innerHTML = 'My usage: <strong>' + s.myStorageDisplay + '</strong>';
+
+                    const pct = Math.min(s.usagePercentage, 100);
+                    const bar = document.getElementById('storageProgressBar');
+                    bar.style.width = pct + '%';
+                    bar.classList.remove('bg-info', 'bg-warning', 'bg-danger');
+                    if (pct >= 90) bar.classList.add('bg-danger');
+                    else if (pct >= 70) bar.classList.add('bg-warning');
+                    else bar.classList.add('bg-info');
+
+                    const warning = document.getElementById('storageWarning');
+                    if (s.isAtLimit) {
+                        warning.style.display = 'block';
+                        warning.innerHTML = '<div class="alert alert-danger mb-0 py-2 px-3 small"><i class="bi bi-exclamation-triangle me-1"></i>Storage limit reached. Contact your admin to upgrade the plan.</div>';
+                    } else if (s.isNearLimit) {
+                        warning.style.display = 'block';
+                        warning.innerHTML = '<div class="alert alert-warning mb-0 py-2 px-3 small"><i class="bi bi-exclamation-circle me-1"></i>Storage is almost full (' + pct.toFixed(1) + '% used). Notify your admin.</div>';
+                    } else {
+                        warning.style.display = 'none';
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Error loading storage info:', e);
+            document.getElementById('storageUsedText').textContent = 'Unavailable';
+        }
+    }
+
     function previewDocument(docId) {
         const modal = new bootstrap.Modal(document.getElementById('previewModal'));
         document.getElementById('previewFrame').src = `/api/DocumentApi/${docId}/view#toolbar=0&navpanes=0`;

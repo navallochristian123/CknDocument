@@ -66,7 +66,18 @@ public class DocumentWorkflowService
 
         if (!staffMembers.Any())
         {
-            _logger.LogWarning("No active staff members found for firm {FirmId}", firmId);
+            _logger.LogWarning("No active staff members found for firm {FirmId}. Document {DocumentId} will be set to PendingStaffReview (unassigned) so staff can claim it later.", firmId, documentId);
+            
+            // Still move document to PendingStaffReview so it appears in the queue
+            // when a staff member is eventually created
+            var unassignedDoc = await _context.Documents.FindAsync(documentId);
+            if (unassignedDoc != null)
+            {
+                unassignedDoc.WorkflowStage = STAGE_PENDING_STAFF_REVIEW;
+                unassignedDoc.Status = STATUS_PENDING;
+                unassignedDoc.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
             return null;
         }
 
@@ -114,7 +125,16 @@ public class DocumentWorkflowService
 
         if (!adminMembers.Any())
         {
-            _logger.LogWarning("No active admin members found for firm {FirmId}", firmId);
+            _logger.LogWarning("No active admin members found for firm {FirmId}. Document {DocumentId} will be set to PendingAdminReview (unassigned).", firmId, documentId);
+            
+            // Still move document to PendingAdminReview so it appears in the queue
+            var unassignedDoc = await _context.Documents.FindAsync(documentId);
+            if (unassignedDoc != null)
+            {
+                unassignedDoc.WorkflowStage = STAGE_PENDING_ADMIN_REVIEW;
+                unassignedDoc.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
             return null;
         }
 
@@ -161,7 +181,16 @@ public class DocumentWorkflowService
 
         if (!lawyerMembers.Any())
         {
-            _logger.LogWarning("No active lawyers found for firm {FirmId}", firmId);
+            _logger.LogWarning("No active lawyers found for firm {FirmId}. Document {DocumentId} will be set to PendingLawyerReview (unassigned).", firmId, documentId);
+            
+            // Still move document to PendingLawyerReview so it appears in the queue
+            var unassignedDoc = await _context.Documents.FindAsync(documentId);
+            if (unassignedDoc != null)
+            {
+                unassignedDoc.WorkflowStage = STAGE_PENDING_LAWYER_REVIEW;
+                unassignedDoc.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
             return null;
         }
 

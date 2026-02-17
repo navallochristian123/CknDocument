@@ -284,12 +284,12 @@
                         <div class="col-md-6">
                             <label class="form-label">Password <span class="text-danger">*</span></label>
                             <div class="input-group">
-                                <input type="password" class="form-control" name="Password" id="newPassword" required minlength="8">
+                                <input type="password" class="form-control" name="Password" id="newPassword" required minlength="12">
                                 <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('newPassword')">
                                     <i class="bi bi-eye"></i>
                                 </button>
                             </div>
-                            <div class="form-text">Min 8 characters with uppercase, lowercase, number & special character.</div>
+                            <div class="form-text">Min 12 characters with uppercase, lowercase, number & special character.</div>
                             <div class="invalid-feedback" id="passwordError"></div>
                         </div>
                         <div class="col-md-6">
@@ -655,8 +655,14 @@
         }
 
         // Password strength validation
-        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@@$!%*?&])[A-Za-z\d@@$!%*?&]{8,}$/;
-        if (!passwordRegex.test(password)) {
+        if (password.length < 12) {
+            e.preventDefault();
+            document.getElementById('passwordError').textContent = 'Password must be at least 12 characters long';
+            document.getElementById('newPassword').classList.add('is-invalid');
+            showToast('error', 'Password must be at least 12 characters');
+            return false;
+        }
+        if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/\d/.test(password) || !/[!@@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
             e.preventDefault();
             document.getElementById('passwordError').textContent = 'Password must contain uppercase, lowercase, number, and special character';
             document.getElementById('newPassword').classList.add('is-invalid');
@@ -736,8 +742,32 @@
 
     // Toast notification
     function showToast(type, message) {
-        // Using Bootstrap toast or custom implementation
-        alert(message); // Replace with proper toast
+        // Remove any existing toast
+        const existingToast = document.getElementById('dynamicToast');
+        if (existingToast) existingToast.remove();
+
+        const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-warning';
+        const icon = type === 'success' ? 'bi-check-circle' : type === 'error' ? 'bi-exclamation-triangle' : 'bi-info-circle';
+
+        const toastHtml = `
+            <div id="dynamicToast" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;">
+                <div class="toast show align-items-center text-white ${bgClass} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            <i class="bi ${icon} me-2"></i>${message}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', toastHtml);
+
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            const t = document.getElementById('dynamicToast');
+            if (t) t.remove();
+        }, 5000);
     }
 
     // Initialize

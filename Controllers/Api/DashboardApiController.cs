@@ -31,6 +31,17 @@ public class DashboardApiController : ControllerBase
     private string GetUserRole() => User.FindFirst(ClaimTypes.Role)?.Value ?? "Client";
 
     /// <summary>
+    /// Get the list of UserIDs that belong to this firm (for filtering null-FirmID audit logs)
+    /// </summary>
+    private async Task<List<int>> GetFirmUserIdsAsync(int firmId)
+    {
+        return await _context.Users
+            .Where(u => u.FirmID == firmId)
+            .Select(u => u.UserID)
+            .ToListAsync();
+    }
+
+    /// <summary>
     /// Get dashboard statistics for Client
     /// </summary>
     [HttpGet("client-stats")]
@@ -383,9 +394,10 @@ public class DashboardApiController : ControllerBase
     {
         var firmId = GetFirmId();
 
+        var firmUserIds = await GetFirmUserIdsAsync(firmId);
         var activities = await _context.AuditLogs
             .Include(a => a.User)
-            .Where(a => a.FirmID == firmId || a.FirmID == null)
+            .Where(a => a.FirmID == firmId || (a.FirmID == null && a.UserID != null && firmUserIds.Contains(a.UserID.Value)))
             .OrderByDescending(a => a.Timestamp)
             .Take(take)
             .Select(a => new
@@ -562,10 +574,11 @@ public class DashboardApiController : ControllerBase
                 .AsNoTracking()
                 .AsQueryable();
 
-            // Firm filter
+            // Firm filter - STRICT: only show firm's own logs
             if (firmId > 0)
             {
-                query = query.Where(a => a.FirmID == firmId || a.FirmID == null);
+                var firmUserIds = await GetFirmUserIdsAsync(firmId);
+                query = query.Where(a => a.FirmID == firmId || (a.FirmID == null && a.UserID != null && firmUserIds.Contains(a.UserID.Value)));
             }
 
             // Role-based access: Admin/Auditor see all firm logs, others see only their own
@@ -609,16 +622,17 @@ public class DashboardApiController : ControllerBase
                 })
                 .ToListAsync();
 
-            // Get filter options
+            // Get filter options - scoped to firm
+            var filterFirmUserIds = await GetFirmUserIdsAsync(firmId);
             var actions = await _context.AuditLogs
-                .Where(a => a.FirmID == firmId || a.FirmID == null)
+                .Where(a => a.FirmID == firmId || (a.FirmID == null && a.UserID != null && filterFirmUserIds.Contains(a.UserID.Value)))
                 .Select(a => a.Action)
                 .Distinct()
                 .OrderBy(a => a)
                 .ToListAsync();
 
             var categories = await _context.AuditLogs
-                .Where(a => a.FirmID == firmId || a.FirmID == null)
+                .Where(a => a.FirmID == firmId || (a.FirmID == null && a.UserID != null && filterFirmUserIds.Contains(a.UserID.Value)))
                 .Select(a => a.ActionCategory)
                 .Where(c => c != null)
                 .Distinct()
@@ -652,6 +666,150 @@ public class DashboardApiController : ControllerBase
         {
             _logger.LogError(ex, "Error in GetAuditLogs API");
             return StatusCode(500, new { success = false, error = ex.Message });
+        }
+    }
+
+    // ===========================================
+    // STORAGE INFO ENDPOINT (ALL ROLES)
+    // ===========================================
+
+    /// <summary>
+    /// Get firm storage usage and limits.
+    /// Shows how much storage the firm has used vs. the plan limit.
+    /// Available to all firm members so clients can see their firm's storage.
+    /// </summary>
+    [HttpGet("storage-info")]
+    public async Task<IActionResult> GetStorageInfo()
+    {
+        try
+        {
+            var firmId = GetFirmId();
+            var userId = GetCurrentUserId();
+            var role = GetUserRole();
+
+            if (firmId <= 0)
+                return BadRequest(new { success = false, message = "Firm not identified" });
+
+            var firm = await _context.Firms
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.FirmID == firmId);
+
+            if (firm == null)
+                return NotFound(new { success = false, message = "Firm not found" });
+
+            // Get total storage used by all documents in the firm
+            var totalStorageUsedBytes = await _context.Documents
+                .Where(d => d.FirmID == firmId)
+                .SumAsync(d => (long)(d.TotalFileSize ?? 0));
+
+            // Get per-user storage breakdown
+            var userStorageBreakdown = await _context.Documents
+                .Where(d => d.FirmID == firmId)
+                .GroupBy(d => d.UploadedBy)
+                .Select(g => new
+                {
+                    userId = g.Key,
+                    totalBytes = g.Sum(d => (long)(d.TotalFileSize ?? 0)),
+                    documentCount = g.Count()
+                })
+                .ToListAsync();
+
+            // Get uploader names
+            var uploaderIds = userStorageBreakdown.Select(u => u.userId).ToList();
+            var uploaders = await _context.Users
+                .Where(u => uploaderIds.Contains(u.UserID))
+                .Select(u => new { u.UserID, u.FirstName, u.LastName })
+                .ToListAsync();
+
+            var maxStorageBytes = firm.MaxStorageMB * 1024L * 1024L;
+            var usagePercentage = maxStorageBytes > 0 ? Math.Round((double)totalStorageUsedBytes / maxStorageBytes * 100, 1) : 0;
+
+            // Get subscription plan info
+            var subscription = await _context.FirmSubscriptions
+                .Where(s => s.FirmID == firmId && s.Status == "Active")
+                .OrderByDescending(s => s.CreatedAt)
+                .Select(s => new { s.PlanType, s.EndDate })
+                .FirstOrDefaultAsync();
+
+            // Build user breakdown (only show to Admin, otherwise just show totals)
+            object? breakdown = null;
+            if (role == "Admin")
+            {
+                breakdown = userStorageBreakdown.Select(u =>
+                {
+                    var uploader = uploaders.FirstOrDefault(up => up.UserID == u.userId);
+                    return new
+                    {
+                        userId = u.userId,
+                        userName = uploader != null ? $"{uploader.FirstName} {uploader.LastName}".Trim() : "Unknown",
+                        totalBytes = u.totalBytes,
+                        totalMB = Math.Round(u.totalBytes / (1024.0 * 1024.0), 2),
+                        documentCount = u.documentCount
+                    };
+                }).OrderByDescending(u => u.totalBytes).ToList();
+            }
+
+            // Client's own usage
+            long myStorageBytes = 0;
+            int myDocumentCount = 0;
+            if (role == "Client")
+            {
+                var myUsage = userStorageBreakdown.FirstOrDefault(u => u.userId == userId);
+                if (myUsage != null)
+                {
+                    myStorageBytes = myUsage.totalBytes;
+                    myDocumentCount = myUsage.documentCount;
+                }
+            }
+
+            // Helper format function
+            string FormatStorage(long bytes)
+            {
+                double gb = bytes / (1024.0 * 1024.0 * 1024.0);
+                if (gb >= 1) return $"{Math.Round(gb, 2)} GB";
+                double mb = bytes / (1024.0 * 1024.0);
+                if (mb >= 1) return $"{Math.Round(mb, 1)} MB";
+                double kb = bytes / 1024.0;
+                return $"{Math.Round(kb, 0)} KB";
+            }
+
+            return Ok(new
+            {
+                success = true,
+                storage = new
+                {
+                    firmName = firm.FirmName,
+                    planType = subscription?.PlanType ?? "Unknown",
+                    planExpiryDate = subscription?.EndDate,
+                    maxStorageMB = firm.MaxStorageMB,
+                    maxStorageGB = Math.Round(firm.MaxStorageMB / 1024.0, 1),
+                    maxStorageBytes = maxStorageBytes,
+                    maxStorageDisplay = FormatStorage(maxStorageBytes),
+                    usedStorageBytes = totalStorageUsedBytes,
+                    usedStorageMB = Math.Round(totalStorageUsedBytes / (1024.0 * 1024.0), 2),
+                    usedStorageGB = Math.Round(totalStorageUsedBytes / (1024.0 * 1024.0 * 1024.0), 2),
+                    usedStorageDisplay = FormatStorage(totalStorageUsedBytes),
+                    remainingStorageBytes = Math.Max(0, maxStorageBytes - totalStorageUsedBytes),
+                    remainingStorageMB = Math.Round(Math.Max(0, maxStorageBytes - totalStorageUsedBytes) / (1024.0 * 1024.0), 2),
+                    remainingStorageGB = Math.Round(Math.Max(0, maxStorageBytes - totalStorageUsedBytes) / (1024.0 * 1024.0 * 1024.0), 2),
+                    remainingStorageDisplay = FormatStorage(Math.Max(0, maxStorageBytes - totalStorageUsedBytes)),
+                    usagePercentage = usagePercentage,
+                    isNearLimit = usagePercentage >= 80,
+                    isAtLimit = usagePercentage >= 100,
+                    totalDocuments = userStorageBreakdown.Sum(u => u.documentCount),
+                    totalUsers = userStorageBreakdown.Count,
+                    myStorageBytes = myStorageBytes,
+                    myStorageMB = Math.Round(myStorageBytes / (1024.0 * 1024.0), 2),
+                    myStorageDisplay = FormatStorage(myStorageBytes),
+                    myDocumentCount = myDocumentCount,
+                    userBreakdown = breakdown
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting storage info");
+            return StatusCode(500, new { success = false, message = "Error retrieving storage information" });
         }
     }
 }

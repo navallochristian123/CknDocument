@@ -63,7 +63,9 @@ public class UserController : Controller
             .OrderByDescending(u => u.CreatedAt)
             .ToListAsync();
 
-        ViewData["Roles"] = await _context.Roles.ToListAsync();
+        ViewData["Roles"] = await _context.Roles
+            .Where(r => r.RoleName != "Admin" && r.RoleName != "SuperAdmin")
+            .ToListAsync();
         return View(GetRoleViewPath("Users"), users);
     }
 
@@ -237,13 +239,34 @@ public class UserController : Controller
         {
             if (!ModelState.IsValid)
             {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                _logger.LogWarning("User creation validation failed: {Errors}", string.Join("; ", errors));
                 TempData["ToastType"] = "error";
-                TempData["ToastMessage"] = "Please fill in all required fields correctly.";
+                TempData["ToastMessage"] = "Please fill in all required fields correctly: " + string.Join(", ", errors);
                 return RedirectToAction("Index");
             }
 
             var firmId = GetCurrentFirmId();
             var currentUserId = GetCurrentUserId();
+
+            // Validate firm ID is valid
+            if (firmId <= 0)
+            {
+                _logger.LogError("User creation failed: FirmId is invalid ({FirmId}). Admin UserId: {AdminId}", firmId, currentUserId);
+                TempData["ToastType"] = "error";
+                TempData["ToastMessage"] = "Session error: Law firm not identified. Please log out and log in again.";
+                return RedirectToAction("Index");
+            }
+
+            // Verify the firm exists and is active
+            var firm = await _context.Firms.FirstOrDefaultAsync(f => f.FirmID == firmId && f.Status == "Active");
+            if (firm == null)
+            {
+                _logger.LogError("User creation failed: Firm {FirmId} not found or not active", firmId);
+                TempData["ToastType"] = "error";
+                TempData["ToastMessage"] = "Your law firm is not active. Please contact support.";
+                return RedirectToAction("Index");
+            }
 
             // Check if email already exists
             if (await _context.Users.AnyAsync(u => u.Email != null && u.Email.ToLower() == request.Email.ToLower()))
@@ -266,20 +289,31 @@ public class UserController : Controller
             if (!passwordValidation.IsValid)
             {
                 TempData["ToastType"] = "error";
-                TempData["ToastMessage"] = "Password does not meet requirements.";
+                TempData["ToastMessage"] = "Password does not meet requirements: " + string.Join(", ", passwordValidation.Errors);
                 return RedirectToAction("Index");
             }
 
             // Get the role - prevent creating Admin or SuperAdmin
             var role = await _context.Roles.FindAsync(request.RoleId);
-            if (role == null || role.RoleName == "Admin" || role.RoleName == "SuperAdmin")
+            if (role == null)
             {
+                _logger.LogWarning("User creation failed: RoleId {RoleId} not found in database", request.RoleId);
                 TempData["ToastType"] = "error";
-                TempData["ToastMessage"] = "Invalid role selected.";
+                TempData["ToastMessage"] = "Invalid role selected. The role does not exist.";
                 return RedirectToAction("Index");
             }
 
-            // Create user
+            var roleName = role.RoleName?.Trim();
+            if (string.Equals(roleName, "Admin", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(roleName, "SuperAdmin", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("User creation blocked: Attempt to create user with restricted role '{Role}' by admin {AdminId}", roleName, currentUserId);
+                TempData["ToastType"] = "error";
+                TempData["ToastMessage"] = "You cannot create users with Admin or SuperAdmin roles.";
+                return RedirectToAction("Index");
+            }
+
+            // Create user with explicit firm association
             var user = new User
             {
                 FirmID = firmId,
@@ -308,6 +342,8 @@ public class UserController : Controller
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
+            _logger.LogInformation("User record saved: UserID={UserId}, FirmID={FirmId}, Email={Email}", user.UserID, user.FirmID, user.Email);
+
             // Assign role
             var userRole = new UserRole
             {
@@ -324,15 +360,19 @@ public class UserController : Controller
             _logger.LogInformation("User {Email} created with role {Role} by admin {AdminId}", user.Email, role.RoleName, currentUserId);
 
             TempData["ToastType"] = "success";
-            TempData["ToastMessage"] = $"User {user.FullName} created successfully.";
+            TempData["ToastMessage"] = $"User {user.FullName} ({role.RoleName}) created successfully and assigned to your law firm.";
 
             return RedirectToAction("Index");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating user: {Message}", ex.Message);
+            _logger.LogError(ex, "Error creating user: {Message}. InnerException: {Inner}", ex.Message, ex.InnerException?.Message);
             TempData["ToastType"] = "error";
-            TempData["ToastMessage"] = "An error occurred while creating the user.";
+#if DEBUG
+            TempData["ToastMessage"] = $"Error creating user: {ex.InnerException?.Message ?? ex.Message}";
+#else
+            TempData["ToastMessage"] = "An error occurred while creating the user. Please try again.";
+#endif
             return RedirectToAction("Index");
         }
     }
@@ -396,6 +436,24 @@ public class UserController : Controller
                 var currentRole = user.UserRoles.FirstOrDefault();
                 if (currentRole?.RoleID != request.RoleId)
                 {
+                    // Validate role - prevent assigning Admin/SuperAdmin
+                    var newRole = await _context.Roles.FindAsync(request.RoleId);
+                    if (newRole == null)
+                    {
+                        TempData["ToastType"] = "error";
+                        TempData["ToastMessage"] = "Invalid role selected.";
+                        return RedirectToAction("Index");
+                    }
+
+                    var newRoleName = newRole.RoleName?.Trim();
+                    if (string.Equals(newRoleName, "Admin", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(newRoleName, "SuperAdmin", StringComparison.OrdinalIgnoreCase))
+                    {
+                        TempData["ToastType"] = "error";
+                        TempData["ToastMessage"] = "You cannot assign Admin or SuperAdmin roles.";
+                        return RedirectToAction("Index");
+                    }
+
                     // Remove old role
                     if (currentRole != null)
                     {
@@ -403,18 +461,14 @@ public class UserController : Controller
                     }
 
                     // Add new role
-                    var newRole = await _context.Roles.FindAsync(request.RoleId);
-                    if (newRole != null)
+                    _context.UserRoles.Add(new UserRole
                     {
-                        _context.UserRoles.Add(new UserRole
-                        {
-                            UserID = user.UserID,
-                            RoleID = request.RoleId,
-                            AssignedAt = DateTime.UtcNow
-                        });
+                        UserID = user.UserID,
+                        RoleID = request.RoleId,
+                        AssignedAt = DateTime.UtcNow
+                    });
 
-                        await _auditLogService.LogRoleAssignedAsync(user.UserID, user.Email ?? "", newRole.RoleName ?? "Unknown", currentUserId);
-                    }
+                    await _auditLogService.LogRoleAssignedAsync(user.UserID, user.Email ?? "", newRole.RoleName ?? "Unknown", currentUserId, firmId);
                 }
             }
 
@@ -430,7 +484,7 @@ public class UserController : Controller
                 }
 
                 user.PasswordHash = PasswordHelper.HashPassword(request.NewPassword);
-                await _auditLogService.LogPasswordChangedAsync(user.UserID, user.Email ?? "");
+                await _auditLogService.LogPasswordChangedAsync(user.UserID, user.Email ?? "", firmId);
             }
 
             await _context.SaveChangesAsync();
@@ -438,7 +492,7 @@ public class UserController : Controller
             // Log status change if changed
             if (oldStatus != request.Status)
             {
-                await _auditLogService.LogAccountStatusChangedAsync(user.UserID, user.Email ?? "", oldStatus ?? "Unknown", request.Status, currentUserId);
+                await _auditLogService.LogAccountStatusChangedAsync(user.UserID, user.Email ?? "", oldStatus ?? "Unknown", request.Status, currentUserId, firmId);
             }
 
             _logger.LogInformation("User {UserId} updated by admin {AdminId}", user.UserID, currentUserId);
@@ -485,7 +539,7 @@ public class UserController : Controller
 
             await _context.SaveChangesAsync();
 
-            await _auditLogService.LogAccountStatusChangedAsync(user.UserID, user.Email ?? "", oldStatus ?? "Active", "Inactive", currentUserId);
+            await _auditLogService.LogAccountStatusChangedAsync(user.UserID, user.Email ?? "", oldStatus ?? "Active", "Inactive", currentUserId, firmId);
 
             _logger.LogInformation("User {UserId} deactivated by admin {AdminId}", user.UserID, currentUserId);
 
@@ -532,7 +586,7 @@ public class UserController : Controller
 
             await _context.SaveChangesAsync();
 
-            await _auditLogService.LogAccountStatusChangedAsync(user.UserID, user.Email ?? "", oldStatus ?? "Inactive", "Active", currentUserId);
+            await _auditLogService.LogAccountStatusChangedAsync(user.UserID, user.Email ?? "", oldStatus ?? "Inactive", "Active", currentUserId, firmId);
 
             _logger.LogInformation("User {UserId} activated by admin {AdminId}", user.UserID, currentUserId);
 
@@ -582,7 +636,7 @@ public class UserController : Controller
 
             await _context.SaveChangesAsync();
 
-            await _auditLogService.LogPasswordChangedAsync(user.UserID, user.Email ?? "");
+            await _auditLogService.LogPasswordChangedAsync(user.UserID, user.Email ?? "", firmId);
 
             _logger.LogInformation("Password reset for user {UserId} by admin {AdminId}", user.UserID, currentUserId);
 

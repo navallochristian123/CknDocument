@@ -413,8 +413,18 @@ public class ReviewApiController : ControllerBase
             if (document == null)
                 return NotFound(new { success = false, message = "Document not found" });
 
-            if (document.AssignedStaffId != userId)
-                return BadRequest(new { success = false, message = "This document is not assigned to you" });
+            // Auto-assign to this staff if document is unassigned (handles new firms where staff was created after upload)
+            if (document.AssignedStaffId == null)
+            {
+                document.AssignedStaffId = userId;
+                document.WorkflowStage = DocumentWorkflowService.STAGE_STAFF_REVIEW;
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Auto-assigned unassigned document {DocumentId} to staff {StaffId}", documentId, userId);
+            }
+            else if (document.AssignedStaffId != userId)
+            {
+                return BadRequest(new { success = false, message = "This document is assigned to another staff member" });
+            }
 
             // Build checklist summary for storage
             string? checklistSummary = null;
@@ -485,8 +495,18 @@ public class ReviewApiController : ControllerBase
             if (document == null)
                 return NotFound(new { success = false, message = "Document not found" });
 
-            if (document.AssignedStaffId != userId)
-                return BadRequest(new { success = false, message = "This document is not assigned to you" });
+            // Auto-assign to this staff if document is unassigned
+            if (document.AssignedStaffId == null)
+            {
+                document.AssignedStaffId = userId;
+                document.WorkflowStage = DocumentWorkflowService.STAGE_STAFF_REVIEW;
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Auto-assigned unassigned document {DocumentId} to staff {StaffId} (reject)", documentId, userId);
+            }
+            else if (document.AssignedStaffId != userId)
+            {
+                return BadRequest(new { success = false, message = "This document is assigned to another staff member" });
+            }
 
             // Build checklist summary
             var fullRemarks = dto.Remarks;
@@ -538,9 +558,18 @@ public class ReviewApiController : ControllerBase
             if (document == null)
                 return NotFound(new { success = false, message = "Document not found" });
 
-            // Staff can only edit documents assigned to them
-            if (document.AssignedStaffId != userId)
-                return BadRequest(new { success = false, message = "This document is not assigned to you" });
+            // Auto-assign to this staff if document is unassigned
+            if (document.AssignedStaffId == null)
+            {
+                document.AssignedStaffId = userId;
+                document.WorkflowStage = DocumentWorkflowService.STAGE_STAFF_REVIEW;
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Auto-assigned unassigned document {DocumentId} to staff {StaffId} (edit)", documentId, userId);
+            }
+            else if (document.AssignedStaffId != userId)
+            {
+                return BadRequest(new { success = false, message = "This document is assigned to another staff member" });
+            }
 
             // Save file
             var uploadPath = Path.Combine(_environment.ContentRootPath, "Uploads", firmId.ToString(), document.UploadedBy.ToString() ?? "0");

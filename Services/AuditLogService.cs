@@ -169,7 +169,7 @@ public class AuditLogService
     /// <summary>
     /// Log password change event
     /// </summary>
-    public async Task LogPasswordChangedAsync(int userId, string email)
+    public async Task LogPasswordChangedAsync(int userId, string email, int? firmId = null)
     {
         await LogAsync(
             action: "PasswordChanged",
@@ -177,13 +177,14 @@ public class AuditLogService
             entityId: userId,
             description: $"Password changed for {email}",
             actionCategory: "Authentication",
-            userId: userId);
+            userId: userId,
+            firmId: firmId);
     }
 
     /// <summary>
     /// Log account status change (activated, deactivated, locked, etc.)
     /// </summary>
-    public async Task LogAccountStatusChangedAsync(int userId, string email, string oldStatus, string newStatus, int? changedByUserId = null)
+    public async Task LogAccountStatusChangedAsync(int userId, string email, string oldStatus, string newStatus, int? changedByUserId = null, int? firmId = null)
     {
         await LogAsync(
             action: "AccountStatusChanged",
@@ -193,13 +194,14 @@ public class AuditLogService
             oldValues: $"Status: {oldStatus}",
             newValues: $"Status: {newStatus}",
             actionCategory: "UserManagement",
-            userId: changedByUserId);
+            userId: changedByUserId,
+            firmId: firmId);
     }
 
     /// <summary>
     /// Log role assignment event
     /// </summary>
-    public async Task LogRoleAssignedAsync(int userId, string email, string roleName, int? assignedByUserId = null)
+    public async Task LogRoleAssignedAsync(int userId, string email, string roleName, int? assignedByUserId = null, int? firmId = null)
     {
         await LogAsync(
             action: "RoleAssigned",
@@ -207,7 +209,8 @@ public class AuditLogService
             entityId: userId,
             description: $"Role '{roleName}' assigned to {email}",
             actionCategory: "UserManagement",
-            userId: assignedByUserId);
+            userId: assignedByUserId,
+            firmId: firmId);
     }
 
     /// <summary>
@@ -265,9 +268,15 @@ public class AuditLogService
             .Include(a => a.Firm)
             .AsQueryable();
 
-        // For firmId filtering, include logs that either match the firmId OR have null firmId (system-wide/auth logs)
+        // For firmId filtering, include logs that either match the firmId OR have null firmId with a user belonging to the firm
         if (firmId.HasValue)
-            query = query.Where(a => a.FirmID == firmId || a.FirmID == null);
+        {
+            var firmUserIds = await _context.Users
+                .Where(u => u.FirmID == firmId)
+                .Select(u => u.UserID)
+                .ToListAsync();
+            query = query.Where(a => a.FirmID == firmId || (a.FirmID == null && a.UserID != null && firmUserIds.Contains(a.UserID.Value)));
+        }
 
         if (userId.HasValue)
             query = query.Where(a => a.UserID == userId);

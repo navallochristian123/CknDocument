@@ -101,6 +101,28 @@
     </div>
 
     <div class="col-lg-4">
+        <!-- Storage Usage Card -->
+        <div class="card mb-3" id="storageCard">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-hdd me-2"></i>Firm Storage</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="text-muted small" id="storageUsedLabel">Loading...</span>
+                    <span class="fw-bold small" id="storagePctLabel"></span>
+                </div>
+                <div class="progress mb-2" style="height: 10px;">
+                    <div class="progress-bar" id="uploadStorageBar" role="progressbar" style="width: 0%"></div>
+                </div>
+                <div class="d-flex justify-content-between small text-muted">
+                    <span>Plan: <strong id="uploadStoragePlan">-</strong></span>
+                    <span>Free: <strong id="uploadStorageFree">-</strong></span>
+                </div>
+                <div class="small text-muted mt-1" id="uploadMyUsage"></div>
+                <div id="uploadStorageWarning" class="mt-2" style="display:none;"></div>
+            </div>
+        </div>
+
         <div class="card">
             <div class="card-header">
                 <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Upload Guidelines</h6>
@@ -206,7 +228,43 @@
         loadFolders();
         setupDropZone();
         setupFormSubmit();
+        loadUploadStorageInfo();
     });
+
+    async function loadUploadStorageInfo() {
+        try {
+            const response = await fetch('/api/DashboardApi/storage-info');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    const s = data.storage;
+                    document.getElementById('storageUsedLabel').textContent = s.usedStorageDisplay + ' / ' + s.maxStorageDisplay;
+                    const pct = Math.min(s.usagePercentage, 100);
+                    document.getElementById('storagePctLabel').textContent = pct.toFixed(1) + '%';
+                    const bar = document.getElementById('uploadStorageBar');
+                    bar.style.width = pct + '%';
+                    bar.classList.remove('bg-info', 'bg-warning', 'bg-danger', 'bg-success');
+                    if (pct >= 90) bar.classList.add('bg-danger');
+                    else if (pct >= 70) bar.classList.add('bg-warning');
+                    else bar.classList.add('bg-success');
+                    document.getElementById('uploadStoragePlan').textContent = s.planType || 'Standard';
+                    document.getElementById('uploadStorageFree').textContent = s.remainingStorageDisplay;
+                    document.getElementById('uploadMyUsage').innerHTML = 'My usage: <strong>' + s.myStorageDisplay + '</strong>';
+                    const warn = document.getElementById('uploadStorageWarning');
+                    if (s.isAtLimit) {
+                        warn.style.display = 'block';
+                        warn.innerHTML = '<div class="alert alert-danger mb-0 py-1 px-2 small"><i class="bi bi-exclamation-triangle me-1"></i>Storage full. Upload disabled.</div>';
+                        document.getElementById('uploadBtn').disabled = true;
+                    } else if (s.isNearLimit) {
+                        warn.style.display = 'block';
+                        warn.innerHTML = '<div class="alert alert-warning mb-0 py-1 px-2 small"><i class="bi bi-exclamation-circle me-1"></i>Storage almost full.</div>';
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Error loading storage info:', e);
+        }
+    }
 
     async function loadFolders() {
         try {
