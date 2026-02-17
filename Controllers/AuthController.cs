@@ -175,6 +175,40 @@ public class AuthController : Controller
                 return View("~/Views/Auth/Login.cshtml", request);
             }
 
+            // PendingPayment - firm admin has not completed payment yet
+            if (user.Status == "PendingPayment")
+            {
+                // Allow login but redirect to payment page
+                var role2 = user.UserRoles.FirstOrDefault()?.Role?.RoleName ?? "Client";
+                if (role2 == "Admin")
+                {
+                    // Sign them in and redirect to payment
+                    user.FailedLoginAttempts = 0;
+                    user.LockoutEnd = null;
+                    user.LastLoginAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+
+                    await SignInUser(
+                        user.UserID,
+                        user.FullName,
+                        user.Email ?? "",
+                        user.Username ?? "",
+                        role2,
+                        user.FirmID,
+                        request.RememberMe);
+
+                    TempData["ToastType"] = "warning";
+                    TempData["ToastMessage"] = "Please complete your subscription payment to activate your law firm account.";
+                    return RedirectToAction("SubscriptionPayment");
+                }
+
+                await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, "Firm pending payment", user.FirmID);
+                TempData["ToastType"] = "warning";
+                TempData["ToastMessage"] = "Your law firm's subscription payment is pending. Please contact your firm administrator.";
+                ViewData["Firms"] = await GetFirmsForDropdown();
+                return View("~/Views/Auth/Login.cshtml", request);
+            }
+
             if (user.Status != "Active")
             {
                 await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, $"Account inactive: {user.Status}", user.FirmID);
@@ -851,7 +885,8 @@ public class AuthController : Controller
                 Address = request.FirmAddress,
                 PhoneNumber = request.FirmPhone,
                 Status = "PendingPayment",
-                FirmCode = firmCode
+                FirmCode = firmCode,
+                MaxStorageMB = storageMb
             };
 
             _context.Firms.Add(firm);
@@ -866,7 +901,7 @@ public class AuthController : Controller
                 await _context.SaveChangesAsync();
             }
 
-            // Create the Admin user
+            // Create the Admin user (PendingPayment until subscription is paid)
             var adminUser = new User
             {
                 FirmID = firm.FirmID,
@@ -877,7 +912,7 @@ public class AuthController : Controller
                 Username = request.Username,
                 PasswordHash = PasswordHelper.HashPassword(request.Password),
                 PhoneNumber = request.PhoneNumber,
-                Status = "Active",
+                Status = "PendingPayment",
                 EmailConfirmed = true
             };
 
@@ -1337,6 +1372,16 @@ public class AuthController : Controller
         {
             firm.Status = "Active";
             firm.UpdatedAt = DateTime.Now;
+        }
+
+        // Activate all PendingPayment users of this firm (the admin who registered)
+        var pendingUsers = await _context.Users
+            .Where(u => u.FirmID == firmId && u.Status == "PendingPayment")
+            .ToListAsync();
+        foreach (var pu in pendingUsers)
+        {
+            pu.Status = "Active";
+            pu.UpdatedAt = DateTime.Now;
         }
 
         // Create revenue record

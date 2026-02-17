@@ -133,6 +133,22 @@ using (var scope = app.Services.CreateScope())
     try
     {
         await seeder.SeedAsync();
+
+        // Auto-add MaxStorageMB column if missing
+        var db = scope.ServiceProvider.GetRequiredService<CKNDocument.Data.LawFirmDMSDbContext>();
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(@"
+                IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Firm') AND name = 'MaxStorageMB')
+                BEGIN
+                    ALTER TABLE Firm ADD MaxStorageMB BIGINT NOT NULL DEFAULT 2048;
+                END");
+        }
+        catch (Exception colEx)
+        {
+            var logger2 = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+            logger2.LogWarning(colEx, "Could not auto-add MaxStorageMB column (may already exist).");
+        }
     }
     catch (Exception ex)
     {

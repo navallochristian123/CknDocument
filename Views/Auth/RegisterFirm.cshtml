@@ -609,8 +609,8 @@
                     const r = await fetch(`/Auth/CheckEmail?email=${encodeURIComponent(v)}`);
                     if (r.ok) {
                         const d = await r.json();
-                        el.textContent = d.available ? '✓ Available' : '✗ Already taken';
-                        el.style.color = d.available ? 'var(--success)' : 'var(--danger)';
+                        el.textContent = !d.exists ? '✓ Available' : '✗ Already taken';
+                        el.style.color = !d.exists ? 'var(--success)' : 'var(--danger)';
                     }
                 } catch { }
             }, 500);
@@ -628,8 +628,8 @@
                     const r = await fetch(`/Auth/CheckUsername?username=${encodeURIComponent(v)}`);
                     if (r.ok) {
                         const d = await r.json();
-                        el.textContent = d.available ? '✓ Available' : '✗ Already taken';
-                        el.style.color = d.available ? 'var(--success)' : 'var(--danger)';
+                        el.textContent = !d.exists ? '✓ Available' : '✗ Already taken';
+                        el.style.color = !d.exists ? 'var(--success)' : 'var(--danger)';
                     }
                 } catch { }
             }, 500);

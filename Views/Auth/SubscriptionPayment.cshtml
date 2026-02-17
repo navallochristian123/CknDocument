@@ -643,6 +643,56 @@
                                         </div>
                                     </div>
 
+                                    <!-- Bank Details Form (shown when BPI or UnionBank is selected) -->
+                                    <div id="bankDetailsForm" style="display: none;">
+                                        <div class="card-form-container mb-4">
+                                            <div class="card-form-header" style="background: linear-gradient(135deg, #1a5276, #2980b9);">
+                                                <i class="bi bi-bank2 me-2"></i>Online Banking Details
+                                            </div>
+                                            <div class="card-form-body">
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-semibold">Account Holder Name</label>
+                                                    <div class="input-group">
+                                                        <span class="input-group-text"><i class="bi bi-person"></i></span>
+                                                        <input type="text" class="form-control" id="bankAccountName" name="bankAccountName"
+                                                               placeholder="Juan Dela Cruz" autocomplete="name" />
+                                                    </div>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-semibold">Account Number</label>
+                                                    <div class="input-group">
+                                                        <span class="input-group-text"><i class="bi bi-123"></i></span>
+                                                        <input type="text" class="form-control" id="bankAccountNumber" name="bankAccountNumber"
+                                                               placeholder="Enter your bank account number" maxlength="20"
+                                                               oninput="this.value=this.value.replace(/[^0-9]/g,'')" />
+                                                    </div>
+                                                </div>
+                                                <div class="row g-3">
+                                                    <div class="col-6">
+                                                        <label class="form-label fw-semibold">Bank</label>
+                                                        <div class="input-group">
+                                                            <span class="input-group-text"><i class="bi bi-bank"></i></span>
+                                                            <input type="text" class="form-control" id="bankNameDisplay" readonly
+                                                                   style="background: #f8f9fa; font-weight: 600;" />
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <label class="form-label fw-semibold">Email (for receipt)</label>
+                                                        <div class="input-group">
+                                                            <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                                                            <input type="email" class="form-control" id="bankEmail" name="bankEmail"
+                                                                   placeholder="your@email.com" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="mt-3 p-2" style="background: #e8f4fd; border-radius: 8px; font-size: 0.8rem; color: #1a5276;">
+                                                    <i class="bi bi-info-circle me-1"></i>
+                                                    You will be redirected to your bank's secure login page to authorize the payment.
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <button type="submit" class="btn btn-pay" id="payBtn">
                                         <i class="bi bi-lock-fill me-2"></i>Pay ₱@monthlyPrice.ToString("N2") Now
                                     </button>
@@ -695,10 +745,20 @@
 
             // Show/hide card details form
             const cardForm = document.getElementById('cardDetailsForm');
+            const bankForm = document.getElementById('bankDetailsForm');
+            const bankNameDisplay = document.getElementById('bankNameDisplay');
+
+            cardForm.style.display = 'none';
+            bankForm.style.display = 'none';
+
             if (method === 'card') {
                 cardForm.style.display = 'block';
-            } else {
-                cardForm.style.display = 'none';
+            } else if (method === 'dob') {
+                bankForm.style.display = 'block';
+                bankNameDisplay.value = 'BPI (Bank of the Philippine Islands)';
+            } else if (method === 'dob_ubp') {
+                bankForm.style.display = 'block';
+                bankNameDisplay.value = 'UnionBank of the Philippines';
             }
 
             // Update button text based on method
@@ -747,6 +807,23 @@
                     if (!cvc || cvc.length < 3) {
                         e.preventDefault();
                         showAlert('Please enter a valid CVC code.');
+                        return;
+                    }
+                }
+
+                // Validate bank details if bank method selected
+                if (method === 'dob' || method === 'dob_ubp') {
+                    const accountName = document.getElementById('bankAccountName').value.trim();
+                    const accountNumber = document.getElementById('bankAccountNumber').value.trim();
+
+                    if (!accountName || accountName.length < 2) {
+                        e.preventDefault();
+                        showAlert('Please enter the account holder name.');
+                        return;
+                    }
+                    if (!accountNumber || accountNumber.length < 6) {
+                        e.preventDefault();
+                        showAlert('Please enter a valid bank account number.');
                         return;
                     }
                 }

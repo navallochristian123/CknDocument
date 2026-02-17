@@ -40,6 +40,12 @@ public class Firm : BaseEntity
     [MaxLength(20)]
     public string? FirmCode { get; set; }
 
+    /// <summary>
+    /// Maximum storage in MB based on subscription plan
+    /// Starter=2048, Professional=10240, Enterprise=51200
+    /// </summary>
+    public long MaxStorageMB { get; set; } = 2048;
+
     // Navigation properties
     public virtual ICollection<User> Users { get; set; } = new List<User>();
     public virtual ICollection<Document> Documents { get; set; } = new List<Document>();

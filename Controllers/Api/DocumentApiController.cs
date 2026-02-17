@@ -82,6 +82,28 @@ public class DocumentApiController : ControllerBase
             if (firmId == 0)
                 return BadRequest(new { success = false, message = "User is not associated with a law firm" });
 
+            // Check firm storage limit based on subscription plan
+            var firm = await _context.Firms.AsNoTracking().FirstOrDefaultAsync(f => f.FirmID == firmId);
+            if (firm == null)
+                return BadRequest(new { success = false, message = "Law firm not found" });
+
+            var maxStorageBytes = firm.MaxStorageMB * 1024L * 1024L; // Convert MB to bytes
+            var currentStorageUsed = await _context.Documents
+                .Where(d => d.FirmID == firmId)
+                .SumAsync(d => (long)(d.TotalFileSize ?? 0));
+
+            var newTotalStorage = currentStorageUsed + dto.File.Length;
+            if (newTotalStorage > maxStorageBytes)
+            {
+                var usedGB = Math.Round(currentStorageUsed / (1024.0 * 1024.0 * 1024.0), 2);
+                var maxGB = Math.Round(firm.MaxStorageMB / 1024.0, 1);
+                var fileSizeMB = Math.Round(dto.File.Length / (1024.0 * 1024.0), 2);
+                return BadRequest(new { 
+                    success = false, 
+                    message = $"Storage limit exceeded. Your firm's plan allows {maxGB} GB of storage. Currently used: {usedGB} GB. This file ({fileSizeMB} MB) would exceed the limit. Please contact your administrator to upgrade the subscription plan."
+                });
+            }
+
             // Validate folder belongs to user (only for clients)
             if (dto.FolderId.HasValue && role == "Client")
             {
