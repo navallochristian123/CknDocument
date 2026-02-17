@@ -1043,6 +1043,7 @@ public class AuthController : Controller
 
     /// <summary>
     /// Process subscription payment via PayMongo
+    /// Uses Source API for e-wallets (GCash, GrabPay) and Intent API for others (Card, Maya, BPI, UnionBank)
     /// </summary>
     [HttpPost]
     [Authorize]
@@ -1121,15 +1122,10 @@ public class AuthController : Controller
 
         if (!result.Success)
         {
+            _logger.LogError("Payment creation failed for {Method}: {Error}", paymentMethod, result.ErrorMessage);
             TempData["ToastType"] = "error";
             TempData["ToastMessage"] = $"Payment initialization failed: {result.ErrorMessage}";
             return RedirectToAction("SubscriptionPayment", new { subscriptionId });
-        }
-
-        // If intent succeeded immediately (e.g. card with no 3DS), handle inline
-        if (isIntentBased && result.Status == "succeeded")
-        {
-            return await HandleImmediatePaymentSuccess(subscription, monthlyPrice, paymentMethod, result.SourceId!, firmId);
         }
 
         // Create a pending payment record
@@ -1147,22 +1143,36 @@ public class AuthController : Controller
             PayMongoCheckoutUrl = result.CheckoutUrl,
             PayMongoStatus = result.Status,
             PaymentReference = $"REG-{DateTime.Now:yyyyMMddHHmmss}",
-            Notes = $"Initial subscription payment for {subscription.PlanType} plan",
+            Notes = $"Initial subscription payment for {subscription.PlanType} plan via {PayMongoService.SupportedMethods.GetValueOrDefault(paymentMethod, paymentMethod)}",
             CreatedAt = DateTime.Now
         };
 
         _context.Payments.Add(payment);
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("Subscription payment initiated: PaymentID={PaymentId}, Id={Id}, Method={Method}, Flow={Flow}",
-            payment.PaymentID, result.SourceId, paymentMethod, isIntentBased ? "Intent" : "Source");
+        _logger.LogInformation("Payment initiated: PaymentID={PaymentId}, Id={Id}, Method={Method}, Flow={Flow}, Status={Status}",
+            payment.PaymentID, result.SourceId, paymentMethod, isIntentBased ? "Intent" : "Source", result.Status);
+
+        // If payment already succeeded (e.g. no 3DS required), finalize immediately
+        if (result.Status == "succeeded" && string.IsNullOrEmpty(result.CheckoutUrl))
+        {
+            return await FinalizeSubscriptionPayment(payment, subscription, firmId, result.SourceId);
+        }
 
         // Redirect to PayMongo authorization page
-        return Redirect(result.CheckoutUrl!);
+        if (string.IsNullOrEmpty(result.CheckoutUrl))
+        {
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = "Payment initialization failed: No redirect URL returned.";
+            return RedirectToAction("SubscriptionPayment", new { subscriptionId });
+        }
+
+        return Redirect(result.CheckoutUrl);
     }
 
     /// <summary>
     /// PayMongo success callback for subscription payment
+    /// Handles both Source-based (GCash/GrabPay) and Intent-based (Card/Maya/BPI/UnionBank) flows
     /// </summary>
     [Authorize]
     public async Task<IActionResult> SubscriptionPaymentSuccess(int subscriptionId)
@@ -1196,19 +1206,20 @@ public class AuthController : Controller
             return RedirectToAction("SubscriptionPayment", new { subscriptionId });
         }
 
-        // Determine if this is an intent-based or source-based payment
+        // Determine flow type
         bool isIntentBased = !string.IsNullOrEmpty(payment.PayMongoPaymentIntentId);
 
         if (isIntentBased)
         {
             // Payment Intent flow — check intent status
             var intentStatus = await _payMongoService.GetPaymentIntentStatus(payment.PayMongoPaymentIntentId!);
+            _logger.LogInformation("Intent {Id} status: {Status}", payment.PayMongoPaymentIntentId, intentStatus.Status);
 
             if (intentStatus.Status == "succeeded")
             {
                 return await FinalizeSubscriptionPayment(payment, subscription, firmId, intentStatus.Type);
             }
-            else if (intentStatus.Status == "processing")
+            else if (intentStatus.Status == "processing" || intentStatus.Status == "awaiting_next_action")
             {
                 payment.PayMongoStatus = intentStatus.Status;
                 payment.UpdatedAt = DateTime.Now;
@@ -1231,12 +1242,13 @@ public class AuthController : Controller
             }
         }
 
-        // Source-based flow — check source status from PayMongo
+        // Source-based flow — check source status
         var sourceStatus = await _payMongoService.GetSourceStatus(payment.PayMongoCheckoutSessionId!);
+        _logger.LogInformation("Source {Id} status: {Status}", payment.PayMongoCheckoutSessionId, sourceStatus.Status);
 
         if (sourceStatus.Status == "chargeable")
         {
-            // Source is chargeable — create a payment to capture funds
+            // Source is chargeable — capture funds
             var payResult = await _payMongoService.CreatePayment(
                 payment.PayMongoCheckoutSessionId!,
                 payment.Amount ?? 0,
@@ -1267,7 +1279,6 @@ public class AuthController : Controller
         }
         else
         {
-            // Still pending or expired
             payment.PayMongoStatus = sourceStatus.Status;
             payment.UpdatedAt = DateTime.Now;
             await _context.SaveChangesAsync();
@@ -1320,33 +1331,6 @@ public class AuthController : Controller
 
         var status = await _payMongoService.GetSourceStatus(sourceId);
         return Json(new { status = status.Status, amount = status.Amount });
-    }
-
-    /// <summary>
-    /// Handle immediate payment success (e.g. card with no 3DS redirect)
-    /// </summary>
-    private async Task<IActionResult> HandleImmediatePaymentSuccess(
-        FirmSubscription subscription, decimal amount, string paymentMethod, string intentId, int firmId)
-    {
-        var payment = new Payment
-        {
-            SubscriptionID = subscription.SubscriptionID,
-            Amount = amount,
-            TaxAmount = Math.Round(amount * 0.12m / 1.12m, 2),
-            NetAmount = Math.Round(amount / 1.12m, 2),
-            PaymentMethod = paymentMethod,
-            PaymentDate = DateTime.Today,
-            Status = "Completed",
-            PayMongoPaymentIntentId = intentId,
-            PayMongoStatus = "succeeded",
-            PaymentReference = $"REG-{DateTime.Now:yyyyMMddHHmmss}",
-            Notes = $"Initial subscription payment for {subscription.PlanType} plan",
-            CreatedAt = DateTime.Now
-        };
-        _context.Payments.Add(payment);
-        await _context.SaveChangesAsync();
-
-        return await FinalizeSubscriptionPayment(payment, subscription, firmId, null);
     }
 
     /// <summary>
@@ -1418,6 +1402,17 @@ public class AuthController : Controller
         _context.Invoices.Add(invoice);
         await _context.SaveChangesAsync();
 
+        // Add invoice line item
+        var invoiceItem = new InvoiceItem
+        {
+            InvoiceID = invoice.InvoiceID,
+            Description = $"{subscription.PlanType} Plan - Monthly Subscription",
+            Quantity = 1,
+            UnitPrice = payment.Amount,
+            SubTotal = payment.Amount
+        };
+        _context.InvoiceItems.Add(invoiceItem);
+
         payment.InvoiceID = invoice.InvoiceID;
         await _context.SaveChangesAsync();
 
@@ -1433,7 +1428,7 @@ public class AuthController : Controller
             firmId: firmId);
 
         TempData["ToastType"] = "success";
-        TempData["ToastMessage"] = $"Payment successful! Your {subscription.PlanType} plan has been activated. Welcome to CKN Document!";
+        TempData["ToastMessage"] = $"Payment successful! Your {subscription.PlanType} plan has been activated. Your Firm Code is: {firm?.FirmCode ?? "N/A"} — share it with team members to join your firm!";
         TempData["FirmCode"] = firm?.FirmCode ?? "";
 
         return RedirectToAction("Index", "Dashboard");

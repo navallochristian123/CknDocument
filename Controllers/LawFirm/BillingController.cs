@@ -97,11 +97,13 @@ public class BillingController : Controller
     }
 
     /// <summary>
-    /// Initiate payment via PayMongo Sources API with selected payment method
+    /// Initiate payment via PayMongo with selected payment method
+    /// Uses Source API for GCash/GrabPay, Intent API for Card/Maya/BPI/UnionBank
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Pay(int invoiceId, string paymentMethod = "gcash")
+    public async Task<IActionResult> Pay(int invoiceId, string paymentMethod = "gcash",
+        string? cardNumber = null, int? expMonth = null, int? expYear = null, string? cvc = null)
     {
         var firmId = GetCurrentFirmId();
         var invoice = await _context.Invoices
@@ -128,24 +130,38 @@ public class BillingController : Controller
         // Validate payment method
         if (!PayMongoService.SupportedMethods.ContainsKey(paymentMethod))
         {
-            TempData["Error"] = $"Invalid payment method. Please select GCash or GrabPay.";
+            TempData["Error"] = $"Invalid payment method. Please select a valid option.";
             return RedirectToAction("Invoice", new { id = invoiceId });
         }
 
         var baseUrl = $"{Request.Scheme}://{Request.Host}";
-        var successUrl = $"{baseUrl}/LawFirm/Billing/PaymentSuccess?invoiceId={invoiceId}";
-        var failedUrl = $"{baseUrl}/LawFirm/Billing/PaymentFailed?invoiceId={invoiceId}";
+        var successUrl = $"{baseUrl}/Billing/PaymentSuccess?invoiceId={invoiceId}";
+        var failedUrl = $"{baseUrl}/Billing/PaymentFailed?invoiceId={invoiceId}";
 
         var description = $"CKN Subscription - Invoice #{invoice.InvoiceNumber ?? $"INV-{invoice.InvoiceID}"}";
 
-        // Create PayMongo Source (GCash, GrabPay, etc.)
-        var result = await _payMongoService.CreateSource(
-            amountToPay,
-            paymentMethod,
-            successUrl,
-            failedUrl,
-            description
-        );
+        PayMongoSourceResult result;
+        bool isIntentBased = PayMongoService.IntentBasedMethods.Contains(paymentMethod);
+
+        if (isIntentBased)
+        {
+            CardDetails? cardDetails = null;
+            if (paymentMethod == "card" && !string.IsNullOrEmpty(cardNumber))
+            {
+                cardDetails = new CardDetails
+                {
+                    CardNumber = cardNumber.Replace(" ", "").Replace("-", ""),
+                    ExpMonth = expMonth ?? 12,
+                    ExpYear = expYear ?? 2026,
+                    Cvc = cvc ?? "123"
+                };
+            }
+            result = await _payMongoService.CreatePaymentViaIntent(amountToPay, paymentMethod, successUrl, description, cardDetails);
+        }
+        else
+        {
+            result = await _payMongoService.CreateSource(amountToPay, paymentMethod, successUrl, failedUrl, description);
+        }
 
         if (!result.Success)
         {
@@ -164,7 +180,8 @@ public class BillingController : Controller
             PaymentMethod = paymentMethod,
             PaymentDate = DateTime.Today,
             Status = "Pending",
-            PayMongoCheckoutSessionId = result.SourceId,
+            PayMongoCheckoutSessionId = isIntentBased ? null : result.SourceId,
+            PayMongoPaymentIntentId = isIntentBased ? result.SourceId : null,
             PayMongoCheckoutUrl = result.CheckoutUrl,
             PayMongoStatus = result.Status,
             PaymentReference = $"PM-{DateTime.Now:yyyyMMddHHmmss}",
@@ -174,22 +191,35 @@ public class BillingController : Controller
         _context.Payments.Add(payment);
         await _context.SaveChangesAsync();
 
-        // Redirect to PayMongo e-wallet authorization page
-        return Redirect(result.CheckoutUrl!);
+        // If payment already succeeded (e.g. no 3DS required), go to success handler
+        if (result.Status == "succeeded" && string.IsNullOrEmpty(result.CheckoutUrl))
+        {
+            return RedirectToAction("PaymentSuccess", new { invoiceId });
+        }
+
+        // Redirect to PayMongo authorization page
+        if (string.IsNullOrEmpty(result.CheckoutUrl))
+        {
+            TempData["Error"] = "Payment initialization failed: No redirect URL returned.";
+            return RedirectToAction("Invoice", new { id = invoiceId });
+        }
+
+        return Redirect(result.CheckoutUrl);
     }
 
     /// <summary>
-    /// PayMongo success callback — verify source &amp; charge it
+    /// PayMongo success callback — verify source/intent &amp; capture payment, extend subscription
     /// </summary>
     public async Task<IActionResult> PaymentSuccess(int invoiceId)
     {
         var firmId = GetCurrentFirmId();
 
-        // Find the pending payment for this invoice
+        // Find the pending payment for this invoice (source-based or intent-based)
         var payment = await _context.Payments
             .Include(p => p.Invoice)
             .Include(p => p.Subscription).ThenInclude(s => s!.Firm)
-            .Where(p => p.InvoiceID == invoiceId && p.Status == "Pending" && p.PayMongoCheckoutSessionId != null)
+            .Where(p => p.InvoiceID == invoiceId && p.Status == "Pending"
+                && (p.PayMongoCheckoutSessionId != null || p.PayMongoPaymentIntentId != null))
             .OrderByDescending(p => p.CreatedAt)
             .FirstOrDefaultAsync();
 
@@ -199,91 +229,175 @@ public class BillingController : Controller
             return RedirectToAction("Invoice", new { id = invoiceId });
         }
 
-        // Check source status
-        var sourceStatus = await _payMongoService.GetSourceStatus(payment.PayMongoCheckoutSessionId!);
+        // Determine flow type
+        bool isIntentBased = !string.IsNullOrEmpty(payment.PayMongoPaymentIntentId);
+        bool paymentSucceeded = false;
+        string? payMongoPaymentId = null;
 
-        if (sourceStatus.Status == "chargeable")
+        if (isIntentBased)
         {
-            // Source is chargeable — create a payment to capture the funds
-            var payResult = await _payMongoService.CreatePayment(
-                payment.PayMongoCheckoutSessionId!,
-                payment.Amount ?? 0,
-                $"CKN Subscription - Invoice #{payment.Invoice?.InvoiceNumber}"
-            );
+            // Payment Intent flow — check intent status
+            var intentStatus = await _payMongoService.GetPaymentIntentStatus(payment.PayMongoPaymentIntentId!);
+            _logger.LogInformation("Billing Intent {Id} status: {Status}", payment.PayMongoPaymentIntentId, intentStatus.Status);
 
-            if (payResult.Success)
+            if (intentStatus.Status == "succeeded")
             {
-                payment.Status = "Completed";
-                payment.PayMongoPaymentId = payResult.PaymentId;
-                payment.PayMongoStatus = "paid";
-                payment.PaymentMethod = payResult.PaymentMethod ?? payment.PaymentMethod;
+                paymentSucceeded = true;
+                payMongoPaymentId = intentStatus.Type; // PaymentId stored in Type field
+            }
+            else if (intentStatus.Status == "processing" || intentStatus.Status == "awaiting_next_action")
+            {
+                payment.PayMongoStatus = intentStatus.Status;
                 payment.UpdatedAt = DateTime.Now;
-
-                // Update invoice
-                var invoice = await _context.Invoices.FindAsync(invoiceId);
-                if (invoice != null)
-                {
-                    invoice.PaidAmount = (invoice.PaidAmount ?? 0) + payment.Amount;
-                    if (invoice.PaidAmount >= invoice.TotalAmount)
-                        invoice.Status = "Paid";
-                    invoice.UpdatedAt = DateTime.Now;
-                }
-
-                // Create revenue record
-                var revenue = new Revenue
-                {
-                    SubscriptionID = payment.SubscriptionID,
-                    PaymentID = payment.PaymentID,
-                    Source = "Subscription",
-                    GrossAmount = payment.Amount,
-                    TaxAmount = payment.TaxAmount,
-                    NetAmount = payment.NetAmount,
-                    TaxRate = 12.00m,
-                    Amount = payment.Amount,
-                    RevenueDate = DateTime.Today,
-                    Description = $"Payment for Invoice #{invoice?.InvoiceNumber}",
-                    Category = "Monthly",
-                    CreatedAt = DateTime.Now
-                };
-
-                _context.Revenues.Add(revenue);
                 await _context.SaveChangesAsync();
 
-                // Redirect to receipt page
-                return RedirectToAction("Receipt", new { paymentId = payment.PaymentID });
+                TempData["Warning"] = $"Payment is still being processed (status: {intentStatus.Status}). Please wait a moment and refresh.";
+                return RedirectToAction("Invoice", new { id = invoiceId });
             }
             else
             {
-                payment.PayMongoStatus = "charge_failed";
+                payment.PayMongoStatus = intentStatus.Status;
                 payment.Status = "Failed";
-                payment.Notes = payResult.ErrorMessage;
                 payment.UpdatedAt = DateTime.Now;
                 await _context.SaveChangesAsync();
 
-                TempData["Error"] = $"Payment capture failed: {payResult.ErrorMessage}";
+                TempData["Error"] = $"Payment failed (status: {intentStatus.Status}). Please try again.";
                 return RedirectToAction("Invoice", new { id = invoiceId });
             }
         }
-        else if (sourceStatus.Status == "paid")
-        {
-            // Already processed
-            payment.Status = "Completed";
-            payment.PayMongoStatus = "paid";
-            payment.UpdatedAt = DateTime.Now;
-            await _context.SaveChangesAsync();
-
-            return RedirectToAction("Receipt", new { paymentId = payment.PaymentID });
-        }
         else
         {
-            // Still pending or expired
-            payment.PayMongoStatus = sourceStatus.Status;
+            // Source-based flow — check source status
+            var sourceStatus = await _payMongoService.GetSourceStatus(payment.PayMongoCheckoutSessionId!);
+
+            if (sourceStatus.Status == "chargeable")
+            {
+                var payResult = await _payMongoService.CreatePayment(
+                    payment.PayMongoCheckoutSessionId!,
+                    payment.Amount ?? 0,
+                    $"CKN Subscription - Invoice #{payment.Invoice?.InvoiceNumber}"
+                );
+
+                if (payResult.Success)
+                {
+                    paymentSucceeded = true;
+                    payMongoPaymentId = payResult.PaymentId;
+                    payment.PaymentMethod = payResult.PaymentMethod ?? payment.PaymentMethod;
+                }
+                else
+                {
+                    payment.PayMongoStatus = "charge_failed";
+                    payment.Status = "Failed";
+                    payment.Notes = payResult.ErrorMessage;
+                    payment.UpdatedAt = DateTime.Now;
+                    await _context.SaveChangesAsync();
+
+                    TempData["Error"] = $"Payment capture failed: {payResult.ErrorMessage}";
+                    return RedirectToAction("Invoice", new { id = invoiceId });
+                }
+            }
+            else if (sourceStatus.Status == "paid")
+            {
+                paymentSucceeded = true;
+            }
+            else
+            {
+                payment.PayMongoStatus = sourceStatus.Status;
+                payment.UpdatedAt = DateTime.Now;
+                await _context.SaveChangesAsync();
+
+                TempData["Warning"] = $"Payment is still being processed (status: {sourceStatus.Status}). We'll update your records once confirmed.";
+                return RedirectToAction("Invoice", new { id = invoiceId });
+            }
+        }
+
+        if (paymentSucceeded)
+        {
+            payment.Status = "Completed";
+            payment.PayMongoPaymentId = payMongoPaymentId;
+            payment.PayMongoStatus = "paid";
             payment.UpdatedAt = DateTime.Now;
+
+            // Update invoice
+            var invoice = await _context.Invoices.FindAsync(invoiceId);
+            if (invoice != null)
+            {
+                invoice.PaidAmount = (invoice.PaidAmount ?? 0) + payment.Amount;
+                if (invoice.PaidAmount >= invoice.TotalAmount)
+                    invoice.Status = "Paid";
+                invoice.UpdatedAt = DateTime.Now;
+            }
+
+            // Extend subscription
+            var subscription = payment.Subscription;
+            if (subscription != null)
+            {
+                var monthlyPrice = subscription.PlanType switch
+                {
+                    "Starter" => 1499m,
+                    "Professional" => 3499m,
+                    "Enterprise" => 7999m,
+                    _ => 1499m
+                };
+                var months = (int)Math.Max(1, Math.Round((payment.Amount ?? 0) / monthlyPrice));
+
+                if (subscription.Status == "Expired")
+                {
+                    subscription.Status = "Active";
+                    subscription.StartDate = DateTime.UtcNow;
+                    subscription.EndDate = DateTime.UtcNow.AddMonths(months);
+                }
+                else if (subscription.Status == "Active")
+                {
+                    subscription.EndDate = (subscription.EndDate ?? DateTime.UtcNow).AddMonths(months);
+                }
+                subscription.UpdatedAt = DateTime.Now;
+
+                // Reactivate firm if expired
+                var firm = subscription.Firm;
+                if (firm != null && firm.Status == "Expired")
+                {
+                    firm.Status = "Active";
+                    firm.UpdatedAt = DateTime.Now;
+                }
+
+                // Reactivate expired users
+                var expiredUsers = await _context.Users
+                    .Where(u => u.FirmID == subscription.FirmID && u.Status == "Expired")
+                    .ToListAsync();
+                foreach (var user in expiredUsers)
+                {
+                    user.Status = "Active";
+                    user.UpdatedAt = DateTime.Now;
+                }
+            }
+
+            // Create revenue record
+            var revenue = new Revenue
+            {
+                SubscriptionID = payment.SubscriptionID,
+                PaymentID = payment.PaymentID,
+                Source = "Subscription",
+                GrossAmount = payment.Amount,
+                TaxAmount = payment.TaxAmount,
+                NetAmount = payment.NetAmount,
+                TaxRate = 12.00m,
+                Amount = payment.Amount,
+                RevenueDate = DateTime.Today,
+                Description = $"Payment for Invoice #{invoice?.InvoiceNumber}",
+                Category = "Monthly",
+                CreatedAt = DateTime.Now
+            };
+
+            _context.Revenues.Add(revenue);
             await _context.SaveChangesAsync();
 
-            TempData["Warning"] = $"Payment is still being processed (status: {sourceStatus.Status}). We'll update your records once confirmed.";
-            return RedirectToAction("Invoice", new { id = invoiceId });
+            // Redirect to receipt page
+            return RedirectToAction("Receipt", new { paymentId = payment.PaymentID });
         }
+
+        TempData["Error"] = "Payment could not be completed. Please try again.";
+        return RedirectToAction("Invoice", new { id = invoiceId });
     }
 
     /// <summary>
@@ -410,5 +524,92 @@ public class BillingController : Controller
         if (invoice == null) return NotFound();
 
         return View("~/Views/Admin/InvoicePrint.cshtml", invoice);
+    }
+
+    /// <summary>
+    /// Submit a manual/advance renewal payment for SuperAdmin approval
+    /// Used when the law firm pays via bank transfer, cash, or other offline methods
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SubmitRenewalPayment(string paymentMethod, string? referenceNumber, string? notes, int months = 1)
+    {
+        var firmId = GetCurrentFirmId();
+        var subscription = await _context.FirmSubscriptions
+            .Include(s => s.Firm)
+            .Where(s => s.FirmID == firmId && (s.Status == "Active" || s.Status == "Expired"))
+            .OrderByDescending(s => s.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        if (subscription == null)
+        {
+            TempData["Error"] = "No subscription found.";
+            return RedirectToAction("Index");
+        }
+
+        if (months < 1 || months > 12)
+            months = 1;
+
+        var monthlyPrice = subscription.PlanType switch
+        {
+            "Starter" => 1499m,
+            "Professional" => 3499m,
+            "Enterprise" => 7999m,
+            _ => 1499m
+        };
+
+        var totalAmount = monthlyPrice * months;
+
+        // Create a pending invoice
+        var invoice = new Invoice
+        {
+            SubscriptionID = subscription.SubscriptionID,
+            InvoiceNumber = $"INV-{DateTime.Now:yyyyMMdd}-{subscription.SubscriptionID:D4}-M",
+            InvoiceDate = DateTime.Today,
+            DueDate = DateTime.Today,
+            TotalAmount = totalAmount,
+            PaidAmount = 0,
+            Status = "Pending",
+            Notes = $"Manual renewal payment ({months} month{(months > 1 ? "s" : "")}) for {subscription.PlanType} plan - Awaiting SuperAdmin confirmation",
+            CreatedAt = DateTime.Now
+        };
+        _context.Invoices.Add(invoice);
+        await _context.SaveChangesAsync();
+
+        // Add invoice line item
+        var invoiceItem = new InvoiceItem
+        {
+            InvoiceID = invoice.InvoiceID,
+            Description = $"{subscription.PlanType} Plan - {months} Month{(months > 1 ? "s" : "")} Renewal",
+            Quantity = months,
+            UnitPrice = monthlyPrice,
+            SubTotal = totalAmount
+        };
+        _context.InvoiceItems.Add(invoiceItem);
+        await _context.SaveChangesAsync();
+
+        // Create the payment record with "PendingApproval" status
+        var payment = new Payment
+        {
+            SubscriptionID = subscription.SubscriptionID,
+            InvoiceID = invoice.InvoiceID,
+            Amount = totalAmount,
+            TaxAmount = Math.Round(totalAmount * 0.12m / 1.12m, 2),
+            NetAmount = Math.Round(totalAmount / 1.12m, 2),
+            PaymentMethod = paymentMethod,
+            PaymentDate = DateTime.Today,
+            Status = "PendingApproval",
+            PaymentReference = !string.IsNullOrEmpty(referenceNumber) ? referenceNumber : $"MAN-{DateTime.Now:yyyyMMddHHmmss}",
+            Notes = $"Manual {months}-month renewal. {(string.IsNullOrEmpty(notes) ? "" : "Note: " + notes)}",
+            CreatedAt = DateTime.Now
+        };
+
+        _context.Payments.Add(payment);
+        await _context.SaveChangesAsync();
+
+        var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+
+        TempData["Success"] = $"Renewal payment of ₱{totalAmount:N2} submitted for {months} month(s). Awaiting SuperAdmin confirmation.";
+        return RedirectToAction("Index");
     }
 }

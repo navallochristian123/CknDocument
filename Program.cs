@@ -121,6 +121,7 @@ builder.Services.AddScoped<PayMongoService>();
 
 // Background Services
 builder.Services.AddHostedService<RetentionArchiveBackgroundService>();
+builder.Services.AddHostedService<SubscriptionExpiryBackgroundService>();
 
 var app = builder.Build();
 
@@ -209,6 +210,7 @@ app.Use(async (context, next) =>
                 // Check firm status from database
                 var dbContext = context.RequestServices.GetRequiredService<CKNDocument.Data.LawFirmDMSDbContext>();
                 var firm = await dbContext.Firms.AsNoTracking().FirstOrDefaultAsync(f => f.FirmID == firmId);
+
                 if (firm != null && firm.Status == "PendingPayment")
                 {
                     // Find the pending subscription to redirect to payment page
@@ -223,6 +225,18 @@ app.Use(async (context, next) =>
 
                     context.Response.Redirect(redirectUrl);
                     return;
+                }
+
+                // Expired firm — allow access only to billing page for renewal
+                if (firm != null && firm.Status == "Expired")
+                {
+                    var billingPaths = new[] { "/billing", "/lawfirm/billing" };
+                    var isBillingPage = billingPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+                    if (!isBillingPage)
+                    {
+                        context.Response.Redirect("/Billing");
+                        return;
+                    }
                 }
             }
         }

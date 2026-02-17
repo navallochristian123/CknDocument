@@ -4,6 +4,13 @@
     var subscription = ViewBag.Subscription as CKNDocument.Models.LawFirmDMS.FirmSubscription;
     var payments = ViewBag.Payments as List<CKNDocument.Models.LawFirmDMS.Payment> ?? new List<CKNDocument.Models.LawFirmDMS.Payment>();
     var pendingInvoices = ViewBag.PendingInvoices as List<CKNDocument.Models.LawFirmDMS.Invoice> ?? new List<CKNDocument.Models.LawFirmDMS.Invoice>();
+    var price = subscription?.PlanType switch
+    {
+        "Starter" => 1499m,
+        "Professional" => 3499m,
+        "Enterprise" => 7999m,
+        _ => 1499m
+    };
 }
 
 @section Styles {
@@ -40,6 +47,21 @@
     <div class="alert alert-warning alert-dismissible fade show" role="alert">
         <i class="bi bi-exclamation-triangle me-2"></i>@TempData["Warning"]
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<!-- Expired Subscription Alert -->
+@if (subscription?.Status == "Expired")
+{
+    <div class="alert alert-danger d-flex align-items-center mb-4" role="alert">
+        <i class="bi bi-exclamation-octagon-fill fs-4 me-3"></i>
+        <div>
+            <strong>Your subscription has expired!</strong> Your firm's access is restricted until you renew.
+            Please submit a renewal payment below to restore full access.
+        </div>
+        <button class="btn btn-danger ms-auto" onclick="new bootstrap.Modal(document.getElementById('renewalModal')).show()">
+            <i class="bi bi-arrow-repeat me-1"></i>Renew Now
+        </button>
     </div>
 }
 
@@ -182,6 +204,9 @@
                                     <button class="btn btn-sm btn-primary" onclick="openPayModal(@inv.InvoiceID)">
                                         <i class="bi bi-wallet2 me-1"></i>Pay Now
                                     </button>
+                                    <a href="/Billing/DownloadInvoice/@inv.InvoiceID" target="_blank" class="btn btn-sm btn-outline-success ms-1" title="Download Invoice">
+                                        <i class="bi bi-download"></i>
+                                    </a>
                                     <a href="/Billing/Invoice/@inv.InvoiceID" class="btn btn-sm btn-outline-secondary ms-1">
                                         <i class="bi bi-eye"></i>
                                     </a>
@@ -199,7 +224,12 @@
 <div class="card billing-card">
     <div class="card-header bg-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Payment History</h5>
-        <a href="/Billing/History" class="btn btn-sm btn-outline-primary">View All</a>
+        <div>
+            <button class="btn btn-sm btn-success me-1" onclick="new bootstrap.Modal(document.getElementById('renewalModal')).show()">
+                <i class="bi bi-arrow-repeat me-1"></i>Submit Renewal Payment
+            </button>
+            <a href="/Billing/History" class="btn btn-sm btn-outline-primary">View All</a>
+        </div>
     </div>
     <div class="card-body p-0">
         @if (payments.Any())
@@ -260,6 +290,12 @@
                                         case "Cancelled":
                                             <span class="status-pill bg-secondary text-white">Cancelled</span>
                                             break;
+                                        case "PendingApproval":
+                                            <span class="status-pill bg-info text-white">Awaiting Approval</span>
+                                            break;
+                                        case "Rejected":
+                                            <span class="status-pill bg-dark text-white">Rejected</span>
+                                            break;
                                         default:
                                             <span class="status-pill bg-secondary text-white">@p.Status</span>
                                             break;
@@ -268,8 +304,14 @@
                                 <td>
                                     @if (p.Status == "Completed")
                                     {
-                                        <a href="/Billing/Receipt/@p.PaymentID" class="btn btn-sm btn-outline-primary">
+                                        <a href="/Billing/Receipt/@p.PaymentID" class="btn btn-sm btn-outline-primary" title="View Receipt">
                                             <i class="bi bi-receipt"></i>
+                                        </a>
+                                    }
+                                    @if (p.InvoiceID != null)
+                                    {
+                                        <a href="/Billing/DownloadInvoice/@p.InvoiceID" target="_blank" class="btn btn-sm btn-outline-success ms-1" title="Download Invoice">
+                                            <i class="bi bi-download"></i>
                                         </a>
                                     }
                                 </td>
@@ -303,19 +345,71 @@
                     <input type="hidden" name="invoiceId" id="modalInvoiceId" value="" />
                     <input type="hidden" name="paymentMethod" id="modalPayMethod" value="gcash" />
 
+                    <p class="text-muted mb-2" style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                        <i class="bi bi-phone me-1"></i>E-Wallets
+                    </p>
                     <div class="row g-3 mb-3">
-                        <div class="col-6">
+                        <div class="col-4">
                             <div class="payment-method-card selected" onclick="selectModalMethod('gcash', this)" style="border:2px solid #0d6efd; border-radius:12px; padding:16px; cursor:pointer; text-align:center; background:#e8f0fe;">
                                 <div style="font-size:2rem; color:#007bff;"><i class="bi bi-phone-fill"></i></div>
                                 <div style="font-weight:600;">GCash</div>
                                 <div class="text-muted" style="font-size:0.75rem;">E-Wallet</div>
                             </div>
                         </div>
-                        <div class="col-6">
+                        <div class="col-4">
                             <div class="payment-method-card" onclick="selectModalMethod('grab_pay', this)" style="border:2px solid #dee2e6; border-radius:12px; padding:16px; cursor:pointer; text-align:center; background:#fff;">
                                 <div style="font-size:2rem; color:#00b14f;"><i class="bi bi-phone-fill"></i></div>
                                 <div style="font-weight:600;">GrabPay</div>
                                 <div class="text-muted" style="font-size:0.75rem;">E-Wallet</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="payment-method-card" onclick="selectModalMethod('paymaya', this)" style="border:2px solid #dee2e6; border-radius:12px; padding:16px; cursor:pointer; text-align:center; background:#fff;">
+                                <div style="font-size:2rem; color:#22B573;"><i class="bi bi-phone-fill"></i></div>
+                                <div style="font-weight:600;">Maya</div>
+                                <div class="text-muted" style="font-size:0.75rem;">E-Wallet</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="text-muted mb-2" style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                        <i class="bi bi-credit-card me-1"></i>Credit / Debit Card
+                    </p>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <div class="payment-method-card" onclick="selectModalMethod('card', this)" style="border:2px solid #dee2e6; border-radius:12px; padding:16px; cursor:pointer; text-align:center; background:#fff;">
+                                <div style="font-size:2rem; color:#6f42c1;"><i class="bi bi-credit-card-fill"></i></div>
+                                <div style="font-weight:600;">Card</div>
+                                <div class="text-muted" style="font-size:0.75rem;">Visa / MC</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Card details (shown when card selected) -->
+                    <div id="modalCardForm" style="display:none;" class="mb-3">
+                        <div style="border:1px solid #dee2e6; border-radius:10px; padding:16px; background:#f8f9fa;">
+                            <h6 class="fw-bold mb-3"><i class="bi bi-credit-card me-1"></i>Card Details</h6>
+                            <div class="mb-2">
+                                <input type="text" class="form-control" name="cardNumber" id="modalCardNumber" placeholder="Card Number (e.g. 4343 4343 4343 4345)" maxlength="19"
+                                       oninput="let v=this.value.replace(/[^0-9]/g,'');this.value=v.match(/.{1,4}/g)?.join(' ')||v" />
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-4">
+                                    <select class="form-select" name="expMonth" id="modalExpMonth">
+                                        <option value="">MM</option>
+                                        @for (int m = 1; m <= 12; m++) { <option value="@m">@m.ToString("D2")</option> }
+                                    </select>
+                                </div>
+                                <div class="col-4">
+                                    <select class="form-select" name="expYear" id="modalExpYear">
+                                        <option value="">YYYY</option>
+                                        @for (int y = DateTime.Now.Year; y <= DateTime.Now.Year + 10; y++) { <option value="@y">@y</option> }
+                                    </select>
+                                </div>
+                                <div class="col-4">
+                                    <input type="text" class="form-control" name="cvc" id="modalCvc" placeholder="CVC" maxlength="4"
+                                           oninput="this.value=this.value.replace(/[^0-9]/g,'')" />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -332,8 +426,80 @@
     </div>
 </div>
 
+<!-- Manual Renewal Payment Modal -->
+<div class="modal fade" id="renewalModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0">
+                <h5 class="modal-title"><i class="bi bi-arrow-repeat me-2"></i>Submit Renewal Payment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info small mb-3">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Submit a manual renewal payment if you paid via bank transfer, over-the-counter, or other offline methods.
+                    The SuperAdmin will verify and confirm your payment.
+                </div>
+                <form asp-controller="Billing" asp-action="SubmitRenewalPayment" method="post" id="renewalForm">
+                    @Html.AntiForgeryToken()
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Payment Method</label>
+                        <select name="paymentMethod" class="form-select" required>
+                            <option value="bank_transfer">Bank Transfer</option>
+                            <option value="over_the_counter">Over-the-Counter</option>
+                            <option value="cash">Cash</option>
+                            <option value="check">Check</option>
+                            <option value="gcash_manual">GCash (Manual)</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Number of Months</label>
+                        <select name="months" class="form-select" required id="renewalMonths" onchange="updateRenewalTotal()">
+                            <option value="1">1 Month</option>
+                            <option value="3">3 Months</option>
+                            <option value="6">6 Months</option>
+                            <option value="12">12 Months (1 Year)</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Reference / Transaction Number</label>
+                        <input type="text" name="referenceNumber" class="form-control" placeholder="e.g. TXN-123456789" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Notes (Optional)</label>
+                        <textarea name="notes" class="form-control" rows="2" placeholder="Additional details about the payment..."></textarea>
+                    </div>
+
+                    <div class="p-3 bg-light rounded mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted">Estimated Total:</span>
+                            <span class="fw-bold fs-5 text-primary" id="renewalTotal">
+                                ₱@price.ToString("N0")
+                            </span>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 btn-lg" id="renewalSubmitBtn">
+                        <i class="bi bi-send-fill me-2"></i>Submit for Approval
+                    </button>
+                    <div class="text-center mt-2">
+                        <small class="text-muted"><i class="bi bi-clock me-1"></i>SuperAdmin will review and confirm your payment</small>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
 <script>
+    const monthlyPrice = @price;
+
     function openPayModal(invoiceId) {
         document.getElementById('modalInvoiceId').value = invoiceId;
         document.getElementById('modalPayMethod').value = 'gcash';
@@ -346,12 +512,27 @@
             c.style.borderColor = '#dee2e6'; c.style.background = '#fff';
         });
         el.style.borderColor = '#0d6efd'; el.style.background = '#e8f0fe';
+        // Show/hide card form
+        var cardForm = document.getElementById('modalCardForm');
+        if (cardForm) cardForm.style.display = method === 'card' ? 'block' : 'none';
+    }
+
+    function updateRenewalTotal() {
+        const months = parseInt(document.getElementById('renewalMonths').value) || 1;
+        const total = monthlyPrice * months;
+        document.getElementById('renewalTotal').textContent = '₱' + total.toLocaleString('en-PH');
     }
 
     document.getElementById('modalPayForm')?.addEventListener('submit', function() {
         var btn = this.querySelector('button[type=submit]');
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+    });
+
+    document.getElementById('renewalForm')?.addEventListener('submit', function() {
+        var btn = document.getElementById('renewalSubmitBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
     });
 </script>
 }

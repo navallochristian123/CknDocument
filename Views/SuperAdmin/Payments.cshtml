@@ -31,7 +31,7 @@
     <div class="col-md-3">
         <div class="card stat-card bg-warning text-dark">
             <div class="card-body">
-                <p class="small mb-1 opacity-75">Pending</p>
+                <p class="small mb-1 opacity-75">Pending Approval</p>
                 <h3 class="fw-bold mb-0" id="statPending">0</h3>
             </div>
         </div>
@@ -57,6 +57,7 @@
                 <div class="btn-group btn-group-sm me-2">
                     <button class="btn btn-outline-secondary active" onclick="filterPayments('all', this)">All</button>
                     <button class="btn btn-outline-success" onclick="filterPayments('Completed', this)">Completed</button>
+                    <button class="btn btn-outline-info" onclick="filterPayments('PendingApproval', this)">Awaiting Approval</button>
                     <button class="btn btn-outline-warning" onclick="filterPayments('Pending', this)">Pending</button>
                     <button class="btn btn-outline-danger" onclick="filterPayments('Failed', this)">Failed</button>
                 </div>
@@ -86,7 +87,7 @@
                         <th>Method</th>
                         <th>Date</th>
                         <th>Status</th>
-                        <th>PayMongo ID</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody id="paymentsBody">
@@ -113,7 +114,7 @@
             const d = await res.json();
             document.getElementById('statTotal').textContent = formatCurrency(d.totalCompleted);
             document.getElementById('statMonth').textContent = formatCurrency(d.thisMonthTotal);
-            document.getElementById('statPending').textContent = d.pendingCount;
+            document.getElementById('statPending').textContent = d.pendingApprovalCount || d.pendingCount;
             document.getElementById('statCount').textContent = d.totalCount;
         } catch(e) { console.error(e); }
     }
@@ -140,8 +141,25 @@
             let html = '';
             data.forEach(p => {
                 const statusClass = p.status === 'Completed' ? 'bg-success text-white' :
+                    p.status === 'PendingApproval' ? 'bg-info text-white' :
                     p.status === 'Pending' ? 'bg-warning text-dark' :
-                    p.status === 'Failed' ? 'bg-danger text-white' : 'bg-secondary text-white';
+                    p.status === 'Failed' ? 'bg-danger text-white' :
+                    p.status === 'Rejected' ? 'bg-dark text-white' : 'bg-secondary text-white';
+                const statusLabel = p.status === 'PendingApproval' ? 'Awaiting Approval' : p.status;
+
+                let actionsHtml = '';
+                if (p.status === 'PendingApproval') {
+                    actionsHtml = `
+                        <button class="btn btn-sm btn-success me-1" onclick="approvePayment(${p.paymentID})" title="Approve">
+                            <i class="bi bi-check-lg"></i> Approve
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="rejectPayment(${p.paymentID})" title="Reject">
+                            <i class="bi bi-x-lg"></i> Reject
+                        </button>`;
+                } else {
+                    actionsHtml = `<span class="text-muted small">${esc(p.paymongoId || '-')}</span>`;
+                }
+
                 html += `<tr>
                     <td class="small fw-semibold">${esc(p.paymentReference)}</td>
                     <td>${esc(p.invoiceNumber)}</td>
@@ -151,8 +169,8 @@
                     <td class="text-success small">${formatCurrency(p.netAmount)}</td>
                     <td><span class="badge bg-secondary-subtle text-secondary">${esc(p.method)}</span></td>
                     <td class="small">${formatDate(p.date)}</td>
-                    <td><span class="status-pill ${statusClass}">${esc(p.status)}</span></td>
-                    <td class="small text-muted">${esc(p.paymongoId || '-')}</td>
+                    <td><span class="status-pill ${statusClass}">${esc(statusLabel)}</span></td>
+                    <td>${actionsHtml}</td>
                 </tr>`;
             });
             document.getElementById('paymentsBody').innerHTML = html;
@@ -162,5 +180,50 @@
     function formatCurrency(v) { return '₱' + Number(v||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
     function formatDate(d) { return d ? new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'N/A'; }
     function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    async function approvePayment(paymentId) {
+        if (!confirm('Are you sure you want to APPROVE this payment? This will activate/extend the firm subscription.')) return;
+
+        try {
+            const res = await fetch('/Payment/ApprovePayment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `paymentId=${paymentId}`
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert(data.message);
+                loadPayments();
+                loadPaymentStats();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        } catch(e) {
+            alert('Failed to approve payment: ' + e.message);
+        }
+    }
+
+    async function rejectPayment(paymentId) {
+        const reason = prompt('Enter rejection reason (optional):');
+        if (reason === null) return; // User clicked Cancel
+
+        try {
+            const res = await fetch('/Payment/RejectPayment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `paymentId=${paymentId}&reason=${encodeURIComponent(reason)}`
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert(data.message);
+                loadPayments();
+                loadPaymentStats();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        } catch(e) {
+            alert('Failed to reject payment: ' + e.message);
+        }
+    }
 </script>
 }
