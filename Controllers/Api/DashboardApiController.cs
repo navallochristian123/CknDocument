@@ -171,15 +171,15 @@ public class DashboardApiController : ControllerBase
             .ToListAsync();
 
         var totalDocuments = await _context.Documents
-            .Where(d => d.FirmID == firmId && !archivedDocIds.Contains(d.DocumentID))
+            .Where(d => d.FirmID == firmId && !d.IsHighRisk && !archivedDocIds.Contains(d.DocumentID))
             .CountAsync();
 
         var assignedToMe = await _context.Documents
-            .Where(d => d.FirmID == firmId && d.AssignedStaffId == userId && !archivedDocIds.Contains(d.DocumentID))
+            .Where(d => d.FirmID == firmId && !d.IsHighRisk && d.AssignedStaffId == userId && !archivedDocIds.Contains(d.DocumentID))
             .CountAsync();
 
         var pendingReviews = await _context.Documents
-            .Where(d => d.FirmID == firmId && d.WorkflowStage == "StaffReview" && !archivedDocIds.Contains(d.DocumentID))
+            .Where(d => d.FirmID == firmId && !d.IsHighRisk && d.WorkflowStage == "StaffReview" && !archivedDocIds.Contains(d.DocumentID))
             .CountAsync();
 
         var completedToday = await _context.DocumentReviews
@@ -213,7 +213,7 @@ public class DashboardApiController : ControllerBase
         var documents = await _context.Documents
             .Include(d => d.Uploader)
             .Include(d => d.Folder)
-            .Where(d => d.FirmID == firmId && !archivedDocIds.Contains(d.DocumentID))
+            .Where(d => d.FirmID == firmId && !d.IsHighRisk && !archivedDocIds.Contains(d.DocumentID))
             .OrderByDescending(d => d.CreatedAt)
             .Take(take)
             .Select(d => new
@@ -503,6 +503,10 @@ public class DashboardApiController : ControllerBase
                 createdAt = d.CreatedAt,
                 assignedLawyerId = d.AssignedLawyerId,
                 isAssignedToMe = d.AssignedLawyerId == userId,
+                isHighRisk = d.IsHighRisk,
+                currentRemarks = d.CurrentRemarks,
+                firstOpinionLawyerId = d.FirstOpinionLawyerId,
+                secondOpinionLawyerId = d.SecondOpinionLawyerId,
                 folderId = d.FolderId,
                 folderName = d.Folder != null ? d.Folder.FolderName : null
             })

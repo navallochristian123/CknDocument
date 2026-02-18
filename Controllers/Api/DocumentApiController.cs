@@ -154,6 +154,7 @@ public class DocumentApiController : ControllerBase
                 CurrentVersion = 1,
                 IsAIProcessed = false,
                 IsDuplicate = false,
+                IsHighRisk = dto.IsHighRisk,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -200,34 +201,68 @@ public class DocumentApiController : ControllerBase
                 _logger.LogWarning(aiEx, "AI processing failed for document {DocumentId}, upload will continue without AI analysis", document.DocumentID);
             }
 
-            // Assign to staff for review
-            var assignedStaff = await _workflowService.AssignToStaffAsync(document.DocumentID, firmId);
+            // Route document based on risk level
+            User? assignedUser = null;
+            if (dto.IsHighRisk)
+            {
+                // HIGH-RISK: Skip staff, assign directly to lawyer
+                assignedUser = await _workflowService.AssignToLawyerAsync(document.DocumentID, firmId);
 
-            // Notify all staff members
-            await _notificationService.NotifyAllStaffAsync(
-                firmId,
-                "New Document Pending Review",
-                $"Client uploaded a new document: {document.Title}",
-                NotificationService.TYPE_DOCUMENT_PENDING_REVIEW,
-                document.DocumentID,
-                $"/Review/Review/{document.DocumentID}");
+                // Notify the assigned lawyer about high-risk document
+                if (assignedUser != null)
+                {
+                    await _notificationService.NotifyAsync(
+                        assignedUser.UserID,
+                        "⚠️ High-Risk Document for Review",
+                        $"A high-risk document '{document.Title}' has been uploaded and requires your immediate review.",
+                        "HighRiskDocument",
+                        document.DocumentID,
+                        $"/Lawyer/PendingReviews");
+                }
+
+                // Also notify client about the high-risk routing
+                await _notificationService.NotifyAsync(
+                    userId,
+                    "High-Risk Document Submitted",
+                    $"Your high-risk document '{document.Title}' has been sent directly to a lawyer for immediate review.",
+                    "HighRiskDocument",
+                    document.DocumentID,
+                    $"/Document/MyDocuments");
+            }
+            else
+            {
+                // NORMAL FLOW: Assign to staff for review
+                assignedUser = await _workflowService.AssignToStaffAsync(document.DocumentID, firmId);
+
+                // Notify all staff members
+                await _notificationService.NotifyAllStaffAsync(
+                    firmId,
+                    "New Document Pending Review",
+                    $"Client uploaded a new document: {document.Title}",
+                    NotificationService.TYPE_DOCUMENT_PENDING_REVIEW,
+                    document.DocumentID,
+                    $"/Review/Review/{document.DocumentID}");
+            }
 
             // Audit log
             await _auditLogService.LogAsync(
                 "DocumentUpload",
                 "Document",
                 document.DocumentID,
-                $"Client uploaded document: {document.Title}",
+                $"Client uploaded document: {document.Title}{(dto.IsHighRisk ? " [HIGH-RISK]" : "")}",
                 null,
-                null,
+                dto.IsHighRisk ? "{\"isHighRisk\":true}" : null,
                 "DocumentUpload");
 
             return Ok(new
             {
                 success = true,
-                message = "Document uploaded successfully",
+                message = dto.IsHighRisk 
+                    ? "High-risk document uploaded and sent directly to lawyer for review" 
+                    : "Document uploaded successfully",
                 documentId = document.DocumentID,
-                assignedTo = assignedStaff?.FullName
+                assignedTo = assignedUser?.FullName,
+                isHighRisk = dto.IsHighRisk
             });
         }
         catch (Exception ex)
@@ -1183,6 +1218,7 @@ public class DocumentUploadDto
     public string? Category { get; set; }
     public string? DocumentType { get; set; }
     public int? FolderId { get; set; }
+    public bool IsHighRisk { get; set; } = false;
 }
 
 public class DocumentUpdateDto

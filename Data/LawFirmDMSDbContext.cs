@@ -47,6 +47,7 @@ public class LawFirmDMSDbContext : DbContext
       public DbSet<DocumentChecklistItem> DocumentChecklistItems { get; set; } = null!;
       public DbSet<DocumentChecklistResult> DocumentChecklistResults { get; set; } = null!;
       public DbSet<DocumentAIAnalysis> DocumentAIAnalyses { get; set; } = null!;
+      public DbSet<SecondOpinionRequest> SecondOpinionRequests { get; set; } = null!;
 
       protected override void OnModelCreating(ModelBuilder modelBuilder)
       {
@@ -197,6 +198,18 @@ public class LawFirmDMSDbContext : DbContext
                   entity.HasOne(d => d.Folder)
                     .WithMany(f => f.Documents)
                     .HasForeignKey(d => d.FolderId);
+
+                  entity.Property(e => e.IsHighRisk).HasDefaultValue(false);
+
+                  entity.HasOne(d => d.SecondOpinionLawyer)
+                    .WithMany()
+                    .HasForeignKey(d => d.SecondOpinionLawyerId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                  entity.HasOne(d => d.FirstOpinionLawyer)
+                    .WithMany()
+                    .HasForeignKey(d => d.FirstOpinionLawyerId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             // DocumentVersion configuration
@@ -420,6 +433,36 @@ public class LawFirmDMSDbContext : DbContext
                   entity.HasOne(a => a.Firm)
                     .WithMany()
                     .HasForeignKey(a => a.FirmId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // SecondOpinionRequest configuration
+            modelBuilder.Entity<SecondOpinionRequest>(entity =>
+            {
+                  entity.HasIndex(e => e.DocumentId);
+                  entity.HasIndex(e => e.RequestedByLawyerId);
+                  entity.HasIndex(e => e.AssignedToLawyerId);
+                  entity.Property(e => e.Status).HasDefaultValue("Pending");
+                  entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETDATE()");
+
+                  entity.HasOne(r => r.Document)
+                    .WithMany()
+                    .HasForeignKey(r => r.DocumentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                  entity.HasOne(r => r.Firm)
+                    .WithMany()
+                    .HasForeignKey(r => r.FirmId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                  entity.HasOne(r => r.RequestedByLawyer)
+                    .WithMany()
+                    .HasForeignKey(r => r.RequestedByLawyerId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                  entity.HasOne(r => r.AssignedToLawyer)
+                    .WithMany()
+                    .HasForeignKey(r => r.AssignedToLawyerId)
                     .OnDelete(DeleteBehavior.Restrict);
             });
       }

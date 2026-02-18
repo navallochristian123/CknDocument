@@ -8,40 +8,245 @@
         <h4 class="mb-0">Assigned to Me</h4>
         <p class="text-muted mb-0" id="pageSubtitle">Documents assigned for your review - Loading...</p>
     </div>
-    <button class="btn btn-outline-secondary" onclick="loadAssignedDocuments()">
+    <button class="btn btn-outline-secondary" onclick="refreshAll()">
         <i class="bi bi-arrow-clockwise me-1"></i> Refresh
     </button>
 </div>
 
-<div class="card">
-    <div class="card-body p-0">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Document Name</th>
-                    <th>Type</th>
-                    <th>Client</th>
-                    <th>Date</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="assignedTable">
-                <tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></td></tr>
-            </tbody>
-        </table>
+<!-- Returned from 2nd Opinion Alert (shown dynamically) -->
+<div class="alert alert-warning d-none" id="returnedAlert">
+    <i class="bi bi-arrow-return-left me-2"></i>
+    <strong>2nd Opinion Returned:</strong> <span id="returnedAlertText"></span>
+</div>
+
+<!-- Tabbed Navigation -->
+<ul class="nav nav-tabs mb-3" id="assignedTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="myReviewsTab" data-bs-toggle="tab" data-bs-target="#myReviewsPane" type="button" role="tab">
+            <i class="bi bi-inbox me-1"></i> My Assigned Documents
+            <span class="badge bg-primary ms-1" id="myReviewsCount">0</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="secondOpinionReceivedTab" data-bs-toggle="tab" data-bs-target="#secondOpinionReceivedPane" type="button" role="tab">
+            <i class="bi bi-people me-1"></i> 2nd Opinion Requests
+            <span class="badge bg-warning text-dark ms-1" id="secondOpinionReceivedCount">0</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="secondOpinionSentTab" data-bs-toggle="tab" data-bs-target="#secondOpinionSentPane" type="button" role="tab">
+            <i class="bi bi-send me-1"></i> My Sent 2nd Opinions
+            <span class="badge bg-info ms-1" id="secondOpinionSentCount">0</span>
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="assignedTabContent">
+    <!-- Tab 1: My Assigned Documents (regular review assignments) -->
+    <div class="tab-pane fade show active" id="myReviewsPane" role="tabpanel">
+        <div class="card">
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Document Name</th>
+                            <th>Type</th>
+                            <th>Client</th>
+                            <th>Date</th>
+                            <th>Risk Level</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="assignedTable">
+                        <tr><td colspan="7" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 2: 2nd Opinion Requests (assigned to me by another lawyer) -->
+    <div class="tab-pane fade" id="secondOpinionReceivedPane" role="tabpanel">
+        <div class="card">
+            <div class="card-header bg-warning bg-opacity-10">
+                <h6 class="mb-0"><i class="bi bi-people me-2"></i>Documents assigned to you for 2nd opinion by other lawyers</h6>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Document Name</th>
+                            <th>Type</th>
+                            <th>Assigned By</th>
+                            <th>Client</th>
+                            <th>Reason</th>
+                            <th>Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="secondOpinionReceivedTable">
+                        <tr><td colspan="7" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 3: My Sent 2nd Opinions (documents I sent to other lawyers) -->
+    <div class="tab-pane fade" id="secondOpinionSentPane" role="tabpanel">
+        <div class="card">
+            <div class="card-header bg-info bg-opacity-10">
+                <h6 class="mb-0"><i class="bi bi-send me-2"></i>Documents you sent for 2nd opinion to other lawyers</h6>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Document Name</th>
+                            <th>Type</th>
+                            <th>Sent To</th>
+                            <th>Client</th>
+                            <th>Your Remarks</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="secondOpinionSentTable">
+                        <tr><td colspan="7" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Second Opinion Review Modal -->
+<div class="modal fade" id="secondOpinionModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-warning bg-opacity-10">
+                <h5 class="modal-title"><i class="bi bi-people me-2"></i>2nd Opinion Review</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="soDocumentId">
+
+                <!-- Assignment Info Alert -->
+                <div class="alert alert-info" id="assignmentInfo"></div>
+
+                <div class="row">
+                    <!-- Left: Document Preview -->
+                    <div class="col-lg-7">
+                        <div class="card mb-3">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0"><i class="bi bi-file-earmark-text me-2"></i>Document Preview</h6>
+                                <a id="soDownloadBtn" href="#" class="btn btn-sm btn-primary" target="_blank">
+                                    <i class="bi bi-download me-1"></i> Download
+                                </a>
+                            </div>
+                            <div class="card-body p-0 bg-dark" style="min-height: 400px;">
+                                <div id="soPreviewLoading" class="h-100 d-flex align-items-center justify-content-center" style="min-height: 400px;">
+                                    <div class="spinner-border text-light" role="status"></div>
+                                </div>
+                                <iframe id="soPdfViewer" class="w-100 d-none" style="border: none; min-height: 400px;"></iframe>
+                                <div id="soImageViewer" class="d-none d-flex align-items-center justify-content-center" style="min-height: 400px;">
+                                    <img id="soImagePreview" style="max-width: 100%; max-height: 400px; object-fit: contain;">
+                                </div>
+                                <div id="soUnsupportedViewer" class="d-none d-flex align-items-center justify-content-center flex-column text-white" style="min-height: 400px;">
+                                    <i class="bi bi-file-earmark-x" style="font-size: 3rem;"></i>
+                                    <p class="mt-2">Preview not available for this file type</p>
+                                    <a id="soUnsupportedDownloadBtn" href="#" class="btn btn-primary mt-1" target="_blank">
+                                        <i class="bi bi-download me-1"></i> Download to View
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Document Info & Review Actions -->
+                    <div class="col-lg-5">
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Document Details</h6>
+                            </div>
+                            <div class="card-body" id="soDocDetails">
+                                <p class="text-muted">Loading...</p>
+                            </div>
+                        </div>
+
+                        <!-- 2nd Opinion History -->
+                        <div class="card mb-3">
+                            <div class="card-header bg-secondary bg-opacity-10">
+                                <h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>2nd Opinion History</h6>
+                            </div>
+                            <div class="card-body p-0">
+                                <ul class="list-group list-group-flush" id="soHistoryList">
+                                    <li class="list-group-item text-muted">Loading history...</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- Remarks -->
+                        <div class="card">
+                            <div class="card-body">
+                                <label class="form-label fw-bold">Your Remarks</label>
+                                <textarea class="form-control" id="soRemarks" rows="3" placeholder="Enter your remarks about this document..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" onclick="returnToFirstLawyer()">
+                    <i class="bi bi-arrow-return-left me-1"></i> Return to 1st Lawyer
+                </button>
+                <button type="button" class="btn btn-success" onclick="approveSecondOpinion()">
+                    <i class="bi bi-check-lg me-1"></i> Approve & Forward to Admin
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 2nd Opinion History Modal (standalone) -->
+<div class="modal fade" id="historyModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-clock-history me-2"></i>2nd Opinion History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="historyDocTitle" class="mb-3 fw-bold"></div>
+                <div id="historyTimeline"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
     </div>
 </div>
 
 @section Scripts {
 <script>
-    const REFRESH_INTERVAL = 10000;
+    const REFRESH_INTERVAL = 15000;
     
     document.addEventListener('DOMContentLoaded', function() {
-        loadAssignedDocuments();
-        setInterval(loadAssignedDocuments, REFRESH_INTERVAL);
+        refreshAll();
+        setInterval(refreshAll, REFRESH_INTERVAL);
     });
     
+    function refreshAll() {
+        loadAssignedDocuments();
+        loadSecondOpinionReceived();
+        loadSecondOpinionSent();
+    }
+    
+    // ==========================================
+    // Tab 1: My Assigned Documents
+    // ==========================================
     async function loadAssignedDocuments() {
         try {
             const response = await fetch('/api/DashboardApi/lawyer-recent?take=100');
@@ -49,44 +254,404 @@
                 const data = await response.json();
                 if (data.success) {
                     const assignedDocs = (data.documents || []).filter(d => d.isAssignedToMe);
-                    renderDocuments(assignedDocs);
+                    renderAssignedDocuments(assignedDocs);
+                    document.getElementById('myReviewsCount').textContent = assignedDocs.length;
                     document.getElementById('pageSubtitle').textContent = 
                         `Documents assigned for your review - ${assignedDocs.length} document(s)`;
+                    
+                    // Check for returned-from-2nd-opinion documents
+                    const returnedDocs = assignedDocs.filter(d => 
+                        d.currentRemarks && d.currentRemarks.startsWith('Returned by'));
+                    if (returnedDocs.length > 0) {
+                        document.getElementById('returnedAlert').classList.remove('d-none');
+                        document.getElementById('returnedAlertText').textContent = 
+                            `${returnedDocs.length} document(s) have been returned from 2nd opinion and need your attention.`;
+                    } else {
+                        document.getElementById('returnedAlert').classList.add('d-none');
+                    }
                 }
             }
         } catch (e) {
             console.error('Error loading assigned documents:', e);
-            document.getElementById('assignedTable').innerHTML = `
-                <tr><td colspan="6" class="text-center text-danger py-4">Error loading documents</td></tr>
-            `;
+            document.getElementById('assignedTable').innerHTML = 
+                '<tr><td colspan="7" class="text-center text-danger py-4">Error loading documents</td></tr>';
         }
     }
     
-    function renderDocuments(docs) {
+    function renderAssignedDocuments(docs) {
         const tbody = document.getElementById('assignedTable');
         if (docs.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No documents assigned to you</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-inbox me-2"></i>No documents assigned to you</td></tr>';
             return;
         }
-        tbody.innerHTML = docs.map(doc => `
-            <tr>
+        tbody.innerHTML = docs.map(doc => {
+            const isReturned = doc.currentRemarks && doc.currentRemarks.startsWith('Returned by');
+            return `
+            <tr class="${isReturned ? 'table-warning' : ''}">
                 <td>
                     <i class="bi ${getFileIcon(doc.fileExtension)} me-2"></i>
                     ${escapeHtml(doc.title || doc.originalFileName)}
+                    ${isReturned ? '<br><span class="badge bg-warning text-dark mt-1"><i class="bi bi-arrow-return-left me-1"></i>RETURNED FROM 2ND OPINION</span>' : ''}
                 </td>
                 <td>${escapeHtml(doc.documentType || '-')}</td>
                 <td>${escapeHtml(doc.clientName || '-')}</td>
                 <td>${formatDate(doc.createdAt)}</td>
+                <td>${doc.isHighRisk ? '<span class="badge bg-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>High Risk</span>' : '<span class="badge bg-secondary">Normal</span>'}</td>
                 <td>${getStatusBadge(doc.status, doc.workflowStage)}</td>
                 <td>
-                    <a href="/Lawyer/PendingReviews?docId=${doc.id}" class="btn btn-sm btn-primary">
-                        <i class="bi bi-eye me-1"></i> Review
-                    </a>
+                    <div class="btn-group">
+                        <a href="/Lawyer/PendingReviews?docId=${doc.id}" class="btn btn-sm btn-primary">
+                            <i class="bi bi-eye me-1"></i> Review
+                        </a>
+                        ${isReturned ? `<button class="btn btn-sm btn-outline-info" onclick="openHistoryModal(${doc.id}, '${escapeJs(doc.title || '')}')"><i class="bi bi-clock-history"></i></button>` : ''}
+                    </div>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+    
+    // ==========================================
+    // Tab 2: 2nd Opinion Assigned to Me
+    // ==========================================
+    async function loadSecondOpinionReceived() {
+        try {
+            const response = await fetch('/api/ReviewApi/second-opinion/assigned-to-me');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    renderSecondOpinionReceived(data.documents || []);
+                    document.getElementById('secondOpinionReceivedCount').textContent = (data.documents || []).length;
+                }
+            }
+        } catch (e) {
+            console.error('Error loading 2nd opinion received:', e);
+            document.getElementById('secondOpinionReceivedTable').innerHTML = 
+                '<tr><td colspan="7" class="text-center text-danger py-4">Error loading data</td></tr>';
+        }
+    }
+    
+    function renderSecondOpinionReceived(docs) {
+        const tbody = document.getElementById('secondOpinionReceivedTable');
+        if (docs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-people me-2"></i>No 2nd opinion requests assigned to you</td></tr>';
+            return;
+        }
+        tbody.innerHTML = docs.map(doc => `
+            <tr class="${doc.isHighRisk ? 'table-warning' : ''}">
+                <td>
+                    <i class="bi ${getFileIcon(doc.fileExtension)} me-2"></i>
+                    ${escapeHtml(doc.title || doc.originalFileName)}
+                    ${doc.isHighRisk ? '<span class="badge bg-danger ms-1">High Risk</span>' : ''}
+                </td>
+                <td>${escapeHtml(doc.documentType || '-')}</td>
+                <td>
+                    <i class="bi bi-person me-1"></i>
+                    ${doc.firstOpinionLawyer ? escapeHtml(doc.firstOpinionLawyer.name) : '-'}
+                </td>
+                <td>${doc.uploader ? escapeHtml(doc.uploader.name) : '-'}</td>
+                <td>
+                    <span class="text-truncate d-inline-block" style="max-width: 200px;" title="${escapeHtml(doc.secondOpinionRemarks || '')}">
+                        ${escapeHtml(doc.secondOpinionRemarks || '-')}
+                    </span>
+                </td>
+                <td>${formatDate(doc.createdAt)}</td>
+                <td>
+                    <button class="btn btn-sm btn-warning" onclick="openSecondOpinionReview(${doc.id})">
+                        <i class="bi bi-pencil-square me-1"></i> Review
+                    </button>
                 </td>
             </tr>
         `).join('');
     }
     
+    // ==========================================
+    // Tab 3: 2nd Opinions Sent by Me
+    // ==========================================
+    async function loadSecondOpinionSent() {
+        try {
+            const response = await fetch('/api/ReviewApi/second-opinion/sent-by-me');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    renderSecondOpinionSent(data.documents || []);
+                    document.getElementById('secondOpinionSentCount').textContent = (data.documents || []).length;
+                }
+            }
+        } catch (e) {
+            console.error('Error loading 2nd opinions sent:', e);
+            document.getElementById('secondOpinionSentTable').innerHTML = 
+                '<tr><td colspan="7" class="text-center text-danger py-4">Error loading data</td></tr>';
+        }
+    }
+    
+    function renderSecondOpinionSent(docs) {
+        const tbody = document.getElementById('secondOpinionSentTable');
+        if (docs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-send me-2"></i>You haven\'t sent any documents for 2nd opinion</td></tr>';
+            return;
+        }
+        tbody.innerHTML = docs.map(doc => `
+            <tr class="${doc.isHighRisk ? 'table-warning' : ''}">
+                <td>
+                    <i class="bi ${getFileIcon(doc.fileExtension)} me-2"></i>
+                    ${escapeHtml(doc.title || doc.originalFileName)}
+                    ${doc.isHighRisk ? '<span class="badge bg-danger ms-1">High Risk</span>' : ''}
+                </td>
+                <td>${escapeHtml(doc.documentType || '-')}</td>
+                <td>
+                    <i class="bi bi-person me-1"></i>
+                    ${doc.secondOpinionLawyer ? escapeHtml(doc.secondOpinionLawyer.name) : '-'}
+                </td>
+                <td>${doc.uploader ? escapeHtml(doc.uploader.name) : '-'}</td>
+                <td>
+                    <span class="text-truncate d-inline-block" style="max-width: 200px;" title="${escapeHtml(doc.secondOpinionRemarks || '')}">
+                        ${escapeHtml(doc.secondOpinionRemarks || '-')}
+                    </span>
+                </td>
+                <td>${formatDate(doc.createdAt)}</td>
+                <td>
+                    <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Awaiting</span>
+                    <button class="btn btn-sm btn-outline-info ms-1" onclick="openHistoryModal(${doc.id}, '${escapeJs(doc.title || '')}')">
+                        <i class="bi bi-clock-history"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+    
+    // ==========================================
+    // 2nd Opinion Review Modal (with document preview)
+    // ==========================================
+    async function openSecondOpinionReview(docId) {
+        document.getElementById('soDocumentId').value = docId;
+        document.getElementById('soRemarks').value = '';
+        
+        // Reset preview
+        document.getElementById('soPreviewLoading').classList.remove('d-none');
+        document.getElementById('soPdfViewer').classList.add('d-none');
+        document.getElementById('soImageViewer').classList.add('d-none');
+        document.getElementById('soUnsupportedViewer').classList.add('d-none');
+        document.getElementById('soDocDetails').innerHTML = '<p class="text-muted">Loading...</p>';
+        document.getElementById('soHistoryList').innerHTML = '<li class="list-group-item text-muted">Loading...</li>';
+        
+        new bootstrap.Modal(document.getElementById('secondOpinionModal')).show();
+        
+        // Load document details
+        try {
+            const response = await fetch('/api/ReviewApi/' + docId);
+            const data = await response.json();
+            
+            if (data.success) {
+                const doc = data.document;
+                
+                // Assignment info
+                const assignmentHtml = 
+                    '<strong><i class="bi bi-person-badge me-1"></i>Assigned to you by:</strong> ' + escapeHtml(doc.currentRemarks ? doc.currentRemarks.split(':')[0] : 'Another Lawyer') + '<br>' +
+                    (doc.secondOpinionRemarks ? '<strong><i class="bi bi-chat-text me-1"></i>Reason:</strong> ' + escapeHtml(doc.secondOpinionRemarks) : '') +
+                    (doc.isHighRisk ? '<br><span class="badge bg-danger mt-1"><i class="bi bi-exclamation-triangle-fill me-1"></i>HIGH-RISK DOCUMENT</span>' : '');
+                document.getElementById('assignmentInfo').innerHTML = assignmentHtml;
+                
+                // Document details
+                document.getElementById('soDocDetails').innerHTML = `
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Title:</dt>
+                        <dd class="col-sm-8">${escapeHtml(doc.title || '-')}</dd>
+                        <dt class="col-sm-4">Type:</dt>
+                        <dd class="col-sm-8">${escapeHtml(doc.documentType || '-')}</dd>
+                        <dt class="col-sm-4">Submitted By:</dt>
+                        <dd class="col-sm-8">${doc.uploader ? escapeHtml(doc.uploader.name) : '-'}</dd>
+                        <dt class="col-sm-4">Category:</dt>
+                        <dd class="col-sm-8">${escapeHtml(doc.category || '-')}</dd>
+                        <dt class="col-sm-4">File:</dt>
+                        <dd class="col-sm-8">${escapeHtml(doc.originalFileName || '-')}</dd>
+                        <dt class="col-sm-4">Size:</dt>
+                        <dd class="col-sm-8">${formatFileSize(doc.totalFileSize)}</dd>
+                        <dt class="col-sm-4">Date:</dt>
+                        <dd class="col-sm-8">${formatDate(doc.createdAt)}</dd>
+                    </dl>
+                    ${doc.reviewHistory && doc.reviewHistory.length > 0 ? `
+                        <hr>
+                        <h6 class="mt-2"><i class="bi bi-journal-text me-1"></i>Review History</h6>
+                        ${doc.reviewHistory.map(r => `
+                            <div class="border rounded p-2 mb-1 bg-light">
+                                <small><strong>${escapeHtml(r.reviewer || 'Unknown')}</strong> (${escapeHtml(r.reviewerRole || '-')}) - 
+                                <span class="badge ${r.reviewStatus === 'Approved' ? 'bg-success' : r.reviewStatus === 'Rejected' ? 'bg-danger' : 'bg-warning text-dark'}">${r.reviewStatus}</span></small>
+                                <br><small class="text-muted">${formatDate(r.reviewedAt)}</small>
+                                ${r.remarks ? '<br><small>' + escapeHtml(r.remarks) + '</small>' : ''}
+                            </div>
+                        `).join('')}
+                    ` : ''}
+                `;
+                
+                // Document preview
+                const downloadUrl = '/api/DocumentApi/' + docId + '/download';
+                document.getElementById('soDownloadBtn').href = downloadUrl;
+                document.getElementById('soUnsupportedDownloadBtn').href = downloadUrl;
+                
+                const ext = (doc.fileExtension || '').toLowerCase();
+                document.getElementById('soPreviewLoading').classList.add('d-none');
+                
+                if (ext === '.pdf') {
+                    document.getElementById('soPdfViewer').src = downloadUrl;
+                    document.getElementById('soPdfViewer').classList.remove('d-none');
+                } else if (['.jpg', '.jpeg', '.png', '.gif'].includes(ext)) {
+                    document.getElementById('soImagePreview').src = downloadUrl;
+                    document.getElementById('soImageViewer').classList.remove('d-none');
+                } else {
+                    document.getElementById('soUnsupportedViewer').classList.remove('d-none');
+                }
+            }
+        } catch (e) {
+            console.error('Error loading document details:', e);
+            document.getElementById('soDocDetails').innerHTML = '<p class="text-danger">Error loading document details</p>';
+            document.getElementById('soPreviewLoading').classList.add('d-none');
+            document.getElementById('soUnsupportedViewer').classList.remove('d-none');
+        }
+        
+        // Load 2nd opinion history
+        loadSecondOpinionHistory(docId, 'soHistoryList');
+    }
+    
+    // ==========================================
+    // 2nd Opinion Actions
+    // ==========================================
+    async function approveSecondOpinion() {
+        const docId = document.getElementById('soDocumentId').value;
+        const remarks = document.getElementById('soRemarks').value;
+        
+        if (!confirm('Are you sure you want to approve this document? It will be forwarded to admin for final review.')) return;
+        
+        try {
+            const response = await fetch('/api/ReviewApi/' + docId + '/second-opinion-approve', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ remarks: remarks })
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('secondOpinionModal')).hide();
+                alert('Document approved and forwarded to admin for final review.');
+                refreshAll();
+            } else {
+                alert('Error: ' + (data.message || 'Unknown error'));
+            }
+        } catch (e) {
+            console.error('Error approving:', e);
+            alert('An error occurred. Please try again.');
+        }
+    }
+    
+    async function returnToFirstLawyer() {
+        const docId = document.getElementById('soDocumentId').value;
+        const remarks = document.getElementById('soRemarks').value;
+        
+        if (!remarks.trim()) {
+            alert('Please provide remarks explaining why you are returning this document.');
+            return;
+        }
+        
+        if (!confirm('Return this document to the first lawyer with your remarks?')) return;
+        
+        try {
+            const response = await fetch('/api/ReviewApi/' + docId + '/second-opinion-return', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ remarks: remarks })
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('secondOpinionModal')).hide();
+                alert('Document returned to the first lawyer with your remarks.');
+                refreshAll();
+            } else {
+                alert('Error: ' + (data.message || 'Unknown error'));
+            }
+        } catch (e) {
+            console.error('Error returning:', e);
+            alert('An error occurred. Please try again.');
+        }
+    }
+    
+    // ==========================================
+    // 2nd Opinion History
+    // ==========================================
+    async function loadSecondOpinionHistory(docId, targetElementId) {
+        try {
+            const response = await fetch('/api/ReviewApi/' + docId + '/second-opinion-history');
+            const data = await response.json();
+            
+            if (data.success && data.requests && data.requests.length > 0) {
+                const el = document.getElementById(targetElementId);
+                el.innerHTML = data.requests.map(r => `
+                    <li class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <strong>${escapeHtml(r.requestedBy ? r.requestedBy.name : 'Unknown')}</strong>
+                                <i class="bi bi-arrow-right mx-1"></i>
+                                <strong>${escapeHtml(r.assignedTo ? r.assignedTo.name : 'Unknown')}</strong>
+                                <span class="badge ms-2 ${r.status === 'Approved' ? 'bg-success' : r.status === 'Returned' ? 'bg-warning text-dark' : 'bg-info'}">${r.status}</span>
+                            </div>
+                            <small class="text-muted">${formatDate(r.createdAt)}</small>
+                        </div>
+                        ${r.requestRemarks ? '<div class="mt-1"><small class="text-muted">Request: </small><small>' + escapeHtml(r.requestRemarks) + '</small></div>' : ''}
+                        ${r.responseRemarks ? '<div class="mt-1"><small class="text-muted">Response: </small><small>' + escapeHtml(r.responseRemarks) + '</small></div>' : ''}
+                        ${r.respondedAt ? '<div class="mt-1"><small class="text-muted">Responded: ' + formatDate(r.respondedAt) + '</small></div>' : ''}
+                    </li>
+                `).join('');
+            } else {
+                document.getElementById(targetElementId).innerHTML = 
+                    '<li class="list-group-item text-muted">No 2nd opinion history</li>';
+            }
+        } catch (e) {
+            console.error('Error loading history:', e);
+            document.getElementById(targetElementId).innerHTML = 
+                '<li class="list-group-item text-danger">Error loading history</li>';
+        }
+    }
+    
+    async function openHistoryModal(docId, title) {
+        document.getElementById('historyDocTitle').textContent = 'Document: ' + title;
+        document.getElementById('historyTimeline').innerHTML = '<div class="text-center"><div class="spinner-border text-primary"></div></div>';
+        
+        new bootstrap.Modal(document.getElementById('historyModal')).show();
+        
+        try {
+            const response = await fetch('/api/ReviewApi/' + docId + '/second-opinion-history');
+            const data = await response.json();
+            
+            if (data.success && data.requests && data.requests.length > 0) {
+                document.getElementById('historyTimeline').innerHTML = data.requests.map((r, i) => `
+                    <div class="card mb-2 ${r.status === 'Returned' ? 'border-warning' : r.status === 'Approved' ? 'border-success' : 'border-info'}">
+                        <div class="card-body py-2 px-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>
+                                    <span class="badge ${r.status === 'Approved' ? 'bg-success' : r.status === 'Returned' ? 'bg-warning text-dark' : 'bg-info'}">${r.status}</span>
+                                    <strong class="ms-2">${escapeHtml(r.requestedBy ? r.requestedBy.name : '?')}</strong>
+                                    <i class="bi bi-arrow-right mx-1"></i>
+                                    <strong>${escapeHtml(r.assignedTo ? r.assignedTo.name : '?')}</strong>
+                                </span>
+                                <small class="text-muted">${formatDate(r.createdAt)}</small>
+                            </div>
+                            ${r.requestRemarks ? '<div class="mt-1 ps-2 border-start border-primary border-2"><small><strong>Request:</strong> ' + escapeHtml(r.requestRemarks) + '</small></div>' : ''}
+                            ${r.responseRemarks ? '<div class="mt-1 ps-2 border-start border-success border-2"><small><strong>Response:</strong> ' + escapeHtml(r.responseRemarks) + '</small></div>' : ''}
+                            ${r.respondedAt ? '<div class="mt-1"><small class="text-muted">Responded: ' + formatDate(r.respondedAt) + '</small></div>' : ''}
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                document.getElementById('historyTimeline').innerHTML = '<p class="text-muted text-center">No 2nd opinion history for this document</p>';
+            }
+        } catch (e) {
+            console.error('Error loading history:', e);
+            document.getElementById('historyTimeline').innerHTML = '<p class="text-danger text-center">Error loading history</p>';
+        }
+    }
+    
+    // ==========================================
+    // Helper Functions
+    // ==========================================
     function getFileIcon(ext) {
         if (!ext) return 'bi-file-earmark';
         ext = ext.toLowerCase().replace('.', '');
@@ -100,6 +665,8 @@
     function getStatusBadge(status, workflowStage) {
         if (status === 'Completed') return '<span class="badge bg-success">Approved</span>';
         if (status === 'Rejected') return '<span class="badge bg-danger">Rejected</span>';
+        if (workflowStage === 'PendingSecondOpinion' || workflowStage === 'SecondOpinionReview') 
+            return '<span class="badge bg-warning text-dark">2nd Opinion</span>';
         if (workflowStage === 'PendingLawyerReview' || workflowStage === 'LawyerReview') 
             return '<span class="badge bg-warning text-dark">Needs Review</span>';
         if (workflowStage === 'AdminReview' || workflowStage === 'PendingAdminReview') 
@@ -112,11 +679,24 @@
         return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     }
     
+    function formatFileSize(bytes) {
+        if (!bytes) return '-';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
     function escapeHtml(text) {
         if (!text) return '';
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+    
+    function escapeJs(text) {
+        if (!text) return '';
+        return text.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n');
     }
 </script>
 }

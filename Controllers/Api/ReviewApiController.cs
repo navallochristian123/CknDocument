@@ -86,6 +86,7 @@ public class ReviewApiController : ControllerBase
             currentVersion = d.CurrentVersion,
             isDuplicate = d.IsDuplicate,
             isAIProcessed = d.IsAIProcessed,
+            isHighRisk = d.IsHighRisk,
             uploader = d.Uploader != null ? new { id = d.Uploader.UserID, name = d.Uploader.FullName } : null,
             folder = d.Folder != null ? new { id = d.Folder.FolderId, name = d.Folder.FolderName } : null,
             assignedStaff = d.AssignedStaff != null ? new { id = d.AssignedStaff.UserID, name = d.AssignedStaff.FullName } : null,
@@ -353,7 +354,11 @@ public class ReviewApiController : ControllerBase
                 totalFileSize = document.TotalFileSize,
                 isAIProcessed = document.IsAIProcessed,
                 isDuplicate = document.IsDuplicate,
+                isHighRisk = document.IsHighRisk,
                 currentRemarks = document.CurrentRemarks,
+                firstOpinionLawyerId = document.FirstOpinionLawyerId,
+                secondOpinionLawyerId = document.SecondOpinionLawyerId,
+                secondOpinionRemarks = document.SecondOpinionRemarks,
                 uploader = document.Uploader != null ? new { id = document.Uploader.UserID, name = document.Uploader.FullName, email = document.Uploader.Email } : null,
                 folder = document.Folder != null ? new { id = document.Folder.FolderId, name = document.Folder.FolderName } : null,
                 assignedStaff = document.AssignedStaff != null ? new { id = document.AssignedStaff.UserID, name = document.AssignedStaff.FullName } : null,
@@ -638,6 +643,11 @@ public class ReviewApiController : ControllerBase
             currentVersion = d.CurrentVersion,
             isDuplicate = d.IsDuplicate,
             isAIProcessed = d.IsAIProcessed,
+            isHighRisk = d.IsHighRisk,
+            currentRemarks = d.CurrentRemarks,
+            firstOpinionLawyerId = d.FirstOpinionLawyerId,
+            secondOpinionLawyerId = d.SecondOpinionLawyerId,
+            secondOpinionRemarks = d.SecondOpinionRemarks,
             uploader = d.Uploader != null ? new { id = d.Uploader.UserID, name = d.Uploader.FullName } : null,
             folder = d.Folder != null ? new { id = d.Folder.FolderId, name = d.Folder.FolderName } : null,
             assignedStaff = d.AssignedStaff != null ? new { id = d.AssignedStaff.UserID, name = d.AssignedStaff.FullName } : null,
@@ -767,6 +777,261 @@ public class ReviewApiController : ControllerBase
         {
             _logger.LogError(ex, "Error lawyer rejecting document {DocumentId}", documentId);
             return StatusCode(500, new { success = false, message = "An error occurred while rejecting the document" });
+        }
+    }
+
+    // ==========================================
+    // 2ND OPINION / HIGH-RISK WORKFLOW ENDPOINTS
+    // ==========================================
+
+    /// <summary>
+    /// Get lawyers in the same firm (for 2nd opinion dropdown)
+    /// </summary>
+    [HttpGet("firm-lawyers")]
+    [Authorize(Policy = "LawyerOnly")]
+    public async Task<IActionResult> GetFirmLawyers()
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var firmId = GetFirmId();
+
+            var lawyers = await _workflowService.GetFirmLawyersAsync(firmId, userId);
+
+            var result = lawyers.Select(l => new
+            {
+                id = l.UserID,
+                name = l.FullName,
+                email = l.Email,
+                department = l.Department
+            });
+
+            return Ok(new { success = true, lawyers = result });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting firm lawyers");
+            return StatusCode(500, new { success = false, message = "An error occurred" });
+        }
+    }
+
+    /// <summary>
+    /// Lawyer partially approves and requests 2nd opinion from another lawyer
+    /// </summary>
+    [HttpPost("{documentId}/request-second-opinion")]
+    [Authorize(Policy = "LawyerOnly")]
+    public async Task<IActionResult> RequestSecondOpinion(int documentId, [FromBody] SecondOpinionRequestDto dto)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var firmId = GetFirmId();
+
+            if (dto.AssignedToLawyerId <= 0)
+                return BadRequest(new { success = false, message = "Please select a lawyer for 2nd opinion" });
+
+            if (string.IsNullOrWhiteSpace(dto.Remarks))
+                return BadRequest(new { success = false, message = "Please provide remarks explaining why 2nd opinion is needed" });
+
+            var document = await _context.Documents
+                .FirstOrDefaultAsync(d => d.DocumentID == documentId && d.FirmID == firmId);
+
+            if (document == null)
+                return NotFound(new { success = false, message = "Document not found" });
+
+            var request = await _workflowService.RequestSecondOpinionAsync(
+                documentId, userId, dto.AssignedToLawyerId, dto.Remarks);
+
+            return Ok(new
+            {
+                success = true,
+                message = "2nd opinion request sent successfully",
+                requestId = request.RequestId
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error requesting 2nd opinion for document {DocumentId}", documentId);
+            return StatusCode(500, new { success = false, message = "An error occurred while requesting 2nd opinion" });
+        }
+    }
+
+    /// <summary>
+    /// 2nd lawyer approves the document
+    /// </summary>
+    [HttpPost("{documentId}/second-opinion-approve")]
+    [Authorize(Policy = "LawyerOnly")]
+    public async Task<IActionResult> SecondOpinionApprove(int documentId, [FromBody] SecondOpinionResponseDto dto)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+
+            var review = await _workflowService.SecondOpinionApproveAsync(
+                documentId, userId, dto.Remarks);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Document approved and forwarded to admin for final review",
+                reviewId = review.ReviewId
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error approving 2nd opinion for document {DocumentId}", documentId);
+            return StatusCode(500, new { success = false, message = "An error occurred" });
+        }
+    }
+
+    /// <summary>
+    /// 2nd lawyer returns the document to 1st lawyer
+    /// </summary>
+    [HttpPost("{documentId}/second-opinion-return")]
+    [Authorize(Policy = "LawyerOnly")]
+    public async Task<IActionResult> SecondOpinionReturn(int documentId, [FromBody] SecondOpinionResponseDto dto)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+
+            if (string.IsNullOrWhiteSpace(dto.Remarks))
+                return BadRequest(new { success = false, message = "Please provide remarks explaining why you are returning this document" });
+
+            var review = await _workflowService.SecondOpinionReturnAsync(
+                documentId, userId, dto.Remarks);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Document returned to the requesting lawyer",
+                reviewId = review.ReviewId
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error returning 2nd opinion for document {DocumentId}", documentId);
+            return StatusCode(500, new { success = false, message = "An error occurred" });
+        }
+    }
+
+    /// <summary>
+    /// Get documents assigned to current lawyer for 2nd opinion
+    /// </summary>
+    [HttpGet("second-opinion/assigned-to-me")]
+    [Authorize(Policy = "LawyerOnly")]
+    public async Task<IActionResult> GetSecondOpinionAssignedToMe()
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var documents = await _workflowService.GetSecondOpinionAssignedToMeAsync(userId);
+
+            var result = documents.Select(d => new
+            {
+                id = d.DocumentID,
+                title = d.Title,
+                description = d.Description,
+                documentType = d.DocumentType,
+                status = d.Status,
+                workflowStage = d.WorkflowStage,
+                originalFileName = d.OriginalFileName,
+                fileExtension = d.FileExtension,
+                isHighRisk = d.IsHighRisk,
+                firstOpinionLawyer = d.FirstOpinionLawyer != null ? new { id = d.FirstOpinionLawyer.UserID, name = d.FirstOpinionLawyer.FullName } : null,
+                secondOpinionRemarks = d.SecondOpinionRemarks,
+                uploader = d.Uploader != null ? new { id = d.Uploader.UserID, name = d.Uploader.FullName } : null,
+                createdAt = d.CreatedAt
+            });
+
+            return Ok(new { success = true, documents = result });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting 2nd opinion documents assigned to me");
+            return StatusCode(500, new { success = false, message = "An error occurred" });
+        }
+    }
+
+    /// <summary>
+    /// Get documents that current lawyer has sent out for 2nd opinion
+    /// </summary>
+    [HttpGet("second-opinion/sent-by-me")]
+    [Authorize(Policy = "LawyerOnly")]
+    public async Task<IActionResult> GetSecondOpinionSentByMe()
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var documents = await _workflowService.GetSecondOpinionSentByMeAsync(userId);
+
+            var result = documents.Select(d => new
+            {
+                id = d.DocumentID,
+                title = d.Title,
+                description = d.Description,
+                documentType = d.DocumentType,
+                status = d.Status,
+                workflowStage = d.WorkflowStage,
+                originalFileName = d.OriginalFileName,
+                fileExtension = d.FileExtension,
+                isHighRisk = d.IsHighRisk,
+                secondOpinionLawyer = d.SecondOpinionLawyer != null ? new { id = d.SecondOpinionLawyer.UserID, name = d.SecondOpinionLawyer.FullName } : null,
+                secondOpinionRemarks = d.SecondOpinionRemarks,
+                uploader = d.Uploader != null ? new { id = d.Uploader.UserID, name = d.Uploader.FullName } : null,
+                createdAt = d.CreatedAt
+            });
+
+            return Ok(new { success = true, documents = result });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting 2nd opinion documents sent by me");
+            return StatusCode(500, new { success = false, message = "An error occurred" });
+        }
+    }
+
+    /// <summary>
+    /// Get 2nd opinion request history for a document
+    /// </summary>
+    [HttpGet("{documentId}/second-opinion-history")]
+    [Authorize(Policy = "LawyerOnly")]
+    public async Task<IActionResult> GetSecondOpinionHistory(int documentId)
+    {
+        try
+        {
+            var requests = await _workflowService.GetSecondOpinionHistoryAsync(documentId);
+
+            var result = requests.Select(r => new
+            {
+                requestId = r.RequestId,
+                requestedBy = r.RequestedByLawyer != null ? new { id = r.RequestedByLawyer.UserID, name = r.RequestedByLawyer.FullName } : null,
+                assignedTo = r.AssignedToLawyer != null ? new { id = r.AssignedToLawyer.UserID, name = r.AssignedToLawyer.FullName } : null,
+                requestRemarks = r.RequestRemarks,
+                responseRemarks = r.ResponseRemarks,
+                status = r.Status,
+                respondedAt = r.RespondedAt,
+                createdAt = r.CreatedAt
+            });
+
+            return Ok(new { success = true, requests = result });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting 2nd opinion history for document {DocumentId}", documentId);
+            return StatusCode(500, new { success = false, message = "An error occurred" });
         }
     }
 
@@ -1171,4 +1436,15 @@ public class LawyerEditDocumentDto
 {
     public IFormFile? File { get; set; }
     public string? ChangeDescription { get; set; }
+}
+
+public class SecondOpinionRequestDto
+{
+    public int AssignedToLawyerId { get; set; }
+    public string? Remarks { get; set; }
+}
+
+public class SecondOpinionResponseDto
+{
+    public string? Remarks { get; set; }
 }

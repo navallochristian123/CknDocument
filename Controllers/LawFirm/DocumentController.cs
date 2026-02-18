@@ -86,6 +86,8 @@ public class DocumentController : Controller
         var role = User.FindFirst(ClaimTypes.Role)?.Value ?? "Staff";
         if (role == "Staff")
             return View("~/Views/Staff/AssignedToMe.cshtml");
+        if (role == "Lawyer")
+            return View("~/Views/Lawyer/AssignedToMe.cshtml");
         return View(GetRoleViewPath("Documents"));
     }
 }

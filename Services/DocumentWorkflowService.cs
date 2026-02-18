@@ -23,6 +23,8 @@ public class DocumentWorkflowService
     public const string STAGE_PENDING_LAWYER_REVIEW = "PendingLawyerReview";
     public const string STAGE_LAWYER_REVIEW = "LawyerReview";
     public const string STAGE_LAWYER_REJECTED = "LawyerRejected";
+    public const string STAGE_PENDING_SECOND_OPINION = "PendingSecondOpinion";
+    public const string STAGE_SECOND_OPINION_REVIEW = "SecondOpinionReview";
     public const string STAGE_PENDING_ADMIN_REVIEW = "PendingAdminReview";
     public const string STAGE_ADMIN_REVIEW = "AdminReview";
     public const string STAGE_ADMIN_REJECTED = "AdminRejected";
@@ -1214,6 +1216,7 @@ public class DocumentWorkflowService
             .Include(d => d.Folder)
             .Include(d => d.Versions.OrderByDescending(v => v.VersionNumber).Take(1))
             .Where(d => d.FirmID == firmId &&
+                        !d.IsHighRisk &&
                         (d.WorkflowStage == STAGE_CLIENT_UPLOAD || 
                          d.WorkflowStage == STAGE_PENDING_STAFF_REVIEW || 
                          d.WorkflowStage == STAGE_STAFF_REVIEW));
@@ -1246,5 +1249,368 @@ public class DocumentWorkflowService
         }
 
         return await query.OrderByDescending(d => d.CreatedAt).ToListAsync();
+    }
+
+    // ==========================================
+    // HIGH-RISK / SECOND OPINION WORKFLOW METHODS
+    // ==========================================
+
+    /// <summary>
+    /// Lawyer partially approves a document and assigns to another lawyer for 2nd opinion.
+    /// This is available for all documents but primarily designed for high-risk ones.
+    /// </summary>
+    public async Task<SecondOpinionRequest> RequestSecondOpinionAsync(
+        int documentId, int requestingLawyerId, int assignedToLawyerId, string remarks)
+    {
+        var document = await _context.Documents
+            .Include(d => d.Uploader)
+            .FirstOrDefaultAsync(d => d.DocumentID == documentId);
+
+        if (document == null)
+            throw new InvalidOperationException("Document not found");
+
+        // Validate the 2nd lawyer belongs to the same firm
+        var secondLawyer = await _context.Users
+            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+            .FirstOrDefaultAsync(u => u.UserID == assignedToLawyerId && 
+                                      u.FirmID == document.FirmID &&
+                                      u.Status == "Active" &&
+                                      u.UserRoles.Any(ur => ur.Role != null && ur.Role.RoleName == "Lawyer"));
+
+        if (secondLawyer == null)
+            throw new InvalidOperationException("Selected lawyer not found or not active in this firm");
+
+        if (assignedToLawyerId == requestingLawyerId)
+            throw new InvalidOperationException("Cannot assign 2nd opinion to yourself");
+
+        var requestingLawyer = await _context.Users.FindAsync(requestingLawyerId);
+
+        // Create the 2nd opinion request record
+        var request = new SecondOpinionRequest
+        {
+            DocumentId = documentId,
+            FirmId = document.FirmID,
+            RequestedByLawyerId = requestingLawyerId,
+            AssignedToLawyerId = assignedToLawyerId,
+            RequestRemarks = remarks,
+            Status = "Pending",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.SecondOpinionRequests.Add(request);
+
+        // Create a review record for the partial approval
+        var review = new DocumentReview
+        {
+            DocumentId = documentId,
+            ReviewedBy = requestingLawyerId,
+            ReviewStatus = "PartiallyApproved",
+            Remarks = $"Partially approved - Requesting 2nd opinion. Reason: {remarks}",
+            ReviewedAt = DateTime.UtcNow,
+            ReviewerRole = "Lawyer",
+            ReviewerType = "FirstOpinion",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.DocumentReviews.Add(review);
+
+        // Update document workflow stage
+        document.WorkflowStage = STAGE_PENDING_SECOND_OPINION;
+        document.SecondOpinionLawyerId = assignedToLawyerId;
+        document.FirstOpinionLawyerId = requestingLawyerId;
+        document.SecondOpinionRemarks = remarks;
+        document.CurrentRemarks = $"Awaiting 2nd opinion from {secondLawyer.FullName}";
+        document.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        // Notify 2nd lawyer
+        await _notificationService.NotifyAsync(
+            assignedToLawyerId,
+            "🔍 2nd Opinion Requested",
+            $"Lawyer {requestingLawyer?.FullName} has requested your 2nd opinion on document '{document.Title}'. Reason: {remarks}",
+            "SecondOpinionRequested",
+            documentId,
+            $"/Document/AssignedToMe");
+
+        // Notify client
+        if (document.UploadedBy.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.UploadedBy.Value,
+                "Document Under Extended Review",
+                $"Your document '{document.Title}' is being reviewed by an additional lawyer for thorough review.",
+                "SecondOpinionRequested",
+                documentId,
+                $"/Document/MyDocuments");
+        }
+
+        // Audit log
+        await _auditLogService.LogAsync(
+            "RequestSecondOpinion",
+            "Document",
+            documentId,
+            $"Lawyer {requestingLawyer?.FullName} requested 2nd opinion from {secondLawyer.FullName} for document: {document.Title}. Reason: {remarks}",
+            null,
+            $"{{\"requestedBy\":{requestingLawyerId},\"assignedTo\":{assignedToLawyerId},\"remarks\":\"{remarks}\"}}",
+            "DocumentReview");
+
+        return request;
+    }
+
+    /// <summary>
+    /// 2nd lawyer approves the document → forwards to admin
+    /// </summary>
+    public async Task<DocumentReview> SecondOpinionApproveAsync(
+        int documentId, int secondLawyerId, string? remarks)
+    {
+        var document = await _context.Documents
+            .Include(d => d.Uploader)
+            .Include(d => d.FirstOpinionLawyer)
+            .FirstOrDefaultAsync(d => d.DocumentID == documentId);
+
+        if (document == null)
+            throw new InvalidOperationException("Document not found");
+
+        if (document.SecondOpinionLawyerId != secondLawyerId)
+            throw new InvalidOperationException("This document is not assigned to you for 2nd opinion");
+
+        // Update the pending request
+        var pendingRequest = await _context.SecondOpinionRequests
+            .Where(r => r.DocumentId == documentId && r.AssignedToLawyerId == secondLawyerId && r.Status == "Pending")
+            .OrderByDescending(r => r.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        if (pendingRequest != null)
+        {
+            pendingRequest.Status = "Approved";
+            pendingRequest.ResponseRemarks = remarks;
+            pendingRequest.RespondedAt = DateTime.UtcNow;
+            pendingRequest.UpdatedAt = DateTime.UtcNow;
+        }
+
+        var secondLawyer = await _context.Users.FindAsync(secondLawyerId);
+
+        // Create review record
+        var review = new DocumentReview
+        {
+            DocumentId = documentId,
+            ReviewedBy = secondLawyerId,
+            ReviewStatus = STATUS_APPROVED,
+            Remarks = $"2nd opinion approved. {remarks}",
+            ReviewedAt = DateTime.UtcNow,
+            ReviewerRole = "Lawyer",
+            ReviewerType = "SecondOpinion",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.DocumentReviews.Add(review);
+
+        // Update document and forward to admin
+        document.LawyerReviewedAt = DateTime.UtcNow;
+        document.UpdatedAt = DateTime.UtcNow;
+        document.CurrentRemarks = $"Approved by 2nd opinion lawyer ({secondLawyer?.FullName}). {remarks}";
+
+        // Clear 2nd opinion fields (keep FirstOpinionLawyerId for audit trail)
+        document.SecondOpinionLawyerId = null;
+        document.SecondOpinionRemarks = null;
+
+        await _context.SaveChangesAsync();
+
+        // Assign to admin
+        var admin = await AssignToAdminAsync(documentId, document.FirmID);
+
+        // Notify first lawyer
+        if (document.FirstOpinionLawyerId.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.FirstOpinionLawyerId.Value,
+                "2nd Opinion: Document Approved",
+                $"Lawyer {secondLawyer?.FullName} has approved document '{document.Title}' and forwarded it to admin.",
+                "SecondOpinionApproved",
+                documentId,
+                $"/Document/AssignedToMe");
+        }
+
+        // Notify admin
+        if (admin != null)
+        {
+            await _notificationService.NotifyAsync(
+                admin.UserID,
+                "Document for Final Review",
+                $"Document '{document.Title}'{(document.IsHighRisk ? " [HIGH-RISK]" : "")} has been reviewed by two lawyers and is ready for your final approval.",
+                "LawyerApproved",
+                documentId,
+                $"/Admin/Review/{documentId}");
+        }
+
+        // Notify client
+        if (document.UploadedBy.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.UploadedBy.Value,
+                "Document Review Progress",
+                $"Your document '{document.Title}' has been approved by lawyers and forwarded to admin for final approval.",
+                "SecondOpinionApproved",
+                documentId,
+                $"/Document/MyDocuments");
+        }
+
+        // Audit log
+        await _auditLogService.LogAsync(
+            "SecondOpinionApprove",
+            "Document",
+            documentId,
+            $"2nd opinion lawyer {secondLawyer?.FullName} approved document: {document.Title}",
+            null,
+            $"{{\"secondLawyerId\":{secondLawyerId},\"remarks\":\"{remarks}\"}}",
+            "DocumentReview");
+
+        return review;
+    }
+
+    /// <summary>
+    /// 2nd lawyer returns the document to the 1st lawyer with remarks
+    /// </summary>
+    public async Task<DocumentReview> SecondOpinionReturnAsync(
+        int documentId, int secondLawyerId, string remarks)
+    {
+        var document = await _context.Documents
+            .Include(d => d.Uploader)
+            .Include(d => d.FirstOpinionLawyer)
+            .FirstOrDefaultAsync(d => d.DocumentID == documentId);
+
+        if (document == null)
+            throw new InvalidOperationException("Document not found");
+
+        if (document.SecondOpinionLawyerId != secondLawyerId)
+            throw new InvalidOperationException("This document is not assigned to you for 2nd opinion");
+
+        // Update the pending request
+        var pendingRequest = await _context.SecondOpinionRequests
+            .Where(r => r.DocumentId == documentId && r.AssignedToLawyerId == secondLawyerId && r.Status == "Pending")
+            .OrderByDescending(r => r.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        if (pendingRequest != null)
+        {
+            pendingRequest.Status = "Returned";
+            pendingRequest.ResponseRemarks = remarks;
+            pendingRequest.RespondedAt = DateTime.UtcNow;
+            pendingRequest.UpdatedAt = DateTime.UtcNow;
+        }
+
+        var secondLawyer = await _context.Users.FindAsync(secondLawyerId);
+
+        // Create review record
+        var review = new DocumentReview
+        {
+            DocumentId = documentId,
+            ReviewedBy = secondLawyerId,
+            ReviewStatus = "Returned",
+            Remarks = $"Returned to 1st lawyer. Reason: {remarks}",
+            ReviewedAt = DateTime.UtcNow,
+            ReviewerRole = "Lawyer",
+            ReviewerType = "SecondOpinion",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.DocumentReviews.Add(review);
+
+        // Return document to the first lawyer's review
+        document.WorkflowStage = STAGE_PENDING_LAWYER_REVIEW;
+        document.AssignedLawyerId = document.FirstOpinionLawyerId;
+        document.SecondOpinionLawyerId = null;
+        document.SecondOpinionRemarks = null;
+        document.CurrentRemarks = $"Returned by {secondLawyer?.FullName}: {remarks}";
+        document.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        // Notify 1st lawyer
+        if (document.FirstOpinionLawyerId.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.FirstOpinionLawyerId.Value,
+                "⚠️ Document Returned from 2nd Opinion",
+                $"Lawyer {secondLawyer?.FullName} has returned document '{document.Title}' for your review. Reason: {remarks}",
+                "SecondOpinionReturned",
+                documentId,
+                $"/Document/AssignedToMe");
+        }
+
+        // Audit log
+        await _auditLogService.LogAsync(
+            "SecondOpinionReturn",
+            "Document",
+            documentId,
+            $"2nd opinion lawyer {secondLawyer?.FullName} returned document: {document.Title}. Reason: {remarks}",
+            null,
+            $"{{\"secondLawyerId\":{secondLawyerId},\"returnedToLawyerId\":{document.FirstOpinionLawyerId},\"remarks\":\"{remarks}\"}}",
+            "DocumentReview");
+
+        return review;
+    }
+
+    /// <summary>
+    /// Get lawyers in the same firm (for 2nd opinion dropdown), excluding the requesting lawyer
+    /// </summary>
+    public async Task<List<User>> GetFirmLawyersAsync(int firmId, int? excludeLawyerId = null)
+    {
+        var query = _context.Users
+            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+            .Where(u => u.FirmID == firmId &&
+                        u.Status == "Active" &&
+                        u.UserRoles.Any(ur => ur.Role != null && ur.Role.RoleName == "Lawyer"));
+
+        if (excludeLawyerId.HasValue)
+        {
+            query = query.Where(u => u.UserID != excludeLawyerId.Value);
+        }
+
+        return await query.OrderBy(u => u.FirstName).ThenBy(u => u.LastName).ToListAsync();
+    }
+
+    /// <summary>
+    /// Get documents assigned to a lawyer for 2nd opinion review
+    /// </summary>
+    public async Task<List<Document>> GetSecondOpinionAssignedToMeAsync(int lawyerId)
+    {
+        return await _context.Documents
+            .Include(d => d.Uploader)
+            .Include(d => d.Folder)
+            .Include(d => d.FirstOpinionLawyer)
+            .Where(d => d.SecondOpinionLawyerId == lawyerId &&
+                        (d.WorkflowStage == STAGE_PENDING_SECOND_OPINION || d.WorkflowStage == STAGE_SECOND_OPINION_REVIEW))
+            .OrderByDescending(d => d.CreatedAt)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Get documents that a lawyer has sent out for 2nd opinion
+    /// </summary>
+    public async Task<List<Document>> GetSecondOpinionSentByMeAsync(int lawyerId)
+    {
+        return await _context.Documents
+            .Include(d => d.Uploader)
+            .Include(d => d.Folder)
+            .Include(d => d.SecondOpinionLawyer)
+            .Where(d => d.FirstOpinionLawyerId == lawyerId &&
+                        (d.WorkflowStage == STAGE_PENDING_SECOND_OPINION || d.WorkflowStage == STAGE_SECOND_OPINION_REVIEW))
+            .OrderByDescending(d => d.CreatedAt)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Get the 2nd opinion request history for a document
+    /// </summary>
+    public async Task<List<SecondOpinionRequest>> GetSecondOpinionHistoryAsync(int documentId)
+    {
+        return await _context.SecondOpinionRequests
+            .Include(r => r.RequestedByLawyer)
+            .Include(r => r.AssignedToLawyer)
+            .Where(r => r.DocumentId == documentId)
+            .OrderByDescending(r => r.CreatedAt)
+            .ToListAsync();
     }
 }

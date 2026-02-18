@@ -55,6 +55,23 @@
                         <label class="form-label">Description</label>
                         <textarea class="form-control" id="description" rows="2" placeholder="Optional description for all documents..." maxlength="1000"></textarea>
                     </div>
+
+                    <!-- High-Risk Document Toggle -->
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="isHighRisk">
+                            <label class="form-check-label fw-semibold" for="isHighRisk">
+                                <i class="bi bi-exclamation-triangle-fill text-danger me-1"></i>
+                                Mark as High-Risk Document
+                            </label>
+                        </div>
+                        <div class="alert alert-warning mt-2 d-none" id="highRiskAlert">
+                            <i class="bi bi-shield-exclamation me-2"></i>
+                            <strong>High-Risk Document:</strong> This document will skip staff review and be sent <strong>directly to a lawyer</strong> for immediate review. 
+                            Use this for contracts or documents that require urgent legal attention.
+                        </div>
+                    </div>
+
                     <div class="mb-4">
                         <label class="form-label">Files <span class="text-danger">*</span></label>
                         <div class="border border-2 rounded p-4 text-center" id="dropZone" style="border-style: dashed !important; cursor: pointer;">
@@ -153,11 +170,11 @@
             </div>
         </div>
 
-        <div class="card mt-3">
+        <div class="card mt-3" id="reviewProcessCard">
             <div class="card-header">
                 <h6 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>Review Process</h6>
             </div>
-            <div class="card-body">
+            <div class="card-body" id="normalFlow">
                 <div class="d-flex align-items-center mb-2">
                     <span class="badge bg-warning text-dark me-2">1</span>
                     <span>Document Uploaded</span>
@@ -168,7 +185,29 @@
                 </div>
                 <div class="d-flex align-items-center mb-2">
                     <span class="badge bg-primary me-2">3</span>
+                    <span>Lawyer Review</span>
+                </div>
+                <div class="d-flex align-items-center mb-2">
+                    <span class="badge bg-secondary me-2">4</span>
                     <span>Admin Approval</span>
+                </div>
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-success me-2">5</span>
+                    <span>Completed</span>
+                </div>
+            </div>
+            <div class="card-body d-none" id="highRiskFlow">
+                <div class="d-flex align-items-center mb-2">
+                    <span class="badge bg-danger me-2">1</span>
+                    <span>Document Uploaded <span class="badge bg-danger ms-1">High Risk</span></span>
+                </div>
+                <div class="d-flex align-items-center mb-2">
+                    <span class="badge bg-primary me-2">2</span>
+                    <span>Direct Lawyer Review <small class="text-muted">(skips staff)</small></span>
+                </div>
+                <div class="d-flex align-items-center mb-2">
+                    <span class="badge bg-secondary me-2">3</span>
+                    <span>Admin Final Approval</span>
                 </div>
                 <div class="d-flex align-items-center">
                     <span class="badge bg-success me-2">4</span>
@@ -229,7 +268,27 @@
         setupDropZone();
         setupFormSubmit();
         loadUploadStorageInfo();
+        setupHighRiskToggle();
     });
+
+    function setupHighRiskToggle() {
+        const toggle = document.getElementById('isHighRisk');
+        const alert = document.getElementById('highRiskAlert');
+        const normalFlow = document.getElementById('normalFlow');
+        const highRiskFlow = document.getElementById('highRiskFlow');
+        
+        toggle.addEventListener('change', function() {
+            if (this.checked) {
+                alert.classList.remove('d-none');
+                normalFlow.classList.add('d-none');
+                highRiskFlow.classList.remove('d-none');
+            } else {
+                alert.classList.add('d-none');
+                normalFlow.classList.remove('d-none');
+                highRiskFlow.classList.add('d-none');
+            }
+        });
+    }
 
     async function loadUploadStorageInfo() {
         try {
@@ -435,6 +494,7 @@
             const category = document.getElementById('category').value;
             const documentType = document.getElementById('documentType').value;
             const folderId = document.getElementById('folderId').value;
+            const isHighRisk = document.getElementById('isHighRisk').checked;
 
             for (let i = 0; i < selectedFiles.length; i++) {
                 const file = selectedFiles[i];
@@ -448,6 +508,7 @@
                 formData.append('description', description);
                 formData.append('category', category);
                 formData.append('documentType', documentType);
+                formData.append('isHighRisk', isHighRisk);
                 if (folderId) {
                     formData.append('folderId', folderId);
                 }

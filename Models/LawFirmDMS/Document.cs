@@ -78,6 +78,24 @@ public class Document : BaseEntity, IAuditableEntity
     [MaxLength(500)]
     public string? Tags { get; set; }
 
+    // High-Risk Document fields
+    public bool IsHighRisk { get; set; } = false;
+
+    /// <summary>
+    /// The lawyer who currently has this document for 2nd opinion review
+    /// </summary>
+    public int? SecondOpinionLawyerId { get; set; }
+
+    /// <summary>
+    /// The original/first lawyer who requested 2nd opinion
+    /// </summary>
+    public int? FirstOpinionLawyerId { get; set; }
+
+    /// <summary>
+    /// Remarks from 1st lawyer when requesting 2nd opinion
+    /// </summary>
+    public string? SecondOpinionRemarks { get; set; }
+
     // Navigation properties
     [ForeignKey("FirmID")]
     public virtual Firm? Firm { get; set; }
@@ -99,6 +117,12 @@ public class Document : BaseEntity, IAuditableEntity
 
     [ForeignKey("DuplicateOfDocumentId")]
     public virtual Document? DuplicateOfDocument { get; set; }
+
+    [ForeignKey("SecondOpinionLawyerId")]
+    public virtual User? SecondOpinionLawyer { get; set; }
+
+    [ForeignKey("FirstOpinionLawyerId")]
+    public virtual User? FirstOpinionLawyer { get; set; }
 
     public virtual ICollection<DocumentVersion> Versions { get; set; } = new List<DocumentVersion>();
     public virtual ICollection<DocumentReview> Reviews { get; set; } = new List<DocumentReview>();
