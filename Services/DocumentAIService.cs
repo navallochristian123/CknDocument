@@ -560,6 +560,110 @@ Provide your analysis as JSON.";
         return result;
     }
 
+    /// <summary>
+    /// AI-powered analysis of changes between two document versions.
+    /// Returns a structured summary of what was added, removed, or modified.
+    /// </summary>
+    public async Task<object> AnalyzeDocumentChangesAsync(
+        string originalText, string modifiedText,
+        string documentTitle, int fromVersion, int toVersion)
+    {
+        var apiKey = _configuration["OpenAI:ApiKey"];
+        var model = _configuration["OpenAI:Model"] ?? "gpt-4o-mini";
+
+        // Trim texts so we don't exceed token limits
+        const int MaxChars = 3000;
+        if (originalText.Length > MaxChars) originalText = originalText[..MaxChars] + "\n[...truncated...]";
+        if (modifiedText.Length > MaxChars) modifiedText = modifiedText[..MaxChars] + "\n[...truncated...]";
+
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            return new
+            {
+                success = false,
+                note = "OpenAI API key not configured – AI analysis unavailable.",
+                summary = "Manual review required.",
+                changes = Array.Empty<object>()
+            };
+        }
+
+        try
+        {
+            var client = _httpClientFactory.CreateClient("OpenAI");
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+
+            var systemPrompt =
+@"You are a legal document change analyst AI. Your job is to compare two versions of a legal document and provide a structured, easy-to-read report of what has changed. Be specific, highlight important legal differences.
+
+Respond ONLY with valid JSON in this exact format:
+{
+  ""summary"": ""One paragraph summary of the overall changes"",
+  ""riskLevel"": ""low|medium|high"",
+  ""riskReason"": ""Why this risk level was assigned"",
+  ""changes"": [
+    {""category"": ""AddedClause|RemovedClause|ModifiedClause|AddedInfo|RemovedInfo|ModifiedInfo|FormattingOnly"", ""description"": ""What changed"", ""significance"": ""low|medium|high"", ""originalSnippet"": ""relevant excerpt from original (or empty)"", ""modifiedSnippet"": ""relevant excerpt from modified (or empty)""}
+  ],
+  ""recommendation"": ""What the admin should pay attention to or verify before approving""
+}";
+
+            var userPrompt =
+$@"Document: ""{documentTitle}""
+
+--- VERSION {fromVersion} (Original) ---
+{originalText}
+
+--- VERSION {toVersion} (Modified by Lawyer) ---
+{modifiedText}
+
+Analyze all changes between these versions and return JSON.";
+
+            var requestBody = new
+            {
+                model,
+                messages = new[]
+                {
+                    new { role = "system", content = systemPrompt },
+                    new { role = "user",   content = userPrompt   }
+                },
+                max_tokens = 2000,
+                temperature = 0.2,
+                response_format = new { type = "json_object" }
+            };
+
+            var json = System.Text.Json.JsonSerializer.Serialize(requestBody);
+            var httpContent = new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json");
+            var response = await client.PostAsync("https://api.openai.com/v1/chat/completions", httpContent);
+            var body = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("OpenAI change-analysis error: {Status} {Body}", response.StatusCode, body);
+                return new { success = false, note = "OpenAI returned an error.", summary = body };
+            }
+
+            using var doc = System.Text.Json.JsonDocument.Parse(body);
+            var aiContent = doc.RootElement
+                .GetProperty("choices")[0]
+                .GetProperty("message")
+                .GetProperty("content").GetString() ?? "{}";
+
+            using var parsed = System.Text.Json.JsonDocument.Parse(aiContent);
+            // Return as a dynamic-friendly anonymous type by re-serialising into a JsonElement
+            return new
+            {
+                success = true,
+                modelUsed = model,
+                data = parsed.RootElement.Clone()
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in AnalyzeDocumentChangesAsync");
+            return new { success = false, note = ex.Message };
+        }
+    }
+
     #endregion
 
     #region Main Processing

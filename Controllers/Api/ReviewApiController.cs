@@ -156,7 +156,7 @@ public class ReviewApiController : ControllerBase
                 remarks = r.Remarks,
                 internalNotes = r.InternalNotes,
                 reviewerRole = r.ReviewerRole,
-                reviewerName = r.Reviewer != null ? r.Reviewer.FullName : null,
+                reviewerName = r.Reviewer != null ? (r.Reviewer.FirstName ?? "") + " " + (r.Reviewer.LastName ?? "") : null,
                 reviewedAt = r.ReviewedAt,
                 isChecklistComplete = r.IsChecklistComplete,
                 checklistScore = r.ChecklistScore,
@@ -199,7 +199,7 @@ public class ReviewApiController : ControllerBase
                 reviewStatus = r.ReviewStatus,
                 remarks = r.Remarks,
                 reviewedAt = r.ReviewedAt,
-                uploaderName = r.Document != null && r.Document.Uploader != null ? r.Document.Uploader.FullName : null,
+                uploaderName = r.Document != null && r.Document.Uploader != null ? (r.Document.Uploader.FirstName ?? "") + " " + (r.Document.Uploader.LastName ?? "") : null,
                 isChecklistComplete = r.IsChecklistComplete
             })
             .ToListAsync();

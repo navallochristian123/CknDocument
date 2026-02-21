@@ -85,7 +85,7 @@ public class FolderApiController : ControllerBase
                 color = f.Color,
                 parentFolderId = f.ParentFolderId,
                 clientId = f.ClientId,
-                clientName = f.Client != null ? f.Client.FullName : null,
+                clientName = f.Client != null ? (f.Client.FirstName ?? "") + " " + (f.Client.LastName ?? "") : null,
                 documentCount = f.Documents.Count,
                 childFolderCount = f.ChildFolders.Count,
                 createdAt = f.CreatedAt
@@ -429,7 +429,7 @@ public class FolderApiController : ControllerBase
             .Select(u => new
             {
                 id = u.UserID,
-                fullName = u.FullName,
+                fullName = (u.FirstName ?? "") + " " + (u.LastName ?? ""),
                 email = u.Email,
                 folderCount = _context.ClientFolders.Count(f => f.ClientId == u.UserID && f.FirmId == firmId),
                 documentCount = _context.Documents.Count(d => d.UploadedBy == u.UserID && d.FirmID == firmId)
@@ -559,7 +559,7 @@ public class FolderApiController : ControllerBase
                 folderName = d.Folder != null ? d.Folder.FolderName : null,
                 folderId = d.FolderId,
                 clientId = d.UploadedBy,
-                clientName = d.Uploader != null ? d.Uploader.FullName : null,
+                clientName = d.Uploader != null ? (d.Uploader.FirstName ?? "") + " " + (d.Uploader.LastName ?? "") : null,
                 clientEmail = d.Uploader != null ? d.Uploader.Email : null,
                 uploadedAt = d.CreatedAt,
                 approvedAt = d.ApprovedAt
@@ -585,7 +585,7 @@ public class FolderApiController : ControllerBase
             .Select(u => new
             {
                 id = u.UserID,
-                name = u.FullName,
+                name = (u.FirstName ?? "") + " " + (u.LastName ?? ""),
                 email = u.Email
             })
             .OrderBy(u => u.name)
@@ -645,7 +645,7 @@ public class FolderApiController : ControllerBase
                 description = f.Description,
                 color = f.Color,
                 clientId = f.ClientId,
-                clientName = f.Client != null ? f.Client.FullName : "Unknown",
+                clientName = f.Client != null ? (f.Client.FirstName ?? "") + " " + (f.Client.LastName ?? "") : "Unknown",
                 documentCount = f.Documents.Count,
                 childFolderCount = f.ChildFolders.Count,
                 createdAt = f.CreatedAt

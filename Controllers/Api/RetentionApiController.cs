@@ -60,7 +60,7 @@ public class RetentionApiController : ControllerBase
                 totalMonths = (p.RetentionYears ?? 0) * 12 + (p.RetentionMonths ?? 0),
                 description = p.Description,
                 isDefault = p.IsDefault,
-                createdBy = p.Creator != null ? p.Creator.FullName : null,
+                createdBy = p.Creator != null ? (p.Creator.FirstName ?? "") + " " + (p.Creator.LastName ?? "") : null,
                 createdAt = p.CreatedAt,
                 documentCount = _context.DocumentRetentions.Count(dr => dr.PolicyID == p.PolicyID)
             })
@@ -322,7 +322,7 @@ public class RetentionApiController : ControllerBase
                 documentType = dr.Document != null ? dr.Document.DocumentType : null,
                 originalFileName = dr.Document != null ? dr.Document.OriginalFileName : null,
                 fileExtension = dr.Document != null ? dr.Document.FileExtension : null,
-                clientName = dr.Document != null && dr.Document.Uploader != null ? dr.Document.Uploader.FullName : null,
+                clientName = dr.Document != null && dr.Document.Uploader != null ? (dr.Document.Uploader.FirstName ?? "") + " " + (dr.Document.Uploader.LastName ?? "") : null,
                 folderName = dr.Document != null && dr.Document.Folder != null ? dr.Document.Folder.FolderName : null,
                 policyName = dr.Policy != null ? dr.Policy.PolicyName : "Custom",
                 retentionStartDate = dr.RetentionStartDate,

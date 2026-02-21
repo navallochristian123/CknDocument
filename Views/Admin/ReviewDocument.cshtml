@@ -72,9 +72,19 @@
                             <i class="bi bi-download"></i> Download
                         </a>
                     </div>
-                    <div class="col-12">
+                    <div class="col-6">
                         <button class="btn btn-outline-info w-100" onclick="showVersionCompareModal()">
-                            <i class="bi bi-git me-1"></i> Compare All Versions
+                            <i class="bi bi-git me-1"></i> Compare Versions
+                        </button>
+                    </div>
+                    <div class="col-6">
+                        <button class="btn btn-danger w-100" onclick="showRedlineModal()">
+                            <i class="bi bi-pencil-square me-1"></i> Redline View
+                        </button>
+                    </div>
+                    <div class="col-12">
+                        <button class="btn btn-warning w-100 text-dark" onclick="showAIChangesModal()">
+                            <i class="bi bi-robot me-1"></i> AI Change Analysis
                         </button>
                     </div>
                 </div>
@@ -465,6 +475,128 @@
     </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════════
+     REDLINE MODAL  – highlights added/removed lines between two versions
+══════════════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="redlineModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>Redline View – Document Changes</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Version selectors -->
+                <div class="row g-3 mb-3 align-items-end">
+                    <div class="col-md-5">
+                        <label class="form-label fw-bold">From Version (baseline)</label>
+                        <select class="form-select" id="redlineFromVersion"></select>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label fw-bold">To Version (changes)</label>
+                        <select class="form-select" id="redlineToVersion"></select>
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-danger w-100" onclick="loadRedlineDiff()">
+                            <i class="bi bi-search me-1"></i> Compare
+                        </button>
+                    </div>
+                </div>
+                <!-- Legend -->
+                <div class="d-flex gap-3 mb-3 small">
+                    <span><span class="badge bg-success">●</span> Added</span>
+                    <span><span class="badge bg-danger">●</span> Removed</span>
+                    <span><span class="badge bg-light text-dark border">●</span> Unchanged</span>
+                </div>
+                <!-- Stats bar -->
+                <div id="redlineStats" class="alert alert-light d-none mb-3">
+                    <strong id="redlineStatsText"></strong>
+                </div>
+                <!-- Diff content -->
+                <div id="redlineLoading" class="text-center py-5 d-none">
+                    <div class="spinner-border text-danger"></div>
+                    <p class="mt-2">Comparing versions...</p>
+                </div>
+                <div id="redlineContent" class="border rounded p-3" style="font-family:monospace; font-size:0.875rem; line-height:1.8; max-height:60vh; overflow-y:auto; background:#fafafa;"></div>
+            </div>
+            <div class="modal-footer">
+                <small class="text-muted me-auto"><i class="bi bi-info-circle me-1"></i>Text extracted from file content. Formatting may vary by file type.</small>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     AI CHANGE ANALYSIS MODAL
+══════════════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="aiChangesModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title"><i class="bi bi-robot me-2"></i>AI Change Analysis</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Version selectors -->
+                <div class="row g-3 mb-3 align-items-end">
+                    <div class="col-md-5">
+                        <label class="form-label fw-bold">From Version (baseline)</label>
+                        <select class="form-select" id="aiChangesFromVersion"></select>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label fw-bold">To Version (changes)</label>
+                        <select class="form-select" id="aiChangesToVersion"></select>
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-warning text-dark w-100" onclick="runAIChangeAnalysis()">
+                            <i class="bi bi-robot me-1"></i> Analyze
+                        </button>
+                    </div>
+                </div>
+
+                <div id="aiChangesLoading" class="text-center py-5 d-none">
+                    <div class="spinner-border text-warning"></div>
+                    <p class="mt-2">AI is analyzing changes...</p>
+                </div>
+
+                <div id="aiChangesResult" style="display:none;">
+                    <!-- Summary card -->
+                    <div class="card mb-3 border-warning">
+                        <div class="card-header bg-warning text-dark">
+                            <strong><i class="bi bi-file-text me-2"></i>Overall Summary</strong>
+                            <span id="aiChangesRiskBadge" class="badge ms-2"></span>
+                        </div>
+                        <div class="card-body">
+                            <p id="aiChangesSummary" class="mb-1"></p>
+                            <p id="aiChangesRiskReason" class="text-muted small mb-0"></p>
+                        </div>
+                    </div>
+
+                    <!-- Individual changes -->
+                    <h6><i class="bi bi-list-ul me-1"></i>Detected Changes</h6>
+                    <div id="aiChangesListContainer" class="mb-3" style="max-height:50vh; overflow-y:auto;"></div>
+
+                    <!-- Recommendation -->
+                    <div class="alert alert-info mb-0">
+                        <strong><i class="bi bi-lightbulb me-1"></i>Admin Recommendation:</strong>
+                        <p id="aiChangesRecommendation" class="mb-0 mt-1"></p>
+                    </div>
+                </div>
+
+                <div id="aiChangesPlaceholder" class="text-center py-5 text-muted">
+                    <i class="bi bi-robot display-1"></i>
+                    <p class="mt-3">Select two versions and click Analyze to run the AI change detection.</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <small class="text-muted me-auto" id="aiChangesModelInfo"></small>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
 <script>
     let documentData = null;
@@ -586,7 +718,8 @@
                 ).join('');
                 
                 document.getElementById('viewerVersionSelect').innerHTML = versionOptions;
-                document.getElementById('compareVersionSelect').innerHTML = '<option value="">Select a version...</option>' + versionOptions;
+                const csvSel = document.getElementById('compareVersionSelect');
+                if (csvSel) csvSel.innerHTML = '<option value="">Select a version...</option>' + versionOptions;
                 
                 // Show version selection if multiple versions exist
                 const versionSelectionCard = document.getElementById('versionSelectionCard');
@@ -1182,17 +1315,17 @@
         document.getElementById('documentIframe').style.display = 'none';
         document.getElementById('documentTextViewer').style.display = 'none';
         document.getElementById('documentImageViewer').style.display = 'none';
-        
+
         const version = documentVersions.find(v => v.versionId == versionId) || documentVersions[0];
         if (version) {
             document.getElementById('viewerVersionLabel').textContent = `v${version.versionNumber}`;
             document.getElementById('viewerVersionInfo').textContent = `${version.changedBy || 'Client'} - ${formatDate(version.createdAt)}`;
             document.getElementById('btnDownloadFromViewer').href = `/api/DocumentApi/${docId}/download?versionId=${versionId}`;
         }
-        
+
         const extension = (documentData.fileExtension || '').toLowerCase();
         const viewUrl = `/api/DocumentApi/${docId}/view?versionId=${versionId}`;
-        
+
         try {
             if (['.pdf'].includes(extension)) {
                 document.getElementById('documentIframe').src = viewUrl;
@@ -1204,10 +1337,32 @@
                     document.getElementById('viewerLoading').style.display = 'none';
                     document.getElementById('documentImageViewer').style.display = 'block';
                 };
+            } else if (['.doc', '.docx', '.xls', '.xlsx', '.txt'].includes(extension)) {
+                // text/office: extract text server-side and render
+                const response = await fetch(`/api/DocumentApi/${docId}/text-content?versionId=${versionId}`);
+                const data = await response.json();
+
+                const el = document.getElementById('documentTextViewer');
+                el.style.fontFamily = "'Segoe UI', sans-serif";
+                el.style.lineHeight = '1.8';
+                el.style.background = '#fff';
+
+                if (data.success && data.content) {
+                    const escaped = data.content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                    el.innerHTML = escaped.split('\n')
+                        .map(l => l.trim())
+                        .filter(l => l.length > 0)
+                        .map(l => `<p class="mb-2">${l}</p>`)
+                        .join('');
+                } else {
+                    el.innerHTML = `<div class="text-center py-5"><i class="bi bi-file-earmark-x display-1 text-muted"></i><p class="mt-3">Content preview not available.</p><a href="/api/DocumentApi/${docId}/download?versionId=${versionId}" class="btn btn-primary mt-2"><i class="bi bi-download me-1"></i>Download</a></div>`;
+                }
+                document.getElementById('viewerLoading').style.display = 'none';
+                el.style.display = 'block';
             } else {
                 const response = await fetch(`/api/DocumentApi/${docId}/text-content?versionId=${versionId}`);
                 const data = await response.json();
-                
+
                 if (data.success && data.content) {
                     document.getElementById('documentTextViewer').textContent = data.content;
                     document.getElementById('viewerLoading').style.display = 'none';
@@ -1236,6 +1391,185 @@
             `;
             document.getElementById('viewerLoading').style.display = 'none';
             document.getElementById('documentTextViewer').style.display = 'block';
+        }
+    }
+
+    // ───────────────────────────────────────────────────────────────────────────
+    // REDLINE FUNCTIONS
+    // ───────────────────────────────────────────────────────────────────────────
+
+    function showRedlineModal() {
+        if (documentVersions.length < 2) {
+            alert('Redline requires at least 2 document versions.');
+            return;
+        }
+        // Populate selects
+        const opts = documentVersions.map(v =>
+            `<option value="${v.versionId}">v${v.versionNumber} – ${v.changedBy || 'Client'} (${formatDate(v.createdAt)})</option>`
+        ).join('');
+        document.getElementById('redlineFromVersion').innerHTML = opts;
+        document.getElementById('redlineToVersion').innerHTML   = opts;
+
+        // Pre-select oldest → newest
+        const oldest = documentVersions[documentVersions.length - 1];
+        const newest = documentVersions[0];
+        document.getElementById('redlineFromVersion').value = oldest.versionId;
+        document.getElementById('redlineToVersion').value   = newest.versionId;
+
+        // Reset display
+        document.getElementById('redlineContent').innerHTML = '<p class="text-muted text-center py-5">Click Compare to see the redline diff.</p>';
+        document.getElementById('redlineStats').classList.add('d-none');
+        new bootstrap.Modal(document.getElementById('redlineModal')).show();
+    }
+
+    async function loadRedlineDiff() {
+        const fromId = document.getElementById('redlineFromVersion').value;
+        const toId   = document.getElementById('redlineToVersion').value;
+        if (!fromId || !toId || fromId === toId) {
+            alert('Please select two different versions to compare.');
+            return;
+        }
+        const docId = documentData.id;
+        document.getElementById('redlineLoading').classList.remove('d-none');
+        document.getElementById('redlineContent').innerHTML = '';
+        document.getElementById('redlineStats').classList.add('d-none');
+
+        try {
+            const res  = await fetch(`/api/DocumentApi/${docId}/text-diff?fromVersionId=${fromId}&toVersionId=${toId}`);
+            const data = await res.json();
+
+            document.getElementById('redlineLoading').classList.add('d-none');
+
+            if (!data.success) {
+                document.getElementById('redlineContent').innerHTML = `<p class="text-danger text-center py-4">${data.message || 'Could not compute diff.'}</p>`;
+                return;
+            }
+
+            // Stats bar
+            const stats = document.getElementById('redlineStats');
+            stats.classList.remove('d-none');
+            document.getElementById('redlineStatsText').innerHTML =
+                `Comparing <strong>v${data.fromVersion.versionNumber}</strong> → <strong>v${data.toVersion.versionNumber}</strong> &nbsp;|&nbsp; ` +
+                `<span class="text-success">+${data.addedCount} lines added</span> &nbsp; ` +
+                `<span class="text-danger">-${data.removedCount} lines removed</span> &nbsp; ` +
+                `<span class="text-muted">${data.unchangedCount} unchanged</span>`;
+
+            // Build HTML
+            const html = data.diff.map(t => {
+                const txt = escapeHtml(t.text);
+                if (t.type === 'added')
+                    return `<div style="background:#d4edda; border-left:4px solid #28a745; padding:2px 8px; margin:1px 0;"><span class="badge bg-success me-1">+</span>${txt}</div>`;
+                if (t.type === 'removed')
+                    return `<div style="background:#f8d7da; border-left:4px solid #dc3545; padding:2px 8px; margin:1px 0;"><span class="badge bg-danger me-1">−</span><s>${txt}</s></div>`;
+                return `<div style="padding:2px 8px; margin:1px 0; color:#555;">${txt}</div>`;
+            }).join('');
+
+            document.getElementById('redlineContent').innerHTML = html || '<p class="text-muted text-center py-4">No differences found between these versions.</p>';
+        } catch (e) {
+            document.getElementById('redlineLoading').classList.add('d-none');
+            document.getElementById('redlineContent').innerHTML = `<p class="text-danger text-center py-4">Error loading diff: ${e.message}</p>`;
+        }
+    }
+
+    // ───────────────────────────────────────────────────────────────────────────
+    // AI CHANGE ANALYSIS FUNCTIONS
+    // ───────────────────────────────────────────────────────────────────────────
+
+    function showAIChangesModal() {
+        if (documentVersions.length < 2) {
+            alert('AI Change Analysis requires at least 2 document versions.');
+            return;
+        }
+        const opts = documentVersions.map(v =>
+            `<option value="${v.versionId}">v${v.versionNumber} – ${v.changedBy || 'Client'} (${formatDate(v.createdAt)})</option>`
+        ).join('');
+        document.getElementById('aiChangesFromVersion').innerHTML = opts;
+        document.getElementById('aiChangesToVersion').innerHTML   = opts;
+
+        const oldest = documentVersions[documentVersions.length - 1];
+        const newest = documentVersions[0];
+        document.getElementById('aiChangesFromVersion').value = oldest.versionId;
+        document.getElementById('aiChangesToVersion').value   = newest.versionId;
+
+        // Reset
+        document.getElementById('aiChangesResult').style.display    = 'none';
+        document.getElementById('aiChangesPlaceholder').style.display = 'block';
+        document.getElementById('aiChangesLoading').classList.add('d-none');
+
+        new bootstrap.Modal(document.getElementById('aiChangesModal')).show();
+    }
+
+    async function runAIChangeAnalysis() {
+        const fromId = document.getElementById('aiChangesFromVersion').value;
+        const toId   = document.getElementById('aiChangesToVersion').value;
+        if (!fromId || !toId || fromId === toId) {
+            alert('Please select two different versions to compare.');
+            return;
+        }
+        const docId = documentData.id;
+
+        document.getElementById('aiChangesPlaceholder').style.display = 'none';
+        document.getElementById('aiChangesResult').style.display       = 'none';
+        document.getElementById('aiChangesLoading').classList.remove('d-none');
+
+        try {
+            const res  = await fetch(`/api/DocumentApi/${docId}/ai-changes?fromVersionId=${fromId}&toVersionId=${toId}`, { method: 'POST' });
+            const body = await res.json();
+
+            document.getElementById('aiChangesLoading').classList.add('d-none');
+
+            if (!body.success) {
+                document.getElementById('aiChangesPlaceholder').innerHTML = `<p class="text-danger text-center mt-4">${body.message || 'Analysis failed.'}</p>`;
+                document.getElementById('aiChangesPlaceholder').style.display = 'block';
+                return;
+            }
+
+            const d = body.analysis?.data || {};
+
+            // Summary
+            document.getElementById('aiChangesSummary').textContent = d.summary || '(No summary)';
+            document.getElementById('aiChangesRiskReason').textContent = d.riskReason || '';
+
+            const riskBadge = document.getElementById('aiChangesRiskBadge');
+            const riskLevel = (d.riskLevel || 'low').toLowerCase();
+            riskBadge.className = 'badge ms-2 ' + (riskLevel === 'high' ? 'bg-danger' : riskLevel === 'medium' ? 'bg-warning text-dark' : 'bg-success');
+            riskBadge.textContent = riskLevel.charAt(0).toUpperCase() + riskLevel.slice(1) + ' Risk';
+
+            // Changes list
+            const changes = d.changes || [];
+            const container = document.getElementById('aiChangesListContainer');
+            if (changes.length === 0) {
+                container.innerHTML = '<p class="text-muted">No individual changes detected.</p>';
+            } else {
+                container.innerHTML = changes.map((c, i) => {
+                    const sig = (c.significance || 'low').toLowerCase();
+                    const sigClass = sig === 'high' ? 'danger' : sig === 'medium' ? 'warning' : 'secondary';
+                    const cat = c.category || 'Change';
+                    return `<div class="card mb-2 border-${sigClass}">
+                        <div class="card-header py-2 d-flex justify-content-between align-items-center bg-${sigClass}-subtle">
+                            <strong class="small">${i+1}. ${escapeHtml(cat)}</strong>
+                            <span class="badge bg-${sigClass}">${sig.charAt(0).toUpperCase()+sig.slice(1)} significance</span>
+                        </div>
+                        <div class="card-body py-2">
+                            <p class="small mb-2">${escapeHtml(c.description || '')}</p>
+                            ${c.originalSnippet ? `<div class="border rounded p-2 mb-1" style="background:#f8d7da; font-size:.8rem;"><strong>Before:</strong> ${escapeHtml(c.originalSnippet)}</div>` : ''}
+                            ${c.modifiedSnippet ? `<div class="border rounded p-2" style="background:#d4edda; font-size:.8rem;"><strong>After:</strong> ${escapeHtml(c.modifiedSnippet)}</div>` : ''}
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+
+            // Recommendation
+            document.getElementById('aiChangesRecommendation').textContent = d.recommendation || 'Review the detected changes carefully before approving.';
+
+            // Model info
+            document.getElementById('aiChangesModelInfo').textContent = body.analysis?.modelUsed ? `AI Model: ${body.analysis.modelUsed}` : '';
+
+            document.getElementById('aiChangesResult').style.display = 'block';
+        } catch (e) {
+            document.getElementById('aiChangesLoading').classList.add('d-none');
+            document.getElementById('aiChangesPlaceholder').innerHTML = `<p class="text-danger text-center mt-4">Error: ${e.message}</p>`;
+            document.getElementById('aiChangesPlaceholder').style.display = 'block';
         }
     }
 
@@ -1291,46 +1625,61 @@
         }
     }
 
-    function loadVersionIntoComparePanel(side, versionId) {
+    async function loadVersionIntoComparePanel(side, versionId) {
         const version = documentVersions.find(v => v.versionId == versionId);
         if (!version) return;
         
-        const labelEl = document.getElementById(`compare${capitalize(side)}Label`);
-        const infoEl = document.getElementById(`compare${capitalize(side)}Info`);
-        const viewerEl = document.getElementById(`compare${capitalize(side)}Viewer`);
-        const iframeEl = document.getElementById(`compare${capitalize(side)}Iframe`);
-        const imageContainerEl = document.getElementById(`compare${capitalize(side)}Image`);
-        const imgEl = document.getElementById(`compare${capitalize(side)}Img`);
+        const labelEl           = document.getElementById(`compare${capitalize(side)}Label`);
+        const infoEl            = document.getElementById(`compare${capitalize(side)}Info`);
+        const viewerEl          = document.getElementById(`compare${capitalize(side)}Viewer`);
+        const iframeEl          = document.getElementById(`compare${capitalize(side)}Iframe`);
+        const imageContainerEl  = document.getElementById(`compare${capitalize(side)}Image`);
+        const imgEl             = document.getElementById(`compare${capitalize(side)}Img`);
         
         labelEl.textContent = `Version ${version.versionNumber}`;
-        infoEl.textContent = `${version.changedBy || 'Client'} - ${version.changeDescription || 'Initial upload'}`;
+        infoEl.textContent  = `${version.changedBy || 'Client'} - ${version.changeDescription || 'Initial upload'}`;
         
-        const viewUrl = `/api/DocumentApi/${documentData.id}/view?versionId=${versionId}`;
+        const viewUrl   = `/api/DocumentApi/${documentData.id}/view?versionId=${versionId}`;
         const extension = (documentData.fileExtension || '').toLowerCase();
         
-        // Hide all viewers
-        viewerEl.style.display = 'none';
-        iframeEl.style.display = 'none';
+        // Hide all viewers first
+        viewerEl.style.display         = 'none';
+        iframeEl.style.display         = 'none';
         imageContainerEl.style.display = 'none';
         
         if (['.pdf'].includes(extension)) {
-            iframeEl.src = viewUrl;
+            iframeEl.src           = viewUrl;
             iframeEl.style.display = 'block';
         } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.tif', '.tiff'].includes(extension)) {
-            imgEl.src = viewUrl;
+            imgEl.src                      = viewUrl;
             imageContainerEl.style.display = 'block';
-        } else if (['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'].includes(extension)) {
-            // Office Documents - Use Google Docs Viewer
-            const fullUrl = window.location.origin + viewUrl;
-            const googleViewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(fullUrl)}&embedded=true`;
-            iframeEl.src = googleViewerUrl;
-            iframeEl.style.display = 'block';
-        } else if (['.txt', '.csv', '.json', '.xml', '.html', '.htm'].includes(extension)) {
-            // Text files - show in iframe
-            iframeEl.src = viewUrl;
-            iframeEl.style.display = 'block';
+        } else if (['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.csv', '.json', '.xml', '.html', '.htm'].includes(extension)) {
+            // Render text inline using server-side extraction (Google Docs Viewer cannot access localhost)
+            viewerEl.style.display = 'block';
+            viewerEl.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-primary spinner-border-sm"></div><p class="mt-2 small text-muted">Loading content...</p></div>';
+            try {
+                const r = await fetch(`/api/DocumentApi/${documentData.id}/text-content?versionId=${versionId}`);
+                const d = await r.json();
+                if (d.success && d.content) {
+                    const escaped = d.content
+                        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    viewerEl.innerHTML = '<div style="padding:12px;font-family:\'Segoe UI\',sans-serif;line-height:1.7;font-size:.9rem;">' +
+                        escaped.split('\n').map(l => l.trim()).filter(l => l)
+                               .map(l => `<p class="mb-2">${l}</p>`).join('') +
+                        '</div>';
+                } else {
+                    viewerEl.innerHTML = `<div class="text-center py-5">
+                        <i class="bi bi-file-earmark-x display-1 text-muted"></i>
+                        <p class="text-muted mt-3">Content preview not available</p>
+                        <a href="/api/DocumentApi/${documentData.id}/download?versionId=${versionId}" class="btn btn-outline-primary btn-sm mt-2">
+                            <i class="bi bi-download me-1"></i>Download
+                        </a></div>`;
+                }
+            } catch {
+                viewerEl.innerHTML = '<p class="text-danger text-center mt-4">Error loading preview.</p>';
+            }
         } else {
-            // Show fallback message in viewer div
+            // Unsupported file type fallback
             viewerEl.style.display = 'flex';
             viewerEl.innerHTML = `
                 <div class="text-center py-5">

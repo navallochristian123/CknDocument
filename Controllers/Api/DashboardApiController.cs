@@ -223,7 +223,7 @@ public class DashboardApiController : ControllerBase
                 originalFileName = d.OriginalFileName,
                 fileExtension = d.FileExtension,
                 documentType = d.DocumentType,
-                clientName = d.Uploader != null ? d.Uploader.FullName : "Unknown",
+                clientName = d.Uploader != null ? (d.Uploader.FirstName ?? "") + " " + (d.Uploader.LastName ?? "") : "Unknown",
                 folderId = d.FolderId,
                 folderName = d.Folder != null ? d.Folder.FolderName : null,
                 status = d.Status,
@@ -259,7 +259,7 @@ public class DashboardApiController : ControllerBase
                 documentId = r.DocumentId,
                 documentTitle = r.Document != null ? r.Document.Title : "Unknown",
                 originalFileName = r.Document != null ? r.Document.OriginalFileName : null,
-                clientName = r.Document != null && r.Document.Uploader != null ? r.Document.Uploader.FullName : "Unknown",
+                clientName = r.Document != null && r.Document.Uploader != null ? (r.Document.Uploader.FirstName ?? "") + " " + (r.Document.Uploader.LastName ?? "") : "Unknown",
                 reviewStatus = r.ReviewStatus,
                 reviewedAt = r.ReviewedAt,
                 remarks = r.Remarks
@@ -338,7 +338,7 @@ public class DashboardApiController : ControllerBase
                 originalFileName = d.OriginalFileName,
                 fileExtension = d.FileExtension,
                 documentType = d.DocumentType,
-                uploadedBy = d.Uploader != null ? d.Uploader.FullName : "Unknown",
+                uploadedBy = d.Uploader != null ? (d.Uploader.FirstName ?? "") + " " + (d.Uploader.LastName ?? "") : "Unknown",
                 folderId = d.FolderId,
                 folderName = d.Folder != null ? d.Folder.FolderName : null,
                 status = d.Status,
@@ -374,8 +374,8 @@ public class DashboardApiController : ControllerBase
                 documentId = r.DocumentId,
                 documentTitle = r.Document != null ? r.Document.Title : "Unknown",
                 originalFileName = r.Document != null ? r.Document.OriginalFileName : null,
-                clientName = r.Document != null && r.Document.Uploader != null ? r.Document.Uploader.FullName : "Unknown",
-                reviewerName = r.Reviewer != null ? r.Reviewer.FullName : "Unknown",
+                clientName = r.Document != null && r.Document.Uploader != null ? (r.Document.Uploader.FirstName ?? "") + " " + (r.Document.Uploader.LastName ?? "") : "Unknown",
+                reviewerName = r.Reviewer != null ? (r.Reviewer.FirstName ?? "") + " " + (r.Reviewer.LastName ?? "") : "Unknown",
                 reviewStatus = r.ReviewStatus,
                 reviewedAt = r.ReviewedAt,
                 remarks = r.Remarks
@@ -499,7 +499,7 @@ public class DashboardApiController : ControllerBase
                 documentType = d.DocumentType,
                 status = d.Status,
                 workflowStage = d.WorkflowStage,
-                clientName = d.Uploader != null ? d.Uploader.FullName : null,
+                clientName = d.Uploader != null ? (d.Uploader.FirstName ?? "") + " " + (d.Uploader.LastName ?? "") : null,
                 createdAt = d.CreatedAt,
                 assignedLawyerId = d.AssignedLawyerId,
                 isAssignedToMe = d.AssignedLawyerId == userId,
@@ -522,30 +522,53 @@ public class DashboardApiController : ControllerBase
     [Authorize(Policy = "LawyerOnly")]
     public async Task<IActionResult> GetLawyerCompletedReviews([FromQuery] int take = 20)
     {
+        try
+        {
         var userId = GetCurrentUserId();
         var firmId = GetFirmId();
 
-        var completed = await _context.DocumentReviews
+        // Project only DB columns (no computed C# properties like FullName) to avoid EF translation errors
+        var raw = await _context.DocumentReviews
             .Include(r => r.Document)
             .ThenInclude(d => d!.Uploader)
-            .Where(r => r.ReviewedBy == userId && 
+            .Where(r => r.ReviewedBy == userId &&
                        r.ReviewerRole == "Lawyer" &&
                        r.Document != null && r.Document.FirmID == firmId)
             .OrderByDescending(r => r.ReviewedAt)
             .Take(take)
             .Select(r => new
             {
-                documentId = r.DocumentId,
+                documentId    = r.DocumentId,
                 documentTitle = r.Document != null ? r.Document.Title : null,
                 originalFileName = r.Document != null ? r.Document.OriginalFileName : null,
-                clientName = r.Document != null && r.Document.Uploader != null ? r.Document.Uploader.FullName : null,
+                firstName  = r.Document != null && r.Document.Uploader != null ? r.Document.Uploader.FirstName : null,
+                middleName = r.Document != null && r.Document.Uploader != null ? r.Document.Uploader.MiddleName : null,
+                lastName   = r.Document != null && r.Document.Uploader != null ? r.Document.Uploader.LastName : null,
                 reviewStatus = r.ReviewStatus,
-                reviewedAt = r.ReviewedAt,
-                remarks = r.Remarks
+                reviewedAt   = r.ReviewedAt,
+                remarks      = r.Remarks
             })
             .ToListAsync();
 
+        // Build clientName in-memory (FullName is a computed C# property, not a DB column)
+        var completed = raw.Select(r => new
+        {
+            r.documentId,
+            r.documentTitle,
+            r.originalFileName,
+            clientName   = $"{r.firstName} {r.middleName} {r.lastName}".Replace("  ", " ").Trim(),
+            r.reviewStatus,
+            r.reviewedAt,
+            r.remarks
+        });
+
         return Ok(new { success = true, completed });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading lawyer completed reviews for user {UserId}", GetCurrentUserId());
+            return Ok(new { success = false, message = "Error loading completed reviews: " + ex.Message, completed = Array.Empty<object>() });
+        }
     }
 
     // ===========================================

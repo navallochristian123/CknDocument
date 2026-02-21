@@ -89,6 +89,14 @@
                 <div id="imageViewer" style="display:none; height: 75vh; justify-content:center; align-items:center; background:#f5f5f5;">
                     <img id="previewImage" src="" style="max-width:100%; max-height:100%; object-fit:contain;" />
                 </div>
+                <!-- Word / text document viewer -->
+                <div id="docxViewer" style="display:none; height: 75vh; overflow-y: auto;">
+                    <div class="text-center py-4" id="docxSpinner">
+                        <div class="spinner-border text-primary"></div>
+                        <p class="mt-2 text-muted">Rendering document...</p>
+                    </div>
+                    <div id="docxContent" class="p-4" style="display:none; font-family: 'Segoe UI', sans-serif; line-height: 1.7;"></div>
+                </div>
                 <div id="unsupportedViewer" style="display:none; height: 50vh; justify-content:center; align-items:center; flex-direction:column;">
                     <i class="bi bi-file-earmark display-1 text-muted"></i>
                     <p class="mt-3 text-muted" id="unsupportedFileName"></p>
@@ -221,29 +229,62 @@
         const modal = new bootstrap.Modal(document.getElementById('previewModal'));
         const pdfViewer = document.getElementById('pdfViewer');
         const imageViewer = document.getElementById('imageViewer');
+        const docxViewer = document.getElementById('docxViewer');
         const unsupportedViewer = document.getElementById('unsupportedViewer');
-        
+
         document.getElementById('previewModalTitle').innerHTML = `<i class="bi bi-file-earmark me-2"></i>${escapeHtml(fileName)}`;
-        
+
         pdfViewer.style.display = 'none';
         imageViewer.style.display = 'none';
+        docxViewer.style.display = 'none';
         unsupportedViewer.style.display = 'none';
-        
+
         const ext = (fileExt || '').toLowerCase();
-        
+
         if (ext === '.pdf') {
             pdfViewer.style.display = 'block';
             document.getElementById('previewFrame').src = `/api/DocumentApi/${docId}/view#toolbar=0&navpanes=0`;
         } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
             imageViewer.style.display = 'flex';
             document.getElementById('previewImage').src = `/api/DocumentApi/${docId}/view`;
+        } else if (['.doc', '.docx', '.xls', '.xlsx', '.txt'].includes(ext)) {
+            docxViewer.style.display = 'block';
+            document.getElementById('docxSpinner').style.display = 'block';
+            document.getElementById('docxContent').style.display = 'none';
+            fetch(`/api/DocumentApi/${docId}/text-content`)
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('docxSpinner').style.display = 'none';
+                    const content = document.getElementById('docxContent');
+                    content.style.display = 'block';
+                    if (data.success && data.content) {
+                        content.innerHTML = formatDocumentText(data.content);
+                    } else {
+                        content.innerHTML = `<div class="text-center py-5"><i class="bi bi-file-earmark-x display-1 text-muted"></i><p class="text-muted mt-3">Content preview not available.</p><a href="/api/DocumentApi/${docId}/download" class="btn btn-primary mt-2"><i class="bi bi-download me-1"></i>Download</a></div>`;
+                    }
+                })
+                .catch(() => {
+                    document.getElementById('docxSpinner').style.display = 'none';
+                    const content = document.getElementById('docxContent');
+                    content.innerHTML = '<p class="text-center text-danger mt-3">Error loading document content.</p>';
+                    content.style.display = 'block';
+                });
         } else {
             unsupportedViewer.style.display = 'flex';
             document.getElementById('unsupportedFileName').textContent = fileName;
             document.getElementById('downloadLink').href = `/api/DocumentApi/${docId}/download`;
         }
-        
+
         modal.show();
+    }
+
+    function formatDocumentText(text) {
+        const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return escaped.split('\n')
+            .map(l => l.trim())
+            .filter(l => l.length > 0)
+            .map(l => `<p class="mb-2">${l}</p>`)
+            .join('');
     }
     
     function getFileIcon(ext) {

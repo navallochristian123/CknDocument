@@ -19,7 +19,7 @@
         <div class="card bg-success text-white">
             <div class="card-body text-center">
                 <h3 class="mb-0" id="approvedCount">0</h3>
-                <small>Approved</small>
+                <small>Forwarded to Admin</small>
             </div>
         </div>
     </div>
@@ -61,7 +61,7 @@
                 <label class="form-label">Status</label>
                 <select id="filterStatus" class="form-select" onchange="filterResults()">
                     <option value="">All</option>
-                    <option value="Approved">Approved</option>
+                    <option value="Approved">Forwarded to Admin</option>
                     <option value="Rejected">Rejected</option>
                 </select>
             </div>
@@ -84,7 +84,7 @@
 
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <strong><i class="bi bi-check2-circle me-2"></i>Completed Reviews</strong>
+        <strong><i class="bi bi-check2-circle me-2"></i>Review History</strong>
         <span class="badge bg-primary" id="resultCount">0</span>
     </div>
     <div class="card-body p-0">
@@ -104,6 +104,35 @@
                     <tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></td></tr>
                 </tbody>
             </table>
+        </div>
+    </div>
+</div>
+
+<!-- Document Preview Modal -->
+<div class="modal fade" id="completedPreviewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-eye me-2"></i><span id="completedPreviewTitle">Document Preview</span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0" style="height:78vh; overflow:auto;">
+                <div class="text-center py-5" id="completedPreviewLoading">
+                    <div class="spinner-border text-primary"></div>
+                    <p class="mt-2">Loading preview...</p>
+                </div>
+                <iframe id="completedPreviewIframe" class="w-100 h-100 border-0" style="display:none;"></iframe>
+                <div id="completedPreviewImageWrap" class="text-center p-4" style="display:none;">
+                    <img id="completedPreviewImg" style="max-width:100%; max-height:72vh;" />
+                </div>
+                <div id="completedPreviewText" class="p-4" style="display:none; font-family:'Segoe UI',sans-serif; line-height:1.7; overflow-y:auto;"></div>
+            </div>
+            <div class="modal-footer">
+                <a href="#" id="completedPreviewDownloadBtn" class="btn btn-outline-secondary">
+                    <i class="bi bi-download"></i> Download
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
         </div>
     </div>
 </div>
@@ -129,7 +158,7 @@
             }
         } catch (e) {
             console.error('Error:', e);
-            document.getElementById('completedTable').innerHTML = 
+            document.getElementById('completedTable').innerHTML =
                 '<tr><td colspan="6" class="text-center text-danger py-4">Error loading completed reviews. Please refresh.</td></tr>';
         }
     }
@@ -140,7 +169,7 @@
         document.getElementById('approvedCount').textContent = approved;
         document.getElementById('rejectedCount').textContent = rejected;
         document.getElementById('totalCount').textContent = allCompleted.length;
-        document.getElementById('pageSubtitle').textContent = `Documents you have reviewed - ${allCompleted.length} record(s)`;
+        document.getElementById('pageSubtitle').textContent = `Documents you have reviewed – ${allCompleted.length} record(s)`;
         if (allCompleted.length > 0 && allCompleted[0].reviewedAt) {
             document.getElementById('latestDate').textContent = new Date(allCompleted[0].reviewedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         }
@@ -149,10 +178,10 @@
     function filterResults() {
         const search = document.getElementById('searchTerm').value.toLowerCase();
         const status = document.getElementById('filterStatus').value;
-        
+
         let filtered = allCompleted;
         if (search) {
-            filtered = filtered.filter(c => 
+            filtered = filtered.filter(c =>
                 (c.documentTitle || '').toLowerCase().includes(search) ||
                 (c.clientName || '').toLowerCase().includes(search) ||
                 (c.originalFileName || '').toLowerCase().includes(search)
@@ -161,7 +190,7 @@
         if (status) {
             filtered = filtered.filter(c => c.reviewStatus === status);
         }
-        
+
         document.getElementById('resultCount').textContent = filtered.length;
         renderTable(filtered);
     }
@@ -175,8 +204,10 @@
             return;
         }
         tbody.innerHTML = items.map(c => {
-            const badgeClass = c.reviewStatus === 'Approved' ? 'bg-success' : 'bg-danger';
-            const icon = c.reviewStatus === 'Approved' ? 'bi-check-circle' : 'bi-x-circle';
+            const isApproved = c.reviewStatus === 'Approved';
+            const badgeClass = isApproved ? 'bg-success' : 'bg-danger';
+            const icon       = isApproved ? 'bi-check-circle' : 'bi-x-circle';
+            const statusLabel = isApproved ? 'Forwarded to Admin' : 'Rejected';
             return `<tr>
                 <td>
                     <div class="d-flex align-items-center">
@@ -189,15 +220,66 @@
                 </td>
                 <td>${escapeHtml(c.clientName || '-')}</td>
                 <td><small>${formatDate(c.reviewedAt)}</small></td>
-                <td><span class="badge ${badgeClass}"><i class="bi ${icon} me-1"></i>${c.reviewStatus}</span></td>
-                <td class="text-truncate" style="max-width: 200px;" title="${escapeHtml(c.remarks || '')}">${escapeHtml(c.remarks || '-')}</td>
+                <td><span class="badge ${badgeClass}"><i class="bi ${icon} me-1"></i>${statusLabel}</span></td>
+                <td class="text-truncate" style="max-width:200px;" title="${escapeHtml(c.remarks || '')}">${escapeHtml(c.remarks || '-')}</td>
                 <td>
-                    <a href="/Document/Details/${c.documentId}" class="btn btn-sm btn-outline-primary" title="View Document">
+                    <button class="btn btn-sm btn-outline-primary me-1" title="Preview Document"
+                        onclick="previewCompletedDoc(${c.documentId}, '${escapeHtml(c.documentTitle || c.originalFileName || 'Document')}')">
                         <i class="bi bi-eye"></i>
-                    </a>
+                    </button>
                 </td>
             </tr>`;
         }).join('');
+    }
+
+    async function previewCompletedDoc(docId, title) {
+        document.getElementById('completedPreviewTitle').textContent = title;
+        document.getElementById('completedPreviewLoading').style.display = 'block';
+        document.getElementById('completedPreviewIframe').style.display = 'none';
+        document.getElementById('completedPreviewImageWrap').style.display = 'none';
+        document.getElementById('completedPreviewText').style.display = 'none';
+        document.getElementById('completedPreviewDownloadBtn').href = `/api/DocumentApi/${docId}/download`;
+
+        const modal = new bootstrap.Modal(document.getElementById('completedPreviewModal'));
+        modal.show();
+
+        try {
+            const res  = await fetch(`/api/DocumentApi/${docId}`);
+            const data = await res.json();
+            const ext  = (data.document?.fileExtension || '').toLowerCase();
+
+            if (ext === '.pdf') {
+                const iframe = document.getElementById('completedPreviewIframe');
+                iframe.src = `/api/DocumentApi/${docId}/view`;
+                iframe.onload = () => {
+                    document.getElementById('completedPreviewLoading').style.display = 'none';
+                    iframe.style.display = 'block';
+                };
+            } else if (['.jpg','.jpeg','.png','.gif','.webp'].includes(ext)) {
+                const img = document.getElementById('completedPreviewImg');
+                img.src = `/api/DocumentApi/${docId}/view`;
+                img.onload = () => {
+                    document.getElementById('completedPreviewLoading').style.display = 'none';
+                    document.getElementById('completedPreviewImageWrap').style.display = 'block';
+                };
+            } else {
+                const r2   = await fetch(`/api/DocumentApi/${docId}/text-content`);
+                const d2   = await r2.json();
+                const el   = document.getElementById('completedPreviewText');
+                document.getElementById('completedPreviewLoading').style.display = 'none';
+                el.style.display = 'block';
+                if (d2.success && d2.content) {
+                    const escaped = d2.content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                    el.innerHTML = escaped.split('\n').map(l => l.trim()).filter(l=>l).map(l=>`<p class="mb-2">${l}</p>`).join('');
+                } else {
+                    el.innerHTML = `<div class="text-center py-5"><i class="bi bi-file-earmark-x display-1 text-muted"></i><p class="text-muted mt-3">Preview not available.</p><a href="/api/DocumentApi/${docId}/download" class="btn btn-primary mt-2"><i class="bi bi-download me-1"></i>Download</a></div>`;
+                }
+            }
+        } catch {
+            document.getElementById('completedPreviewLoading').style.display = 'none';
+            document.getElementById('completedPreviewText').innerHTML = '<p class="text-danger text-center mt-4">Error loading document preview.</p>';
+            document.getElementById('completedPreviewText').style.display = 'block';
+        }
     }
 
     function formatDate(dateStr) {

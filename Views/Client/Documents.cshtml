@@ -210,9 +210,45 @@
                 <button type="button" class="btn btn-outline-danger" id="archiveBtn" onclick="archiveDocument()">
                     <i class="bi bi-archive"></i> Archive
                 </button>
+                <button type="button" class="btn btn-outline-info" id="previewDocBtn" onclick="openClientPreview()">
+                    <i class="bi bi-eye"></i> Preview
+                </button>
                 <a href="#" id="downloadBtn" class="btn btn-primary">
                     <i class="bi bi-download"></i> Download
                 </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Inline Document Preview Modal (Client) -->
+<div class="modal fade" id="clientPreviewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-eye me-2"></i>Document Preview - <span id="clientPreviewTitle"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0" style="height: 78vh; overflow: auto;">
+                <!-- Loading -->
+                <div class="text-center py-5" id="clientPreviewLoading">
+                    <div class="spinner-border text-primary"></div>
+                    <p class="mt-2">Loading preview...</p>
+                </div>
+                <!-- PDF -->
+                <iframe id="clientPreviewIframe" class="w-100 h-100 border-0" style="display:none;"></iframe>
+                <!-- Image -->
+                <div id="clientPreviewImageWrap" class="text-center p-4" style="display:none;">
+                    <img id="clientPreviewImg" style="max-width:100%; max-height:72vh;" />
+                </div>
+                <!-- Text / docx -->
+                <div id="clientPreviewText" class="p-4" style="display:none; font-family:'Segoe UI',sans-serif; line-height:1.7; overflow-y:auto;"></div>
+            </div>
+            <div class="modal-footer">
+                <a href="#" id="clientPreviewDownloadBtn" class="btn btn-outline-secondary">
+                    <i class="bi bi-download"></i> Download
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -249,6 +285,7 @@
     let allDocuments = [];
     let currentFilter = 'all';
     let currentDocumentId = null;
+    let currentDocExtension = '';
     
     const statusBadges = {
         'Pending': '<span class="badge bg-warning">Pending Review</span>',
@@ -397,6 +434,9 @@
                 document.getElementById('docWorkflowStage').textContent = formatWorkflowStage(doc.workflowStage);
                 document.getElementById('docDescription').textContent = doc.description || 'No description';
                 document.getElementById('downloadBtn').href = `/api/DocumentApi/${id}/download`;
+                currentDocExtension = doc.fileExtension || '';
+                document.getElementById('clientPreviewTitle').textContent = doc.title;
+                document.getElementById('clientPreviewDownloadBtn').href = `/api/DocumentApi/${id}/download`;
                 
                 // Show remarks if present (for both approved and rejected documents)
                 const remarksSection = document.getElementById('remarksSection');
@@ -427,6 +467,65 @@
         }
     }
     
+    function openClientPreview() {
+        // Reset all panels
+        document.getElementById('clientPreviewLoading').style.display = 'block';
+        document.getElementById('clientPreviewIframe').style.display = 'none';
+        document.getElementById('clientPreviewImageWrap').style.display = 'none';
+        document.getElementById('clientPreviewText').style.display = 'none';
+
+        // Show the preview modal
+        const previewModal = new bootstrap.Modal(document.getElementById('clientPreviewModal'));
+
+        // Close detail modal first
+        const detailModal = bootstrap.Modal.getInstance(document.getElementById('documentModal'));
+        if (detailModal) detailModal.hide();
+
+        previewModal.show();
+
+        const ext = (currentDocExtension || '').toLowerCase();
+        const id = currentDocumentId;
+
+        if (ext === '.pdf') {
+            const iframe = document.getElementById('clientPreviewIframe');
+            iframe.src = `/api/DocumentApi/${id}/view#toolbar=0&navpanes=0`;
+            iframe.onload = () => {
+                document.getElementById('clientPreviewLoading').style.display = 'none';
+                iframe.style.display = 'block';
+            };
+        } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
+            const img = document.getElementById('clientPreviewImg');
+            img.src = `/api/DocumentApi/${id}/view`;
+            img.onload = () => {
+                document.getElementById('clientPreviewLoading').style.display = 'none';
+                document.getElementById('clientPreviewImageWrap').style.display = 'block';
+            };
+        } else if (['.doc', '.docx', '.xls', '.xlsx', '.txt'].includes(ext)) {
+            fetch(`/api/DocumentApi/${id}/text-content`)
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('clientPreviewLoading').style.display = 'none';
+                    const el = document.getElementById('clientPreviewText');
+                    el.style.display = 'block';
+                    if (data.success && data.content) {
+                        const escaped = data.content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                        el.innerHTML = escaped.split('\n').map(l => l.trim()).filter(l => l.length > 0).map(l => `<p class="mb-2">${l}</p>`).join('');
+                    } else {
+                        el.innerHTML = `<div class="text-center py-5"><i class="bi bi-file-earmark-x display-1 text-muted"></i><p class="text-muted mt-3">Content preview not available.</p><a href="/api/DocumentApi/${id}/download" class="btn btn-primary mt-2"><i class="bi bi-download me-1"></i>Download</a></div>`;
+                    }
+                })
+                .catch(() => {
+                    document.getElementById('clientPreviewLoading').style.display = 'none';
+                    document.getElementById('clientPreviewText').innerHTML = '<p class="text-center text-danger mt-3">Error loading document content.</p>';
+                    document.getElementById('clientPreviewText').style.display = 'block';
+                });
+        } else {
+            document.getElementById('clientPreviewLoading').style.display = 'none';
+            document.getElementById('clientPreviewText').innerHTML = `<div class="text-center py-5"><i class="bi bi-file-earmark-x display-1 text-muted"></i><p class="text-muted mt-3">Preview not available for this file type.</p><a href="/api/DocumentApi/${id}/download" class="btn btn-primary mt-2"><i class="bi bi-download me-1"></i>Download</a></div>`;
+            document.getElementById('clientPreviewText').style.display = 'block';
+        }
+    }
+
     function renderVersionHistory(versions) {
         const container = document.getElementById('versionHistory');
         

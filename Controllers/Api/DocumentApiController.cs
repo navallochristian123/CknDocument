@@ -399,10 +399,11 @@ public class DocumentApiController : ControllerBase
         if (version == null || string.IsNullOrEmpty(version.FilePath))
             return NotFound(new { success = false, message = "File not found" });
 
-        if (!System.IO.File.Exists(version.FilePath))
+        var resolvedDownloadPath = ResolveVersionFilePath(version.FilePath);
+        if (resolvedDownloadPath == null)
             return NotFound(new { success = false, message = "File not found on server" });
 
-        var fileBytes = await System.IO.File.ReadAllBytesAsync(version.FilePath);
+        var fileBytes = await System.IO.File.ReadAllBytesAsync(resolvedDownloadPath);
         var contentType = version.MimeType ?? "application/octet-stream";
         var fileName = version.OriginalFileName ?? $"document{version.FileExtension}";
 
@@ -542,7 +543,7 @@ public class DocumentApiController : ControllerBase
                 totalFileSize = d.TotalFileSize,
                 folderId = d.FolderId,
                 folderName = d.Folder != null ? d.Folder.FolderName : null,
-                uploaderName = d.Uploader != null ? d.Uploader.FullName : null,
+                uploaderName = d.Uploader != null ? (d.Uploader.FirstName ?? "") + " " + (d.Uploader.LastName ?? "") : null,
                 createdAt = d.CreatedAt
             })
             .ToListAsync();
@@ -753,7 +754,7 @@ public class DocumentApiController : ControllerBase
                 fileSize = v.FileSize,
                 changeDescription = v.ChangeDescription,
                 changedBy = v.ChangedBy,
-                uploader = v.Uploader != null ? v.Uploader.FullName : null,
+                uploader = v.Uploader != null ? (v.Uploader.FirstName ?? "") + " " + (v.Uploader.LastName ?? "") : null,
                 isCurrentVersion = v.IsCurrentVersion,
                 createdAt = v.CreatedAt
             })
@@ -874,6 +875,8 @@ public class DocumentApiController : ControllerBase
     [Authorize(Policy = "FirmMember")]
     public async Task<IActionResult> GetAIAnalysis(int id)
     {
+        try
+        {
         var firmId = GetFirmId();
 
         var document = await _context.Documents
@@ -946,6 +949,12 @@ public class DocumentApiController : ControllerBase
             duplicateInfo = analysis.IsDuplicate ? $"Possible duplicate of document #{analysis.DuplicateOfDocumentId}" : null,
             keywords = analysis.Keywords
         });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading AI analysis for document {DocumentId}", id);
+            return Ok(new { success = false, message = "AI analysis unavailable", analysis = new { summary = "AI analysis could not be loaded.", isProcessed = false } });
+        }
     }
 
     /// <summary>
@@ -981,7 +990,7 @@ public class DocumentApiController : ControllerBase
                     action = a.Action,
                     description = a.Description,
                     timestamp = a.Timestamp,
-                    userName = a.User != null ? a.User.FullName : "System",
+                    userName = a.User != null ? (a.User.FirstName ?? "") + " " + (a.User.LastName ?? "") : "System",
                     actionCategory = a.ActionCategory
                 })
                 .ToListAsync();
@@ -1032,11 +1041,12 @@ public class DocumentApiController : ControllerBase
             if (version == null || string.IsNullOrEmpty(version.FilePath))
                 return NotFound(new { success = false, message = "File not found" });
 
-            if (!System.IO.File.Exists(version.FilePath))
-                return NotFound(new { success = false, message = "File not found on server" });
+            var resolvedPath = ResolveVersionFilePath(version.FilePath);
+            if (resolvedPath == null)
+                return Ok(new { success = false, message = "File not found on server. It may have been moved or deleted." });
 
             // Extract text content
-            var textContent = await _aiService.ExtractTextFromFileAsync(version.FilePath, version.OriginalFileName ?? "document");
+            var textContent = await _aiService.ExtractTextFromFileAsync(resolvedPath, version.OriginalFileName ?? "document");
 
             return Ok(new { 
                 success = true, 
@@ -1087,10 +1097,11 @@ public class DocumentApiController : ControllerBase
         if (version == null || string.IsNullOrEmpty(version.FilePath))
             return NotFound();
 
-        if (!System.IO.File.Exists(version.FilePath))
+        var resolvedViewPath = ResolveVersionFilePath(version.FilePath);
+        if (resolvedViewPath == null)
             return NotFound();
 
-        var fileBytes = await System.IO.File.ReadAllBytesAsync(version.FilePath);
+        var fileBytes = await System.IO.File.ReadAllBytesAsync(resolvedViewPath);
         var contentType = version.MimeType ?? "application/octet-stream";
 
         // Set headers for inline viewing
@@ -1178,6 +1189,233 @@ public class DocumentApiController : ControllerBase
             return StatusCode(500, new { success = false, message = "An error occurred during signature verification" });
         }
     }
+
+    /// <summary>
+    /// Get line-level text diff between two document versions (for redline view)
+    /// </summary>
+    [HttpGet("{id}/text-diff")]
+    public async Task<IActionResult> GetTextDiff(int id, [FromQuery] int? fromVersionId = null, [FromQuery] int? toVersionId = null)
+    {
+        try
+        {
+            var firmId = GetFirmId();
+            var role = GetUserRole();
+
+            var document = await _context.Documents
+                .Include(d => d.Versions)
+                .FirstOrDefaultAsync(d => d.DocumentID == id && d.FirmID == firmId);
+
+            if (document == null)
+                return NotFound(new { success = false, message = "Document not found" });
+
+            var versions = document.Versions.OrderBy(v => v.VersionNumber).ToList();
+            if (versions.Count < 2)
+                return Ok(new { success = false, message = "Need at least 2 versions to compare" });
+
+            DocumentVersion? fromVer = fromVersionId.HasValue
+                ? versions.FirstOrDefault(v => v.VersionId == fromVersionId)
+                : versions.FirstOrDefault();
+
+            DocumentVersion? toVer = toVersionId.HasValue
+                ? versions.FirstOrDefault(v => v.VersionId == toVersionId)
+                : versions.LastOrDefault();
+
+            if (fromVer == null || toVer == null)
+                return BadRequest(new { success = false, message = "Invalid version IDs" });
+
+            var fromPath = ResolveVersionFilePath(fromVer.FilePath);
+            var toPath   = ResolveVersionFilePath(toVer.FilePath);
+            if (fromPath == null || toPath == null)
+                return BadRequest(new { success = false, message = "Version file(s) not found on server. The original files may have been moved or deleted." });
+
+            var fromText = await _aiService.ExtractTextFromFileAsync(fromPath, fromVer.OriginalFileName ?? "doc");
+            var toText   = await _aiService.ExtractTextFromFileAsync(toPath,   toVer.OriginalFileName   ?? "doc");
+
+            var diffTokens = ComputeLineDiff(fromText, toText);
+
+            return Ok(new
+            {
+                success = true,
+                fromVersion = new { fromVer.VersionId, fromVer.VersionNumber, fromVer.ChangedBy, fromVer.CreatedAt, fromVer.ChangeDescription },
+                toVersion   = new { toVer.VersionId,   toVer.VersionNumber,   toVer.ChangedBy,   toVer.CreatedAt,   toVer.ChangeDescription   },
+                diff = diffTokens,
+                addedCount   = diffTokens.Count(t => t.Type == "added"),
+                removedCount = diffTokens.Count(t => t.Type == "removed"),
+                unchangedCount = diffTokens.Count(t => t.Type == "unchanged")
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error computing text diff for document {DocumentId}", id);
+            return StatusCode(500, new { success = false, message = "Error computing diff" });
+        }
+    }
+
+    /// <summary>
+    /// AI-powered change analysis between two document versions
+    /// </summary>
+    [HttpPost("{id}/ai-changes")]
+    public async Task<IActionResult> GetAIChanges(int id, [FromQuery] int? fromVersionId = null, [FromQuery] int? toVersionId = null)
+    {
+        try
+        {
+            var firmId = GetFirmId();
+
+            var document = await _context.Documents
+                .Include(d => d.Versions)
+                .FirstOrDefaultAsync(d => d.DocumentID == id && d.FirmID == firmId);
+
+            if (document == null)
+                return NotFound(new { success = false, message = "Document not found" });
+
+            var versions = document.Versions.OrderBy(v => v.VersionNumber).ToList();
+            if (versions.Count < 2)
+                return Ok(new { success = false, message = "Need at least 2 versions to compare" });
+
+            DocumentVersion? fromVer = fromVersionId.HasValue
+                ? versions.FirstOrDefault(v => v.VersionId == fromVersionId)
+                : versions.FirstOrDefault();
+
+            DocumentVersion? toVer = toVersionId.HasValue
+                ? versions.FirstOrDefault(v => v.VersionId == toVersionId)
+                : versions.LastOrDefault();
+
+            if (fromVer == null || toVer == null)
+                return BadRequest(new { success = false, message = "Invalid version IDs" });
+
+            var fromPath = ResolveVersionFilePath(fromVer.FilePath);
+            var toPath   = ResolveVersionFilePath(toVer.FilePath);
+            if (fromPath == null || toPath == null)
+                return BadRequest(new { success = false, message = "Version file(s) not found on server. The original files may have been moved or deleted." });
+
+            var fromText = await _aiService.ExtractTextFromFileAsync(fromPath, fromVer.OriginalFileName ?? "doc");
+            var toText   = await _aiService.ExtractTextFromFileAsync(toPath,   toVer.OriginalFileName   ?? "doc");
+
+            var analysis = await _aiService.AnalyzeDocumentChangesAsync(
+                fromText, toText,
+                document.Title ?? document.OriginalFileName ?? "Document",
+                fromVer.VersionNumber, toVer.VersionNumber);
+
+            await _auditLogService.LogAsync(
+                "AIChangeAnalysis", "Document", id,
+                $"AI change analysis run between v{fromVer.VersionNumber} and v{toVer.VersionNumber}",
+                null, null, "DocumentReview");
+
+            return Ok(new
+            {
+                success = true,
+                fromVersion = new { fromVer.VersionId, fromVer.VersionNumber, fromVer.ChangedBy },
+                toVersion   = new { toVer.VersionId,   toVer.VersionNumber,   toVer.ChangedBy   },
+                analysis
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error running AI change analysis for document {DocumentId}", id);
+            return StatusCode(500, new { success = false, message = "Error running AI analysis" });
+        }
+    }
+
+    // ─── File path resolver ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Resolves a stored FilePath to an absolute path that currently exists on disk.
+    /// Handles cases where content root has changed (e.g. deployment moved).
+    /// Returns null if file cannot be located.
+    /// </summary>
+    private string? ResolveVersionFilePath(string? storedPath)
+    {
+        if (string.IsNullOrWhiteSpace(storedPath)) return null;
+
+        // 1) Stored path exists as-is (happy path — most uploads)
+        if (System.IO.File.Exists(storedPath)) return storedPath;
+
+        // 2) Remap by extracting the "Uploads/..." segment and rebuilding from the current content root.
+        //    Handles cases where the app was previously run from bin\Debug\net8.0 (contentRoot differs).
+        var normalised = storedPath.Replace('\\', '/');
+        var uploadsIdx = normalised.IndexOf("/Uploads/", StringComparison.OrdinalIgnoreCase);
+        if (uploadsIdx >= 0)
+        {
+            var relativePart = normalised.Substring(uploadsIdx + 1); // "Uploads/firmId/userId/guid.ext"
+            var candidate = Path.Combine(_environment.ContentRootPath, relativePart);
+            if (System.IO.File.Exists(candidate)) return candidate;
+        }
+
+        // 3) Last resort: the stored filename is a GUID so it is globally unique.
+        //    Search the entire Uploads tree for it (covers any root mismatch).
+        var fileName = Path.GetFileName(storedPath);
+        if (!string.IsNullOrEmpty(fileName))
+        {
+            var uploadsRoot = Path.Combine(_environment.ContentRootPath, "Uploads");
+            if (Directory.Exists(uploadsRoot))
+            {
+                var found = Directory.GetFiles(uploadsRoot, fileName, SearchOption.AllDirectories)
+                                     .FirstOrDefault();
+                if (found != null) return found;
+            }
+        }
+
+        return null;
+    }
+
+    // ─── Diff helper ────────────────────────────────────────────────────────────
+
+    private record DiffToken(string Text, string Type);
+
+    private static List<DiffToken> ComputeLineDiff(string oldText, string newText)
+    {
+        // Split into non-empty lines (paragraphs)
+        var oldLines = SplitLines(oldText);
+        var newLines = SplitLines(newText);
+
+        // Cap to prevent O(n²) slow-down
+        const int MaxLines = 400;
+        if (oldLines.Count > MaxLines) oldLines = oldLines.Take(MaxLines).ToList();
+        if (newLines.Count > MaxLines) newLines = newLines.Take(MaxLines).ToList();
+
+        int m = oldLines.Count, n = newLines.Count;
+
+        // Build LCS table
+        var dp = new int[m + 1, n + 1];
+        for (int i = m - 1; i >= 0; i--)
+            for (int j = n - 1; j >= 0; j--)
+                dp[i, j] = oldLines[i] == newLines[j]
+                    ? dp[i + 1, j + 1] + 1
+                    : Math.Max(dp[i + 1, j], dp[i, j + 1]);
+
+        // Walk back through LCS table to produce diff tokens
+        var result = new List<DiffToken>();
+        int oi = 0, ni = 0;
+        while (oi < m || ni < n)
+        {
+            if (oi < m && ni < n && oldLines[oi] == newLines[ni])
+            {
+                result.Add(new DiffToken(oldLines[oi], "unchanged"));
+                oi++; ni++;
+            }
+            else if (ni < n && (oi >= m || dp[oi, ni + 1] >= dp[oi + 1, ni]))
+            {
+                result.Add(new DiffToken(newLines[ni], "added"));
+                ni++;
+            }
+            else
+            {
+                result.Add(new DiffToken(oldLines[oi], "removed"));
+                oi++;
+            }
+        }
+        return result;
+    }
+
+    private static List<string> SplitLines(string text)
+    {
+        return text.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries)
+                   .Select(l => l.Trim())
+                   .Where(l => l.Length > 0)
+                   .ToList();
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
 
     /// <summary>
     /// Get client's signature info for comparison/display

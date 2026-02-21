@@ -100,21 +100,21 @@ public class ArchiveApiController : ControllerBase
                     originalFileName = a.Document != null ? a.Document.OriginalFileName : null,
                     fileExtension = a.Document != null ? a.Document.FileExtension : null,
                     fileSize = a.Document != null ? a.Document.TotalFileSize : 0,
-                    clientName = a.Document != null && a.Document.Uploader != null ? a.Document.Uploader.FullName : null,
+                    clientName = a.Document != null && a.Document.Uploader != null ? (a.Document.Uploader.FirstName ?? "") + " " + (a.Document.Uploader.LastName ?? "") : null,
                     clientEmail = a.Document != null && a.Document.Uploader != null ? a.Document.Uploader.Email : null,
                     originalFolderName = a.Document != null && a.Document.Folder != null ? a.Document.Folder.FolderName : null,
                     uploadedAt = a.Document != null ? a.Document.CreatedAt : null,
                     archiveType = a.ArchiveType,
                     archiveReason = a.Reason,
                     archivedAt = a.ArchivedDate,
-                    archivedByName = a.ArchivedByUser != null ? a.ArchivedByUser.FullName : null,
+                    archivedByName = a.ArchivedByUser != null ? (a.ArchivedByUser.FirstName ?? "") + " " + (a.ArchivedByUser.LastName ?? "") : null,
                     originalRetentionDate = a.OriginalRetentionDate,
                     scheduledDeleteDate = a.ScheduledDeleteDate,
                     versionNumber = a.VersionNumber,
                     originalStatus = a.OriginalStatus,
                     isRestored = a.IsRestored,
                     restoredAt = a.RestoredAt,
-                    restoredByName = a.RestoredByUser != null ? a.RestoredByUser.FullName : null
+                    restoredByName = a.RestoredByUser != null ? (a.RestoredByUser.FirstName ?? "") + " " + (a.RestoredByUser.LastName ?? "") : null
                 })
                 .ToListAsync();
 
@@ -792,7 +792,7 @@ public class ArchiveApiController : ControllerBase
                     documentId = r.DocumentID,
                     documentTitle = r.Document != null ? r.Document.Title : "Unknown",
                     documentType = r.Document != null ? r.Document.DocumentType : null,
-                    clientName = r.Document != null && r.Document.Uploader != null ? r.Document.Uploader.FullName : null,
+                    clientName = r.Document != null && r.Document.Uploader != null ? (r.Document.Uploader.FirstName ?? "") + " " + (r.Document.Uploader.LastName ?? "") : null,
                     policyName = r.Policy != null ? r.Policy.PolicyName : null,
                     expiryDate = r.ExpiryDate,
                     daysRemaining = r.ExpiryDate.HasValue ? (int)(r.ExpiryDate.Value - now).TotalDays : 0
@@ -936,7 +936,7 @@ public class ArchiveApiController : ControllerBase
                     action = a.Action,
                     description = a.Description,
                     timestamp = a.Timestamp,
-                    userName = a.User != null ? a.User.FullName : "System",
+                    userName = a.User != null ? (a.User.FirstName ?? "") + " " + (a.User.LastName ?? "") : "System",
                     actionCategory = a.ActionCategory
                 })
                 .ToListAsync();
