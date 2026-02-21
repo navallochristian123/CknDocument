@@ -5,118 +5,420 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h4 class="mb-0">Compliance Overview</h4>
-        <p class="text-muted mb-0">Document retention and compliance status</p>
+        <h4 class="mb-0"><i class="bi bi-shield-check me-2 text-primary"></i>Compliance Center</h4>
+        <p class="text-muted mb-0">Version control, unauthorized actions, archived documents, missing files</p>
     </div>
-    <a href="#" class="btn btn-primary">
-        <i class="bi bi-download"></i> Export Report
-    </a>
+    <button class="btn btn-outline-secondary" onclick="reloadCurrentTab()">
+        <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+    </button>
 </div>
 
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card bg-success text-white">
-            <div class="card-body text-center">
-                <h2>95%</h2>
-                <p class="mb-0">Overall Compliance</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-primary text-white">
-            <div class="card-body text-center">
-                <h2>1,180</h2>
-                <p class="mb-0">Compliant Documents</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-warning text-dark">
-            <div class="card-body text-center">
-                <h2>48</h2>
-                <p class="mb-0">Expiring Soon</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-danger text-white">
-            <div class="card-body text-center">
-                <h2>20</h2>
-                <p class="mb-0">Non-Compliant</p>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" id="complianceTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="versions-tab" data-bs-toggle="tab" data-bs-target="#versions"
+                type="button" role="tab" onclick="loadVersionTimeline()">
+            <i class="bi bi-layers me-1"></i>Version Timeline
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="unauthorized-tab" data-bs-toggle="tab" data-bs-target="#unauthorized"
+                type="button" role="tab" onclick="loadUnauthorized()">
+            <i class="bi bi-shield-exclamation me-1 text-danger"></i>Unauthorized Actions
+            <span class="badge bg-danger ms-1" id="unauthorizedBadge" style="display:none;">!</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="archived-tab" data-bs-toggle="tab" data-bs-target="#archived"
+                type="button" role="tab" onclick="loadArchivedDeleted()">
+            <i class="bi bi-archive me-1"></i>Archived / Deleted
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="missing-tab" data-bs-toggle="tab" data-bs-target="#missing"
+                type="button" role="tab" onclick="loadMissingFiles()">
+            <i class="bi bi-exclamation-triangle me-1 text-warning"></i>Missing Files
+            <span class="badge bg-warning text-dark ms-1" id="missingBadge" style="display:none;">!</span>
+        </button>
+    </li>
+</ul>
 
-<div class="row">
-    <div class="col-md-6">
-        <div class="card mb-4">
-            <div class="card-header bg-white">
-                <h5 class="mb-0">Retention Policy Compliance</h5>
-            </div>
-            <div class="card-body">
-                <table class="table table-sm">
-                    <thead>
-                        <tr>
-                            <th>Policy</th>
-                            <th>Documents</th>
-                            <th>Compliance</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Standard Contracts (7 years)</td>
-                            <td>156</td>
-                            <td><span class="badge bg-success">98%</span></td>
-                        </tr>
-                        <tr>
-                            <td>Legal Briefs (10 years)</td>
-                            <td>89</td>
-                            <td><span class="badge bg-success">100%</span></td>
-                        </tr>
-                        <tr>
-                            <td>Client Documents (5 years)</td>
-                            <td>234</td>
-                            <td><span class="badge bg-warning">92%</span></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="card mb-4">
-            <div class="card-header bg-white">
-                <h5 class="mb-0">Documents Expiring Soon</h5>
+<div class="tab-content">
+
+    <!-- =================== VERSION TIMELINE =================== -->
+    <div class="tab-pane fade show active" id="versions" role="tabpanel">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <strong><i class="bi bi-layers me-2 text-primary"></i>All Document Versions</strong>
+                <div class="d-flex align-items-center gap-2">
+                    <input type="text" id="versionSearch" class="form-control form-control-sm" style="width:200px"
+                           placeholder="Search document..." oninput="debounce('versionSearch', loadVersionTimeline)">
+                    <span class="badge bg-secondary" id="versionCount">-</span>
+                </div>
             </div>
             <div class="card-body p-0">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Document</th>
-                            <th>Expiry Date</th>
-                            <th>Days Left</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Contract_2017.pdf</td>
-                            <td>Feb 15, 2024</td>
-                            <td><span class="badge bg-danger">5</span></td>
-                        </tr>
-                        <tr>
-                            <td>Agreement_Old.pdf</td>
-                            <td>Feb 20, 2024</td>
-                            <td><span class="badge bg-warning">10</span></td>
-                        </tr>
-                        <tr>
-                            <td>Brief_2017.docx</td>
-                            <td>Mar 01, 2024</td>
-                            <td><span class="badge bg-info">20</span></td>
-                        </tr>
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Document</th>
+                                <th>Version</th>
+                                <th>Uploaded By</th>
+                                <th>Date</th>
+                                <th>File Hash</th>
+                            </tr>
+                        </thead>
+                        <tbody id="versionTable">
+                            <tr><td colspan="5" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-between">
+                <span class="text-muted small" id="versionPageLabel"></span>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-secondary" id="vPrevBtn" onclick="versionPage(-1)" disabled>
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" id="vNextBtn" onclick="versionPage(1)" disabled>
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
+
+    <!-- =================== UNAUTHORIZED ACTIONS =================== -->
+    <div class="tab-pane fade" id="unauthorized" role="tabpanel">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <strong><i class="bi bi-shield-exclamation me-2 text-danger"></i>Unauthorized & Security Events</strong>
+                <span class="badge bg-danger" id="unauthCount">-</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Timestamp</th>
+                                <th>User</th>
+                                <th>Action</th>
+                                <th>Category</th>
+                                <th>IP Address</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="unauthTable">
+                            <tr><td colspan="6" class="text-center py-5 text-muted">Switch to this tab to load data</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-between">
+                <span class="text-muted small" id="unauthPageLabel"></span>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-secondary" id="uPrevBtn" onclick="unauthPage(-1)" disabled>
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" id="uNextBtn" onclick="unauthPage(1)" disabled>
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =================== ARCHIVED / DELETED =================== -->
+    <div class="tab-pane fade" id="archived" role="tabpanel">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <strong><i class="bi bi-archive me-2 text-secondary"></i>Archived / Deleted Documents</strong>
+                <span class="badge bg-secondary" id="archivedCount">-</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Document</th>
+                                <th>Archived By</th>
+                                <th>Archived Date</th>
+                                <th>Reason</th>
+                                <th>Scheduled Delete</th>
+                                <th>Restored?</th>
+                            </tr>
+                        </thead>
+                        <tbody id="archivedTable">
+                            <tr><td colspan="6" class="text-center py-5 text-muted">Switch to this tab to load data</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-between">
+                <span class="text-muted small" id="archPageLabel"></span>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-secondary" id="aPrevBtn" onclick="archPage(-1)" disabled>
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" id="aNextBtn" onclick="archPage(1)" disabled>
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =================== MISSING FILES =================== -->
+    <div class="tab-pane fade" id="missing" role="tabpanel">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <strong><i class="bi bi-exclamation-triangle me-2 text-warning"></i>Missing Files</strong>
+                <span class="text-muted small">Files recorded in DB but not found on disk</span>
+            </div>
+            <div class="alert alert-warning m-3 mb-0">
+                <i class="bi bi-info-circle me-1"></i> These documents exist in the database but their physical files were not found on the server's storage.
+            </div>
+            <div class="card-body p-0 mt-2">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Document</th>
+                                <th>Version</th>
+                                <th>Expected Path</th>
+                                <th>Uploaded By</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="missingTable">
+                            <tr><td colspan="5" class="text-center py-5 text-muted">Switch to this tab to load data</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
+
+@section Scripts {
+<script>
+    let vPage=1, vTotalPages=1;
+    let uPage=1, uTotalPages=1;
+    let aPage=1, aTotalPages=1;
+    let debounceTimers = {};
+    let loadedTabs = { versions: false, unauthorized: false, archived: false, missing: false };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadVersionTimeline();
+        // Preload unauthorized badge
+        prefetchUnauthorizedCount();
+        prefetchMissingCount();
+    });
+
+    async function prefetchUnauthorizedCount() {
+        try {
+            const res = await fetch('/api/AuditorApi/compliance/unauthorized-actions?page=1&pageSize=1');
+            const data = await res.json();
+            if (data.totalCount > 0) {
+                document.getElementById('unauthorizedBadge').style.display = 'inline';
+                document.getElementById('unauthCount').textContent = data.totalCount;
+            }
+        } catch {}
+    }
+
+    async function prefetchMissingCount() {
+        try {
+            const res = await fetch('/api/AuditorApi/compliance/missing-files');
+            const data = await res.json();
+            if ((data.files||[]).length > 0) {
+                document.getElementById('missingBadge').style.display = 'inline';
+            }
+        } catch {}
+    }
+
+    function reloadCurrentTab() {
+        const active = document.querySelector('.nav-link.active');
+        if (!active) return;
+        const id = active.id;
+        if (id === 'versions-tab')     loadVersionTimeline();
+        else if (id === 'unauthorized-tab') loadUnauthorized();
+        else if (id === 'archived-tab')     loadArchivedDeleted();
+        else if (id === 'missing-tab')      loadMissingFiles();
+    }
+
+    function debounce(key, fn, ms=400) {
+        clearTimeout(debounceTimers[key]);
+        debounceTimers[key] = setTimeout(fn, ms);
+    }
+
+    // ===== VERSION TIMELINE =====
+    async function loadVersionTimeline() {
+        const search = document.getElementById('versionSearch')?.value || '';
+        const tbody  = document.getElementById('versionTable');
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>';
+        try {
+            const qs  = new URLSearchParams({ search, page: vPage, pageSize: 50 });
+            const res = await fetch('/api/AuditorApi/compliance/version-timeline?' + qs);
+            const data= await res.json();
+            if (!data.success) throw new Error(data.message);
+            vTotalPages = data.totalPages || 1;
+            document.getElementById('versionCount').textContent = data.totalCount || 0;
+            document.getElementById('versionPageLabel').textContent = `Page ${vPage} of ${vTotalPages} (${data.totalCount||0} versions)`;
+            document.getElementById('vPrevBtn').disabled = vPage <= 1;
+            document.getElementById('vNextBtn').disabled = vPage >= vTotalPages;
+            const versions = data.versions || [];
+            if (!versions.length) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5 text-muted"><i class="bi bi-layers display-4 d-block mb-2"></i>No versions found</td></tr>';
+                return;
+            }
+            tbody.innerHTML = versions.map(v => `<tr>
+                <td class="ps-4">
+                    <div class="fw-medium">${escapeHtml(v.documentTitle||v.originalFileName||'Untitled')}</div>
+                    <small class="text-muted">${escapeHtml(v.originalFileName||'')}</small>
+                </td>
+                <td><span class="badge bg-primary">v${v.versionNumber||1}</span></td>
+                <td><small>${escapeHtml(v.uploadedBy||'-')}</small></td>
+                <td><small class="text-muted">${formatDate(v.createdAt)}</small></td>
+                <td>
+                    ${v.fileHash
+                        ? `<code class="text-muted" style="font-size:0.7rem;" title="${escapeHtml(v.fileHash)}">${v.fileHash.substring(0,16)}...</code>`
+                        : '<span class="text-muted small">-</span>'}
+                </td>
+            </tr>`).join('');
+        } catch (e) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">${e.message}</td></tr>`;
+        }
+    }
+    function versionPage(dir) { vPage = Math.max(1, Math.min(vTotalPages, vPage + dir)); loadVersionTimeline(); }
+
+    // ===== UNAUTHORIZED ACTIONS =====
+    async function loadUnauthorized() {
+        const tbody = document.getElementById('unauthTable');
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border spinner-border-sm text-danger"></div></td></tr>';
+        try {
+            const qs  = new URLSearchParams({ page: uPage, pageSize: 50 });
+            const res = await fetch('/api/AuditorApi/compliance/unauthorized-actions?' + qs);
+            const data= await res.json();
+            if (!data.success) throw new Error(data.message);
+            uTotalPages = data.totalPages || 1;
+            document.getElementById('unauthCount').textContent = data.totalCount || 0;
+            document.getElementById('unauthPageLabel').textContent = `Page ${uPage} of ${uTotalPages} (${data.totalCount||0} events)`;
+            document.getElementById('uPrevBtn').disabled = uPage <= 1;
+            document.getElementById('uNextBtn').disabled = uPage >= uTotalPages;
+            const logs = data.logs || [];
+            if (!logs.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-success"><i class="bi bi-shield-check display-4 d-block mb-2"></i>No unauthorized events detected</td></tr>';
+                return;
+            }
+            tbody.innerHTML = logs.map(l => `<tr class="table-danger-subtle">
+                <td class="ps-4"><small class="text-muted">${formatDateTime(l.timestamp)}</small></td>
+                <td><small>${escapeHtml(l.userName||'Unknown')}</small></td>
+                <td><span class="badge bg-danger">${escapeHtml(l.action||'-')}</span></td>
+                <td><small class="badge bg-secondary">${escapeHtml(l.category||'-')}</small></td>
+                <td><small class="text-muted font-monospace">${escapeHtml(l.ipAddress||'-')}</small></td>
+                <td class="text-truncate" style="max-width:200px;" title="${escapeHtml(l.details||'')}">
+                    <small>${escapeHtml(l.details||'-')}</small>
+                </td>
+            </tr>`).join('');
+        } catch (e) {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">${e.message}</td></tr>`;
+        }
+    }
+    function unauthPage(dir) { uPage = Math.max(1, Math.min(uTotalPages, uPage + dir)); loadUnauthorized(); }
+
+    // ===== ARCHIVED / DELETED =====
+    async function loadArchivedDeleted() {
+        const tbody = document.getElementById('archivedTable');
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border spinner-border-sm text-secondary"></div></td></tr>';
+        try {
+            const qs  = new URLSearchParams({ page: aPage, pageSize: 50 });
+            const res = await fetch('/api/AuditorApi/compliance/archived-deleted?' + qs);
+            const data= await res.json();
+            if (!data.success) throw new Error(data.message);
+            aTotalPages = data.totalPages || 1;
+            document.getElementById('archivedCount').textContent = data.totalCount || 0;
+            document.getElementById('archPageLabel').textContent = `Page ${aPage} of ${aTotalPages} (${data.totalCount||0} records)`;
+            document.getElementById('aPrevBtn').disabled = aPage <= 1;
+            document.getElementById('aNextBtn').disabled = aPage >= aTotalPages;
+            const items = data.archives || [];
+            if (!items.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-muted"><i class="bi bi-archive display-4 d-block mb-2"></i>No archived documents</td></tr>';
+                return;
+            }
+            tbody.innerHTML = items.map(a => {
+                const restored = a.isRestored;
+                return `<tr>
+                    <td class="ps-4">
+                        <div class="fw-medium">${escapeHtml(a.documentTitle||'Untitled')}</div>
+                        <small class="text-muted">${escapeHtml(a.originalFileName||'')}</small>
+                    </td>
+                    <td><small>${escapeHtml(a.archivedBy||'-')}</small></td>
+                    <td><small class="text-muted">${formatDate(a.archivedDate)}</small></td>
+                    <td class="text-truncate" style="max-width:160px;" title="${escapeHtml(a.archiveReason||'')}">
+                        <small>${escapeHtml(a.archiveReason||'-')}</small>
+                    </td>
+                    <td>
+                        ${a.scheduledDeleteDate
+                            ? `<small class="text-${new Date(a.scheduledDeleteDate) < new Date() ? 'danger' : 'warning'}">${formatDate(a.scheduledDeleteDate)}</small>`
+                            : '<span class="text-muted small">-</span>'}
+                    </td>
+                    <td>
+                        ${restored
+                            ? `<span class="badge bg-success"><i class="bi bi-check2 me-1"></i>Restored</span>`
+                            : `<span class="badge bg-secondary">Archived</span>`}
+                    </td>
+                </tr>`;
+            }).join('');
+        } catch (e) {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">${e.message}</td></tr>`;
+        }
+    }
+    function archPage(dir) { aPage = Math.max(1, Math.min(aTotalPages, aPage + dir)); loadArchivedDeleted(); }
+
+    // ===== MISSING FILES =====
+    async function loadMissingFiles() {
+        const tbody = document.getElementById('missingTable');
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4"><div class="spinner-border spinner-border-sm text-warning"></div></td></tr>';
+        try {
+            const res = await fetch('/api/AuditorApi/compliance/missing-files');
+            const data= await res.json();
+            if (!data.success) throw new Error(data.message);
+            const files = data.files || [];
+            if (!files.length) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5 text-success"><i class="bi bi-check-circle display-4 d-block mb-2"></i>All files are present on disk</td></tr>';
+                return;
+            }
+            document.getElementById('missingBadge').style.display = 'inline';
+            tbody.innerHTML = files.map(f => `<tr class="table-warning-subtle">
+                <td class="ps-4">
+                    <div class="fw-medium">${escapeHtml(f.documentTitle||'Untitled')}</div>
+                    <small class="text-muted">${escapeHtml(f.originalFileName||'')}</small>
+                </td>
+                <td><span class="badge bg-warning text-dark">v${f.versionNumber||1}</span></td>
+                <td>
+                    <code class="text-danger" style="font-size:0.75rem; word-break:break-all;">
+                        ${escapeHtml(f.filePath||'-')}
+                    </code>
+                </td>
+                <td><small>${escapeHtml(f.uploadedBy||'-')}</small></td>
+                <td><small class="text-muted">${formatDate(f.createdAt)}</small></td>
+            </tr>`).join('');
+        } catch (e) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">${e.message}</td></tr>`;
+        }
+    }
+
+    function formatDate(s) {
+        if (!s) return '-';
+        return new Date(s).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
+    }
+    function formatDateTime(s) {
+        if (!s) return '-';
+        return new Date(s).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    }
+    function escapeHtml(t) {
+        if (!t) return ''; const d=document.createElement('div'); d.textContent=t; return d.innerHTML;
+    }
+</script>
+}

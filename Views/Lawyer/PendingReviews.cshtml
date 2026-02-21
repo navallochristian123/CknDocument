@@ -698,6 +698,24 @@
         
         // Reset wizard when modal is closed
         document.getElementById('reviewModal').addEventListener('hidden.bs.modal', resetWizard);
+
+        // Auto-open review modal if a documentId is present in the URL (coming from Assigned To Me page)
+        const urlParams = new URLSearchParams(window.location.search);
+        const autoDocId = urlParams.get('documentId');
+        if (autoDocId) {
+            // Wait for documents to load, then open the review modal
+            const tryOpen = (attempts) => {
+                if (attempts <= 0) return;
+                setTimeout(async () => {
+                    if (document.getElementById('documents-tbody').querySelector('.spinner-border')) {
+                        tryOpen(attempts - 1); // still loading
+                    } else {
+                        await openReviewModal(parseInt(autoDocId));
+                    }
+                }, 600);
+            };
+            tryOpen(10);
+        }
     });
 
     // ===== WIZARD NAVIGATION =====

@@ -259,10 +259,15 @@ public class DashboardApiController : ControllerBase
                 documentId = r.DocumentId,
                 documentTitle = r.Document != null ? r.Document.Title : "Unknown",
                 originalFileName = r.Document != null ? r.Document.OriginalFileName : null,
+                fileExtension = r.Document != null ? r.Document.FileExtension : null,
                 clientName = r.Document != null && r.Document.Uploader != null ? (r.Document.Uploader.FirstName ?? "") + " " + (r.Document.Uploader.LastName ?? "") : "Unknown",
                 reviewStatus = r.ReviewStatus,
+                reviewerRole = r.ReviewerRole,
                 reviewedAt = r.ReviewedAt,
-                remarks = r.Remarks
+                remarks = r.Remarks,
+                internalNotes = r.InternalNotes,
+                isChecklistComplete = r.IsChecklistComplete,
+                checklistScore = r.ChecklistScore
             })
             .ToListAsync();
 
@@ -364,7 +369,8 @@ public class DashboardApiController : ControllerBase
             .Include(r => r.Document)
                 .ThenInclude(d => d!.Uploader)
             .Include(r => r.Reviewer)
-            .Where(r => r.Document != null && r.Document.FirmID == firmId &&
+            .Where(r => r.ReviewedBy == userId &&
+                       r.Document != null && r.Document.FirmID == firmId &&
                        r.ReviewedAt != null && r.ReviewerRole == "Admin")
             .OrderByDescending(r => r.ReviewedAt)
             .Take(take)
@@ -374,11 +380,15 @@ public class DashboardApiController : ControllerBase
                 documentId = r.DocumentId,
                 documentTitle = r.Document != null ? r.Document.Title : "Unknown",
                 originalFileName = r.Document != null ? r.Document.OriginalFileName : null,
+                fileExtension = r.Document != null ? r.Document.FileExtension : null,
                 clientName = r.Document != null && r.Document.Uploader != null ? (r.Document.Uploader.FirstName ?? "") + " " + (r.Document.Uploader.LastName ?? "") : "Unknown",
                 reviewerName = r.Reviewer != null ? (r.Reviewer.FirstName ?? "") + " " + (r.Reviewer.LastName ?? "") : "Unknown",
                 reviewStatus = r.ReviewStatus,
+                reviewerRole = r.ReviewerRole,
                 reviewedAt = r.ReviewedAt,
-                remarks = r.Remarks
+                remarks = r.Remarks,
+                isChecklistComplete = r.IsChecklistComplete,
+                checklistScore = r.ChecklistScore
             })
             .ToListAsync();
 

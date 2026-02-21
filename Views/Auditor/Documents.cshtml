@@ -5,73 +5,298 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h4 class="mb-0">Documents</h4>
-        <p class="text-muted mb-0">View all documents (read-only)</p>
+        <h4 class="mb-0"><i class="bi bi-folder2-open me-2 text-primary"></i>All Documents</h4>
+        <p class="text-muted mb-0">View-only access to all firm documents (approved, pending, rejected)</p>
     </div>
-    <a href="#" class="btn btn-outline-primary">
-        <i class="bi bi-download"></i> Export List
-    </a>
+    <span class="badge bg-info fs-6 px-3 py-2">
+        <i class="bi bi-eye me-1"></i>View Only
+    </span>
 </div>
 
-<div class="card">
-    <div class="card-header bg-white">
-        <div class="row align-items-center">
+<!-- Stats strips -->
+<div class="row mb-4 g-3">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm text-center py-3">
+            <div class="h3 mb-0 fw-bold text-primary" id="doc-total">-</div>
+            <small class="text-muted">Total</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm text-center py-3">
+            <div class="h3 mb-0 fw-bold text-success" id="doc-approved">-</div>
+            <small class="text-muted">Approved</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm text-center py-3">
+            <div class="h3 mb-0 fw-bold text-warning" id="doc-pending">-</div>
+            <small class="text-muted">Pending</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm text-center py-3">
+            <div class="h3 mb-0 fw-bold text-danger" id="doc-rejected">-</div>
+            <small class="text-muted">Rejected</small>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
             <div class="col-md-4">
-                <input type="text" class="form-control" placeholder="Search documents...">
+                <label class="form-label small fw-semibold">Search</label>
+                <input type="text" id="searchInput" class="form-control"
+                       placeholder="Search by title, client, uploaded by..."
+                       oninput="debouncedSearch()">
             </div>
             <div class="col-md-2">
-                <select class="form-select">
-                    <option value="">All Types</option>
-                    <option>Contract</option>
-                    <option>Legal Brief</option>
+                <label class="form-label small fw-semibold">Status</label>
+                <select id="statusFilter" class="form-select" onchange="searchDocuments()">
+                    <option value="">All Statuses</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Pending">Pending</option>
+                    <option value="UnderReview">Under Review</option>
+                    <option value="Rejected">Rejected</option>
                 </select>
             </div>
             <div class="col-md-2">
-                <select class="form-select">
-                    <option value="">All Status</option>
-                    <option>Approved</option>
-                    <option>Pending</option>
+                <label class="form-label small fw-semibold">Per Page</label>
+                <select id="pageSize" class="form-select" onchange="searchDocuments()">
+                    <option value="25">25</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
                 </select>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-primary w-100" onclick="searchDocuments()">
+                    <i class="bi bi-search me-1"></i> Search
+                </button>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-outline-secondary w-100" onclick="clearFilters()">
+                    <i class="bi bi-x-circle me-1"></i> Clear
+                </button>
             </div>
         </div>
     </div>
+</div>
+
+<!-- Documents Table -->
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+        <strong><i class="bi bi-files me-2 text-primary"></i>Documents</strong>
+        <div id="paginationInfo" class="text-muted small"></div>
+    </div>
     <div class="card-body p-0">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Document Name</th>
-                    <th>Type</th>
-                    <th>Owner</th>
-                    <th>Created</th>
-                    <th>Retention</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><i class="bi bi-file-pdf text-danger"></i> Contract_Smith.pdf</td>
-                    <td>Contract</td>
-                    <td>John Doe</td>
-                    <td>Jan 20, 2024</td>
-                    <td>7 years</td>
-                    <td><span class="badge bg-success">Compliant</span></td>
-                    <td>
-                        <a href="#" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i> View</a>
-                    </td>
-                </tr>
-                <tr>
-                    <td><i class="bi bi-file-word text-primary"></i> Brief_Case123.docx</td>
-                    <td>Legal Brief</td>
-                    <td>Jane Smith</td>
-                    <td>Jan 18, 2024</td>
-                    <td>10 years</td>
-                    <td><span class="badge bg-success">Compliant</span></td>
-                    <td>
-                        <a href="#" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i> View</a>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Document</th>
+                        <th>Type</th>
+                        <th>Client / Uploader</th>
+                        <th>Uploaded</th>
+                        <th>Status</th>
+                        <th class="text-end pe-4">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="docTable">
+                    <tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <!-- Pagination -->
+    <div class="card-footer bg-white d-flex justify-content-between align-items-center py-2" id="paginationBar">
+        <span class="text-muted small" id="pageLabel"></span>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary" id="prevBtn" onclick="changePage(-1)" disabled>
+                <i class="bi bi-chevron-left"></i> Previous
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" id="nextBtn" onclick="changePage(1)" disabled>
+                Next <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>
     </div>
 </div>
+
+<!-- Preview Modal (view-only, no download) -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-eye me-2"></i><span id="previewTitle">Document Preview</span></h5>
+                <span class="badge bg-warning text-dark ms-2">View Only</span>
+                <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0" style="height:78vh; overflow:auto;">
+                <div class="text-center py-5" id="previewLoading">
+                    <div class="spinner-border text-primary"></div>
+                    <p class="mt-2">Loading preview...</p>
+                </div>
+                <iframe id="previewIframe" class="w-100 h-100 border-0" style="display:none;"></iframe>
+                <div id="previewImageWrap" class="text-center p-4" style="display:none;">
+                    <img id="previewImg" style="max-width:100%; max-height:72vh;" />
+                </div>
+                <div id="previewText" class="p-4" style="display:none; font-family:'Segoe UI',sans-serif; line-height:1.7;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let currentPage = 1, totalPages = 1;
+    let debounceTimer;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        searchDocuments();
+        loadQuickStats();
+    });
+
+    function debouncedSearch() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => { currentPage = 1; searchDocuments(); }, 400);
+    }
+
+    async function loadQuickStats() {
+        try {
+            const res = await fetch('/api/AuditorApi/stats');
+            const data = await res.json();
+            if (!data.success) return;
+            const s = data.stats;
+            document.getElementById('doc-total').textContent    = s.totalDocuments ?? '-';
+            document.getElementById('doc-approved').textContent = s.approvedDocuments ?? '-';
+            document.getElementById('doc-pending').textContent  = s.pendingDocuments ?? '-';
+            document.getElementById('doc-rejected').textContent = s.rejectedDocuments ?? '-';
+        } catch {}
+    }
+
+    async function searchDocuments() {
+        const search   = document.getElementById('searchInput').value;
+        const status   = document.getElementById('statusFilter').value;
+        const pageSize = document.getElementById('pageSize').value;
+        const tbody = document.getElementById('docTable');
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>';
+        try {
+            const qs = new URLSearchParams({ search, status, page: currentPage, pageSize });
+            const res  = await fetch('/api/AuditorApi/documents?' + qs);
+            const data = await res.json();
+            if (!data.success) throw new Error(data.message || 'Error');
+            totalPages = data.totalPages || 1;
+            renderDocTable(data.documents || []);
+            updatePagination(data.totalCount || 0, data.page || 1, totalPages, pageSize);
+        } catch (e) {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4"><i class="bi bi-exclamation-circle me-1"></i>${e.message}</td></tr>`;
+        }
+    }
+
+    function clearFilters() {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('statusFilter').value = '';
+        currentPage = 1;
+        searchDocuments();
+    }
+
+    function renderDocTable(docs) {
+        const tbody = document.getElementById('docTable');
+        if (!docs.length) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-muted"><i class="bi bi-inbox fs-2 d-block mb-2"></i>No documents found</td></tr>';
+            return;
+        }
+        const statusMap = { Approved:'success', Pending:'warning', UnderReview:'info', Rejected:'danger' };
+        const iconMap = { '.pdf':'bi-file-pdf text-danger', '.docx':'bi-file-word text-primary', '.doc':'bi-file-word text-primary', '.xlsx':'bi-file-excel text-success', '.xls':'bi-file-excel text-success', '.png':'bi-file-image text-warning', '.jpg':'bi-file-image text-warning', '.jpeg':'bi-file-image text-warning' };
+        tbody.innerHTML = docs.map(d => {
+            const ext  = (d.fileExtension||'').toLowerCase();
+            const icon = iconMap[ext] || 'bi-file-earmark text-secondary';
+            const sc   = statusMap[d.status] || 'secondary';
+            return `<tr>
+                <td class="ps-4">
+                    <div class="d-flex align-items-center">
+                        <i class="bi ${icon} me-2 fs-5"></i>
+                        <div>
+                            <div class="fw-medium">${escapeHtml(d.title||d.originalFileName||'Untitled')}</div>
+                            <small class="text-muted">${escapeHtml(d.originalFileName||'')}</small>
+                        </div>
+                    </div>
+                </td>
+                <td><small class="badge bg-light text-dark border">${escapeHtml(d.documentType||'-')}</small></td>
+                <td>
+                    <div class="small">${escapeHtml(d.clientName||'-')}</div>
+                    <div class="text-muted" style="font-size:0.75rem">By ${escapeHtml(d.uploadedBy||'-')}</div>
+                </td>
+                <td><small class="text-muted">${formatDate(d.uploadedAt)}</small></td>
+                <td><span class="badge bg-${sc}">${escapeHtml(d.status||'Unknown')}</span></td>
+                <td class="text-end pe-4">
+                    <button class="btn btn-sm btn-outline-primary"
+                        onclick="previewDoc(${d.documentId}, '${escapeHtml(d.title||'Document')}')"
+                        title="View">
+                        <i class="bi bi-eye"></i> View
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function updatePagination(total, page, pages, pageSize) {
+        const start = (page - 1) * pageSize + 1;
+        const end   = Math.min(page * pageSize, total);
+        document.getElementById('paginationInfo').textContent = total ? `Showing ${start}–${end} of ${total}` : '';
+        document.getElementById('pageLabel').textContent      = `Page ${page} of ${pages} (${total} documents)`;
+        document.getElementById('prevBtn').disabled = page <= 1;
+        document.getElementById('nextBtn').disabled = page >= pages;
+    }
+
+    function changePage(dir) {
+        currentPage = Math.max(1, Math.min(totalPages, currentPage + dir));
+        searchDocuments();
+    }
+
+    async function previewDoc(docId, title) {
+        document.getElementById('previewTitle').textContent = title;
+        ['previewLoading','previewIframe','previewImageWrap','previewText']
+            .forEach(id => document.getElementById(id).style.display = id === 'previewLoading' ? 'block' : 'none');
+        new bootstrap.Modal(document.getElementById('previewModal')).show();
+        try {
+            const res = await fetch(`/api/DocumentApi/${docId}`);
+            const data = await res.json();
+            const ext = (data.document?.fileExtension || '').toLowerCase();
+            if (ext === '.pdf') {
+                const iframe = document.getElementById('previewIframe');
+                iframe.src = `/api/DocumentApi/${docId}/view`;
+                iframe.onload = () => { document.getElementById('previewLoading').style.display='none'; iframe.style.display='block'; };
+            } else if (['.jpg','.jpeg','.png','.gif'].includes(ext)) {
+                const img = document.getElementById('previewImg');
+                img.src = `/api/DocumentApi/${docId}/view`;
+                img.onload = () => { document.getElementById('previewLoading').style.display='none'; document.getElementById('previewImageWrap').style.display='block'; };
+            } else {
+                const r2 = await fetch(`/api/DocumentApi/${docId}/text-content`);
+                const d2 = await r2.json();
+                const el = document.getElementById('previewText');
+                document.getElementById('previewLoading').style.display='none';
+                el.style.display = 'block';
+                el.innerHTML = d2.success && d2.content
+                    ? d2.content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').split('\n').filter(l=>l.trim()).map(l=>`<p class="mb-2">${l}</p>`).join('')
+                    : `<div class="text-center py-5"><i class="bi bi-file-earmark-x display-1 text-muted"></i><p class="mt-3 text-muted">Preview not available for this file type.</p></div>`;
+            }
+        } catch {
+            document.getElementById('previewLoading').style.display='none';
+            document.getElementById('previewText').innerHTML='<p class="text-danger text-center p-4">Error loading preview.</p>';
+            document.getElementById('previewText').style.display='block';
+        }
+    }
+
+    function formatDate(s) {
+        if (!s) return '-';
+        return new Date(s).toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'});
+    }
+    function escapeHtml(t) {
+        if (!t) return ''; const d=document.createElement('div'); d.textContent=t; return d.innerHTML;
+    }
+</script>
+}

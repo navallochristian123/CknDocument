@@ -22,17 +22,39 @@
         justify-content: center;
         font-size: 1.5rem;
     }
+    .live-badge {
+        animation: pulse 2s infinite;
+    }
+    @@keyframes pulse {
+        0%,100% { opacity:1; }
+        50% { opacity:0.5; }
+    }
 </style>
 }
 
-<div class="row mb-4 g-3">
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0"><i class="bi bi-speedometer2 me-2 text-primary"></i>Auditor Dashboard</h4>
+        <p class="text-muted mb-0">Real-time overview of your law firm's documents and compliance</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-success live-badge"><i class="bi bi-circle-fill me-1" style="font-size:8px;"></i>Live</span>
+        <span class="text-muted small" id="lastUpdated">Loading...</span>
+        <button class="btn btn-outline-secondary btn-sm" onclick="loadStats()">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Stats Row 1 -->
+<div class="row mb-3 g-3">
     <div class="col-md-3">
         <div class="card stat-card h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <p class="text-muted mb-1 small">Total Documents</p>
-                        <h2 class="mb-0 fw-bold">1,248</h2>
+                        <h2 class="mb-0 fw-bold" id="stat-total">-</h2>
                     </div>
                     <div class="stat-icon-circle bg-primary-subtle">
                         <i class="bi bi-file-earmark text-primary"></i>
@@ -46,8 +68,8 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <p class="text-muted mb-1 small">Compliant</p>
-                        <h2 class="mb-0 fw-bold">1,180</h2>
+                        <p class="text-muted mb-1 small">Approved</p>
+                        <h2 class="mb-0 fw-bold text-success" id="stat-approved">-</h2>
                     </div>
                     <div class="stat-icon-circle bg-success-subtle">
                         <i class="bi bi-check-circle text-success"></i>
@@ -61,11 +83,11 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <p class="text-muted mb-1 small">Expiring Soon</p>
-                        <h2 class="mb-0 fw-bold">48</h2>
+                        <p class="text-muted mb-1 small">Pending Review</p>
+                        <h2 class="mb-0 fw-bold text-warning" id="stat-pending">-</h2>
                     </div>
                     <div class="stat-icon-circle bg-warning-subtle">
-                        <i class="bi bi-clock text-warning"></i>
+                        <i class="bi bi-hourglass-split text-warning"></i>
                     </div>
                 </div>
             </div>
@@ -76,11 +98,11 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <p class="text-muted mb-1 small">Non-Compliant</p>
-                        <h2 class="mb-0 fw-bold">20</h2>
+                        <p class="text-muted mb-1 small">Rejected</p>
+                        <h2 class="mb-0 fw-bold text-danger" id="stat-rejected">-</h2>
                     </div>
                     <div class="stat-icon-circle bg-danger-subtle">
-                        <i class="bi bi-exclamation-triangle text-danger"></i>
+                        <i class="bi bi-x-circle text-danger"></i>
                     </div>
                 </div>
             </div>
@@ -88,84 +110,229 @@
     </div>
 </div>
 
-<div class="row">
-    <div class="col-md-8">
-        <div class="card mb-4">
-            <div class="card-header bg-white">
-                <h5 class="mb-0">Recent Audit Activity</h5>
-            </div>
-            <div class="card-body p-0">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Timestamp</th>
-                            <th>User</th>
-                            <th>Action</th>
-                            <th>Resource</th>
-                            <th>Details</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Today 14:32</td>
-                            <td>John Doe</td>
-                            <td><span class="badge bg-success">Create</span></td>
-                            <td>Document</td>
-                            <td>Uploaded Contract_Smith.pdf</td>
-                        </tr>
-                        <tr>
-                            <td>Today 14:30</td>
-                            <td>Jane Smith</td>
-                            <td><span class="badge bg-info">View</span></td>
-                            <td>Document</td>
-                            <td>Viewed Brief_Case123.docx</td>
-                        </tr>
-                        <tr>
-                            <td>Today 14:25</td>
-                            <td>Admin</td>
-                            <td><span class="badge bg-warning">Update</span></td>
-                            <td>User</td>
-                            <td>Updated user permissions</td>
-                        </tr>
-                    </tbody>
-                </table>
+<!-- Stats Row 2 -->
+<div class="row mb-4 g-3">
+    <div class="col-md-3">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Archived</p>
+                        <h2 class="mb-0 fw-bold text-secondary" id="stat-archived">-</h2>
+                    </div>
+                    <div class="stat-icon-circle bg-secondary-subtle">
+                        <i class="bi bi-archive text-secondary"></i>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card mb-4">
-            <div class="card-header bg-white">
-                <h5 class="mb-0">Compliance Summary</h5>
-            </div>
+    <div class="col-md-3">
+        <div class="card stat-card h-100">
             <div class="card-body">
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between mb-1">
-                        <span>Document Retention</span>
-                        <span>95%</span>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Total Versions</p>
+                        <h2 class="mb-0 fw-bold text-info" id="stat-versions">-</h2>
                     </div>
-                    <div class="progress">
-                        <div class="progress-bar bg-success" style="width: 95%"></div>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between mb-1">
-                        <span>Access Control</span>
-                        <span>100%</span>
-                    </div>
-                    <div class="progress">
-                        <div class="progress-bar bg-success" style="width: 100%"></div>
+                    <div class="stat-icon-circle bg-info-subtle">
+                        <i class="bi bi-layers text-info"></i>
                     </div>
                 </div>
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between mb-1">
-                        <span>Audit Trail</span>
-                        <span>100%</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Audit Events (7d)</p>
+                        <h2 class="mb-0 fw-bold" id="stat-activity">-</h2>
                     </div>
-                    <div class="progress">
-                        <div class="progress-bar bg-success" style="width: 100%"></div>
+                    <div class="stat-icon-circle bg-primary-subtle">
+                        <i class="bi bi-activity text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card h-100 border-danger border-opacity-50">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Unauthorized Events</p>
+                        <h2 class="mb-0 fw-bold text-danger" id="stat-unauthorized">-</h2>
+                    </div>
+                    <div class="stat-icon-circle bg-danger-subtle">
+                        <i class="bi bi-shield-exclamation text-danger"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Bottom Row -->
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4 border-0 shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>Recent Audit Activity</h6>
+                <a href="/Audit" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">When</th>
+                                <th>User</th>
+                                <th>Action</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentActivityTable">
+                            <tr><td colspan="4" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card mb-4 border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h6 class="mb-0"><i class="bi bi-pie-chart me-2 text-primary"></i>Document Status</h6>
+            </div>
+            <div class="card-body">
+                <div id="statusBreakdown">
+                    <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></div>
+                </div>
+            </div>
+        </div>
+        <div class="card border-0 shadow-sm border-danger border-opacity-25" id="alertCard" style="display:none;">
+            <div class="card-header bg-danger bg-opacity-10">
+                <h6 class="mb-0 text-danger"><i class="bi bi-shield-exclamation me-2"></i>Security Alerts</h6>
+            </div>
+            <div class="card-body" id="alertBody"></div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let refreshTimer;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadStats();
+        refreshTimer = setInterval(loadStats, 30000); // refresh every 30s
+    });
+
+    async function loadStats() {
+        try {
+            const res = await fetch('/api/AuditorApi/stats');
+            const data = await res.json();
+            if (!data.success) return;
+            const s = data.stats;
+            document.getElementById('stat-total').textContent       = s.totalDocuments ?? 0;
+            document.getElementById('stat-approved').textContent    = s.approvedDocuments ?? 0;
+            document.getElementById('stat-pending').textContent     = s.pendingDocuments ?? 0;
+            document.getElementById('stat-rejected').textContent    = s.rejectedDocuments ?? 0;
+            document.getElementById('stat-archived').textContent    = s.archivedDocuments ?? 0;
+            document.getElementById('stat-versions').textContent    = s.totalVersions ?? 0;
+            document.getElementById('stat-activity').textContent    = s.recentActivity ?? 0;
+            document.getElementById('stat-unauthorized').textContent = s.unauthorizedEvents ?? 0;
+            document.getElementById('lastUpdated').textContent      = 'Updated ' + new Date().toLocaleTimeString();
+
+            renderStatusBreakdown(s);
+            renderAlerts(s);
+
+            // Recent audit logs
+            await loadRecentActivity();
+        } catch (e) {
+            console.error('Stats error:', e);
+            document.getElementById('lastUpdated').textContent = 'Update failed';
+        }
+    }
+
+    function renderStatusBreakdown(s) {
+        const total = s.totalDocuments || 1;
+        const items = [
+            { label: 'Approved',  count: s.approvedDocuments,  cls: 'success' },
+            { label: 'Pending',   count: s.pendingDocuments,   cls: 'warning' },
+            { label: 'Rejected',  count: s.rejectedDocuments,  cls: 'danger'  },
+            { label: 'Archived',  count: s.archivedDocuments,  cls: 'secondary' },
+        ];
+        document.getElementById('statusBreakdown').innerHTML = items.map(i => {
+            const pct = Math.round(((i.count||0)/total)*100);
+            return `<div class="mb-3">
+                <div class="d-flex justify-content-between mb-1">
+                    <span class="small">${i.label}</span>
+                    <span class="small text-muted">${i.count||0} (${pct}%)</span>
+                </div>
+                <div class="progress" style="height:8px;">
+                    <div class="progress-bar bg-${i.cls}" style="width:${pct}%"></div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function renderAlerts(s) {
+        const card = document.getElementById('alertCard');
+        const body = document.getElementById('alertBody');
+        if ((s.unauthorizedEvents||0) > 0) {
+            card.style.display = 'block';
+            body.innerHTML = `<p class="text-danger mb-1"><i class="bi bi-exclamation-triangle me-1"></i><strong>${s.unauthorizedEvents} unauthorized event(s)</strong> detected.</p>
+                <a href="/Report/ComplianceReport" class="btn btn-sm btn-danger mt-1">View in Compliance</a>`;
+        } else {
+            card.style.display = 'none';
+        }
+    }
+
+    async function loadRecentActivity() {
+        try {
+            const res = await fetch('/api/AuditorApi/audit-logs?page=1&pageSize=8');
+            const data = await res.json();
+            const logs = data.logs || [];
+            const tbody = document.getElementById('recentActivityTable');
+            if (logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No recent activity</td></tr>';
+                return;
+            }
+            const actionColors = {
+                Login:'info', Logout:'secondary', LoginFailed:'warning text-dark',
+                DocumentCreated:'success', DocumentViewed:'info', DocumentUpdated:'warning text-dark', DocumentDeleted:'danger',
+                DocumentDownloaded:'secondary', DocumentApproved:'success', DocumentRejected:'danger',
+                Registration:'success', AccountCreated:'success', PasswordChanged:'info',
+                Create:'success', Update:'warning text-dark', Delete:'danger', View:'info', Download:'secondary'
+            };
+            tbody.innerHTML = logs.map(l => {
+                const actionKey = l.action || '';
+                const bc = actionColors[actionKey] || 'secondary';
+                const desc = l.description || l.details || '-';
+                return `<tr>
+                    <td class="ps-3"><small class="text-muted">${formatAge(l.timestamp)}</small></td>
+                    <td><small>${escapeHtml((l.userName||'').trim() || 'System')}</small></td>
+                    <td><span class="badge bg-${bc}" style="font-size:0.7rem">${escapeHtml(actionKey||'-')}</span></td>
+                    <td class="text-truncate" style="max-width:160px;"><small title="${escapeHtml(desc)}">${escapeHtml(desc)}</small></td>
+                </tr>`;
+            }).join('');
+        } catch { document.getElementById('recentActivityTable').innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">Could not load activity</td></tr>'; }
+    }
+
+    function formatAge(s) {
+        if (!s) return '-';
+        const d = new Date(s);
+        const mins = Math.floor((Date.now() - d) / 60000);
+        if (mins < 1) return 'Just now';
+        if (mins < 60) return `${mins}m ago`;
+        if (mins < 1440) return `${Math.floor(mins/60)}h ago`;
+        return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+    }
+    function escapeHtml(t) {
+        if (!t) return ''; const d=document.createElement('div'); d.textContent=t; return d.innerHTML;
+    }
+</script>
+}

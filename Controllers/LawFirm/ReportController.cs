@@ -42,6 +42,9 @@ public class ReportController : Controller
 
     public IActionResult ComplianceReport()
     {
+        var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Admin";
+        if (role == "Auditor")
+            return View("~/Views/Auditor/Compliance.cshtml");
         return View(GetRoleViewPath("ComplianceReport"));
     }
 
