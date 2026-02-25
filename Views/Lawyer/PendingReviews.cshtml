@@ -882,6 +882,7 @@
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             <div>
                                 <strong>v${v.versionLabel || v.versionNumber}</strong> ${v.isCurrentVersion ? '<span class="badge bg-primary">Current</span>' : ''}
+                                ${v.originalFileName ? `<br><small class="text-info"><i class="bi bi-file-earmark me-1"></i>${escapeHtml(v.originalFileName)}</small>` : ''}
                                 <br><small class="text-muted">${v.changeDescription || 'Initial upload'}</small>
                                 <br><small class="text-muted">${formatDate(v.createdAt)} by ${v.changedBy}</small>
                             </div>

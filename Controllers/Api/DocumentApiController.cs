@@ -459,7 +459,14 @@ public class DocumentApiController : ControllerBase
                 status = d.Status,
                 workflowStage = d.WorkflowStage,
                 currentVersion = d.CurrentVersion,
-                originalFileName = d.OriginalFileName,
+                currentVersionLabel = d.Versions
+                    .Where(v => v.IsCurrentVersion == true)
+                    .Select(v => v.VersionLabel)
+                    .FirstOrDefault() ?? d.CurrentVersion.ToString(),
+                originalFileName = d.Versions
+                    .Where(v => v.IsCurrentVersion == true)
+                    .Select(v => v.OriginalFileName)
+                    .FirstOrDefault() ?? d.OriginalFileName,
                 fileExtension = d.FileExtension,
                 totalFileSize = d.TotalFileSize,
                 currentRemarks = d.CurrentRemarks,

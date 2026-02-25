@@ -455,6 +455,22 @@ public class ReviewApiController : ControllerBase
                 fullRemarks = $"{dto.Remarks}\n[Checklist: {passedCount}/{totalCount} items verified]";
             }
 
+            // Apply metadata updates if staff made changes
+            if (dto.MetadataUpdates != null)
+            {
+                var meta = dto.MetadataUpdates;
+                if (!string.IsNullOrWhiteSpace(meta.Title) && meta.Title != document.Title)
+                    document.Title = meta.Title;
+                if (!string.IsNullOrWhiteSpace(meta.DocumentType) && meta.DocumentType != document.DocumentType)
+                    document.DocumentType = meta.DocumentType;
+                if (meta.Category != null && meta.Category != document.Category)
+                    document.Category = meta.Category;
+                if (meta.Tags != null && meta.Tags != document.Tags)
+                    document.Tags = meta.Tags;
+                document.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+
             var review = await _workflowService.StaffApproveAsync(
                 documentId, userId, fullRemarks, dto.InternalNotes, null);
 
@@ -1195,13 +1211,25 @@ public class ReviewApiController : ControllerBase
                 {
                     v.IsCurrentVersion = (v.VersionId == dto.ApprovedVersionId.Value);
                 }
+
+                // Update main document record to reflect the approved version
+                var approvedVersion = versions.FirstOrDefault(v => v.VersionId == dto.ApprovedVersionId.Value);
+                if (approvedVersion != null)
+                {
+                    document.OriginalFileName = approvedVersion.OriginalFileName;
+                    document.FileExtension = approvedVersion.FileExtension;
+                    document.MimeType = approvedVersion.MimeType;
+                    document.TotalFileSize = approvedVersion.FileSize;
+                    document.CurrentVersion = approvedVersion.VersionNumber;
+                }
+
                 await _context.SaveChangesAsync();
                 
                 await _auditLogService.LogAsync(
                     "AdminSelectVersion",
                     "Document",
                     documentId,
-                    $"Admin selected version {versions.FirstOrDefault(v => v.VersionId == dto.ApprovedVersionId.Value)?.VersionNumber} as approved version",
+                    $"Admin selected version {approvedVersion?.VersionNumber} (v{approvedVersion?.VersionLabel ?? approvedVersion?.VersionNumber.ToString()}) as approved version",
                     null, null, "Workflow");
             }
 
@@ -1398,6 +1426,17 @@ public class StaffReviewDto
     public string? Remarks { get; set; }
     public string? InternalNotes { get; set; }
     public List<ChecklistResultDto>? ChecklistResults { get; set; }
+    public MetadataUpdateDto? MetadataUpdates { get; set; }
+}
+
+public class MetadataUpdateDto
+{
+    public string? Title { get; set; }
+    public string? DocumentType { get; set; }
+    public string? Category { get; set; }
+    public string? CaseReference { get; set; }
+    public string? Tags { get; set; }
+    public string? Confidentiality { get; set; }
 }
 
 public class ChecklistResultDto

@@ -399,7 +399,7 @@
                 <td><span class="badge bg-light text-dark">${escapeHtml(doc.documentType || 'Unknown')}</span></td>
                 <td>${doc.folder ? escapeHtml(doc.folder.name) : '<span class="text-muted">Root</span>'}</td>
                 <td>${statusBadges[doc.status] || '<span class="badge bg-secondary">Unknown</span>'}</td>
-                <td>v${doc.currentVersion || 1}</td>
+                <td>v${doc.currentVersionLabel || doc.currentVersion || 1}</td>
                 <td>${formatDate(doc.createdAt)}</td>
                 <td>
                     <button class="btn btn-sm btn-outline-primary" onclick="viewDocument(${doc.id})" title="View Details">
@@ -548,6 +548,7 @@
                             <span class="badge ${isCurrent ? 'bg-primary' : 'bg-secondary'}">v${label}</span>
                             ${isCurrent ? '<small class="text-primary fw-semibold">Current</small>' : ''}
                         </div>
+                        ${v.originalFileName ? `<small class="text-info d-block"><i class="bi bi-file-earmark me-1"></i>${escapeHtml(v.originalFileName)}</small>` : ''}
                         <small class="text-muted d-block mt-1">${escapeHtml(v.changeDescription || 'Initial upload')}</small>
                         <small class="text-muted"><i class="bi bi-person me-1"></i>${escapeHtml(v.changedBy || 'Client')} &bull; ${formatDate(v.createdAt)}</small>
                     </div>

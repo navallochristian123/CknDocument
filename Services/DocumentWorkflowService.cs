@@ -611,9 +611,10 @@ public class DocumentWorkflowService
 
         _context.DocumentVersions.Add(newVersion);
 
-        // Update document
+        // Update document — sync all fields with the new current version
         document.CurrentVersion = newVersionNumber;
         document.TotalFileSize = fileSize;
+        document.OriginalFileName = originalFileName;
         document.FileExtension = fileExtension;
         document.MimeType = mimeType;
         document.UpdatedAt = DateTime.UtcNow;
@@ -715,9 +716,12 @@ public class DocumentWorkflowService
 
         _context.DocumentVersions.Add(newVersion);
 
-        // Update document
+        // Update document — sync all fields with the new current version
         document.CurrentVersion = newVersionNumber;
         document.TotalFileSize = fileSize;
+        document.OriginalFileName = originalFileName;
+        document.FileExtension = fileExtension;
+        document.MimeType = mimeType;
         document.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
@@ -779,6 +783,19 @@ public class DocumentWorkflowService
         document.AdminReviewedAt = DateTime.UtcNow;
         document.ApprovedAt = DateTime.UtcNow;
         document.UpdatedAt = DateTime.UtcNow;
+
+        // Sync main document record with the current version's filename
+        var currentVersion = await _context.DocumentVersions
+            .Where(v => v.DocumentId == documentId && v.IsCurrentVersion == true)
+            .FirstOrDefaultAsync();
+        if (currentVersion != null && !string.IsNullOrEmpty(currentVersion.OriginalFileName))
+        {
+            document.OriginalFileName = currentVersion.OriginalFileName;
+            document.FileExtension = currentVersion.FileExtension;
+            document.MimeType = currentVersion.MimeType;
+            document.TotalFileSize = currentVersion.FileSize;
+            document.CurrentVersion = currentVersion.VersionNumber;
+        }
 
         // Apply retention policy automatically
         await ApplyRetentionOnApprovalAsync(document, adminId);
@@ -924,6 +941,19 @@ public class DocumentWorkflowService
         document.AdminReviewedAt = DateTime.UtcNow;
         document.ApprovedAt = DateTime.UtcNow;
         document.UpdatedAt = DateTime.UtcNow;
+
+        // Sync main document record with the current version's filename
+        var curVer = await _context.DocumentVersions
+            .Where(v => v.DocumentId == document.DocumentID && v.IsCurrentVersion == true)
+            .FirstOrDefaultAsync();
+        if (curVer != null && !string.IsNullOrEmpty(curVer.OriginalFileName))
+        {
+            document.OriginalFileName = curVer.OriginalFileName;
+            document.FileExtension = curVer.FileExtension;
+            document.MimeType = curVer.MimeType;
+            document.TotalFileSize = curVer.FileSize;
+            document.CurrentVersion = curVer.VersionNumber;
+        }
 
         // Apply custom retention
         int years = retentionYears ?? 7;

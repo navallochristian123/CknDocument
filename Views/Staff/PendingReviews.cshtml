@@ -760,8 +760,10 @@
     function createAIChecklistItem(item) {
         const statusColors = { pass: 'success', fail: 'danger', warning: 'warning' };
         const statusIcons = { pass: 'check-circle-fill', fail: 'x-circle-fill', warning: 'exclamation-triangle-fill' };
-        const color = statusColors[item.aiStatus] || 'secondary';
-        const icon = statusIcons[item.aiStatus] || 'question-circle';
+        const hasAI = item.aiStatus && item.aiStatus !== 'undefined';
+        const color = hasAI ? (statusColors[item.aiStatus] || 'secondary') : 'light text-dark';
+        const icon = hasAI ? (statusIcons[item.aiStatus] || 'question-circle') : 'robot';
+        const aiLabel = hasAI ? item.aiStatus : 'Pending';
         
         return `
             <div class="metadata-check-item ${item.aiStatus === 'pass' ? 'checked' : item.aiStatus === 'fail' ? 'failed' : ''}" id="checkItem_ai_${item.id}">
@@ -772,7 +774,7 @@
                     <label class="form-check-label" for="ai_${item.id}">
                         ${escapeHtml(item.itemName)}
                         ${item.isRequired ? '<span class="badge bg-danger ms-1">Required</span>' : ''}
-                        <span class="badge bg-${color} ms-2"><i class="bi bi-${icon} me-1"></i>AI: ${item.aiStatus}</span>
+                        <span class="badge bg-${color} ms-2"><i class="bi bi-${icon} me-1"></i>AI: ${aiLabel}</span>
                         ${item.aiDetail ? `<br><small class="text-muted">${escapeHtml(item.aiDetail)}</small>` : ''}
                     </label>
                 </div>
@@ -975,6 +977,7 @@
                             <div>
                                 <strong>v${v.versionLabel || v.versionNumber}</strong> 
                                 ${v.isCurrentVersion ? '<span class="badge bg-primary">Current</span>' : ''}
+                                ${v.originalFileName ? `<br><small class="text-info"><i class="bi bi-file-earmark me-1"></i>${escapeHtml(v.originalFileName)}</small>` : ''}
                                 <br><small class="text-muted">${v.changeDescription || 'Initial upload'}</small>
                                 <br><small class="text-muted">${formatDate(v.createdAt)} by ${v.changedBy}</small>
                             </div>
@@ -988,11 +991,12 @@
                     versionsList.innerHTML = '<li class="list-group-item text-muted">Original version only</li>';
                 }
 
-                // Load AI checklist items
+                // Load AI checklist items and merge AI analysis onto them
                 checklistItems = data.checklistItems || [];
                 if (data.aiAnalysis && data.aiAnalysis.checklist) {
                     const aiChecklist = data.aiAnalysis.checklist;
                     if (checklistItems.length === 0) {
+                        // No DB items — build from AI results
                         checklistItems = aiChecklist.map((ai, idx) => ({
                             id: -(idx + 1),
                             itemName: ai.item,
@@ -1001,6 +1005,18 @@
                             aiStatus: ai.status,
                             aiDetail: ai.detail
                         }));
+                    } else {
+                        // DB items exist — merge AI data by fuzzy-matching item name
+                        checklistItems.forEach(item => {
+                            const match = aiChecklist.find(ai =>
+                                ai.item && item.itemName &&
+                                ai.item.toLowerCase().includes(item.itemName.toLowerCase().substring(0, 10))
+                            );
+                            if (match) {
+                                item.aiStatus = match.status;
+                                item.aiDetail = match.detail;
+                            }
+                        });
                     }
                 }
 

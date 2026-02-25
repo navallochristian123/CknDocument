@@ -573,6 +573,7 @@
                             <div>
                                 <strong>v${v.versionLabel || v.versionNumber}</strong>
                                 ${i === 0 ? '<span class="badge bg-primary ms-2">Current</span>' : ''}
+                                ${v.originalFileName ? `<br><small class="text-info"><i class="bi bi-file-earmark me-1"></i>${escapeHtml(v.originalFileName)}</small>` : ''}
                                 <br>
                                 <small class="text-muted">${formatDate(v.createdAt)}</small>
                                 <br>
