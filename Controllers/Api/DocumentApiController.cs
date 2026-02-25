@@ -166,6 +166,7 @@ public class DocumentApiController : ControllerBase
             {
                 DocumentId = document.DocumentID,
                 VersionNumber = 1,
+                VersionLabel = "1",
                 FilePath = filePath,
                 FileSize = dto.File.Length,
                 UploadedBy = userId,
@@ -341,6 +342,7 @@ public class DocumentApiController : ControllerBase
                 {
                     versionId = v.VersionId,
                     versionNumber = v.VersionNumber,
+                    versionLabel = v.VersionLabel ?? v.VersionNumber.ToString(),
                     originalFileName = v.OriginalFileName,
                     fileSize = v.FileSize,
                     changeDescription = v.ChangeDescription,
@@ -690,18 +692,76 @@ public class DocumentApiController : ControllerBase
             document.Tags = dto.Tags;
 
         document.UpdatedAt = DateTime.UtcNow;
+
+        // ── Staff metadata edit → create a minor version snapshot ────────────────
+        // Whenever Staff (or Admin) edits while the document is in a review stage,
+        // record a new DocumentVersion so the lawyer / admin can see what changed.
+        bool isMetadataVersionCreated = false;
+        if (role == "Staff" || role == "Admin")
+        {
+            var staffStages = new[] {
+                "PendingStaffReview", "StaffReview",
+                "PendingLawyerReview", "LawyerReview",
+                "PendingAdminReview", "AdminReview"
+            };
+
+            // Load existing versions to determine the current label
+            var existingVersions = await _context.DocumentVersions
+                .Where(v => v.DocumentId == id)
+                .OrderByDescending(v => v.VersionNumber)
+                .ToListAsync();
+
+            if (staffStages.Contains(document.WorkflowStage) && existingVersions.Any())
+            {
+                var currentVer = existingVersions.First(v => v.IsCurrentVersion == true)
+                               ?? existingVersions.First();
+
+                // Calculate next minor version label  (e.g. "1" → "1.1", "1.1" → "1.2")
+                var newLabel = CalcMinorVersionLabel(
+                    existingVersions.Select(v => v.VersionLabel).ToList());
+
+                var nextVersionNumber = existingVersions.Max(v => v.VersionNumber) + 1;
+
+                // Set all existing as not current
+                foreach (var v in existingVersions)
+                    v.IsCurrentVersion = false;
+
+                var metaVersion = new DocumentVersion
+                {
+                    DocumentId = id,
+                    VersionNumber = nextVersionNumber,
+                    VersionLabel = newLabel,
+                    // Same file as the current version
+                    FilePath = currentVer.FilePath,
+                    FileSize = currentVer.FileSize,
+                    OriginalFileName = currentVer.OriginalFileName,
+                    FileExtension = currentVer.FileExtension,
+                    MimeType = currentVer.MimeType,
+                    UploadedBy = userId,
+                    ChangeDescription = $"Metadata updated by {role}: title/description/type/category",
+                    ChangedBy = role,
+                    IsCurrentVersion = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.DocumentVersions.Add(metaVersion);
+                document.CurrentVersion = nextVersionNumber;
+                isMetadataVersionCreated = true;
+            }
+        }
+
         await _context.SaveChangesAsync();
 
         await _auditLogService.LogAsync(
             "DocumentUpdate",
             "Document",
             id,
-            $"Updated document metadata: {document.Title}",
+            $"Updated document metadata: {document.Title}" + (isMetadataVersionCreated ? " (new metadata version created)" : ""),
             null,
             null,
             "DocumentEdit");
 
-        return Ok(new { success = true, message = "Document updated successfully" });
+        return Ok(new { success = true, message = "Document updated successfully", metadataVersionCreated = isMetadataVersionCreated });
     }
 
     /// <summary>
@@ -750,6 +810,7 @@ public class DocumentApiController : ControllerBase
             {
                 versionId = v.VersionId,
                 versionNumber = v.VersionNumber,
+                versionLabel = v.VersionLabel ?? v.VersionNumber.ToString(),
                 originalFileName = v.OriginalFileName,
                 fileSize = v.FileSize,
                 changeDescription = v.ChangeDescription,
@@ -799,6 +860,19 @@ public class DocumentApiController : ControllerBase
                 : 0;
             var newVersionNumber = currentMaxVersion + 1;
 
+            // Determine version label
+            // Staff uploads → minor version bump (1.1, 1.2, …)
+            // Lawyer / Admin file uploads → major version bump (2, 3, …)
+            var existingLabels = document.Versions
+                .Select(v => v.VersionLabel)
+                .ToList();
+
+            string newVersionLabel;
+            if (role == "Staff")
+                newVersionLabel = CalcMinorVersionLabel(existingLabels);
+            else // Lawyer, Admin
+                newVersionLabel = CalcMajorVersionLabel(existingLabels);
+
             // Save file
             var uploadPath = Path.Combine(_environment.ContentRootPath, "Uploads", firmId.ToString(), document.UploadedBy.ToString() ?? "0");
             Directory.CreateDirectory(uploadPath);
@@ -828,6 +902,7 @@ public class DocumentApiController : ControllerBase
             {
                 DocumentId = id,
                 VersionNumber = newVersionNumber,
+                VersionLabel = newVersionLabel,
                 FilePath = filePath,
                 OriginalFileName = dto.File.FileName,
                 FileSize = dto.File.Length,
@@ -850,15 +925,16 @@ public class DocumentApiController : ControllerBase
                 role == "Admin" ? "AdminEditDocument" : "StaffEditDocument",
                 "Document",
                 id,
-                $"{role} uploaded new version {newVersionNumber}: {dto.ChangeDescription}",
+                $"{role} uploaded new version {newVersionLabel} (v{newVersionNumber}): {dto.ChangeDescription}",
                 null, null, "Workflow");
 
             return Ok(new
             {
                 success = true,
-                message = $"Version {newVersionNumber} created successfully",
+                message = $"Version {newVersionLabel} created successfully",
                 versionId = newVersion.VersionId,
-                versionNumber = newVersionNumber
+                versionNumber = newVersionNumber,
+                versionLabel = newVersionLabel
             });
         }
         catch (Exception ex)
@@ -870,6 +946,7 @@ public class DocumentApiController : ControllerBase
 
     /// <summary>
     /// Get AI analysis for a document (full OpenAI analysis)
+    /// Triggers real-time analysis if no stored result is found.
     /// </summary>
     [HttpGet("{id}/ai-analysis")]
     [Authorize(Policy = "FirmMember")]
@@ -877,89 +954,189 @@ public class DocumentApiController : ControllerBase
     {
         try
         {
-        var firmId = GetFirmId();
+            var firmId = GetFirmId();
 
-        var document = await _context.Documents
-            .FirstOrDefaultAsync(d => d.DocumentID == id && d.FirmID == firmId);
+            var document = await _context.Documents
+                .Include(d => d.Versions)
+                .FirstOrDefaultAsync(d => d.DocumentID == id && d.FirmID == firmId);
 
-        if (document == null)
-            return NotFound(new { success = false, message = "Document not found" });
+            if (document == null)
+                return NotFound(new { success = false, message = "Document not found" });
 
-        // Get stored AI analysis
-        var aiAnalysis = await _aiService.GetAnalysisAsync(id);
-
-        if (aiAnalysis != null && aiAnalysis.IsProcessed)
-        {
-            // Parse stored JSON
-            List<AIChecklistItem>? checklist = null;
-            List<AIDocumentIssue>? issues = null;
-            List<AIMissingItem>? missingItems = null;
-
+            // ── 1. Try to load a previously stored (processed) AI analysis ─────────
+            DocumentAIAnalysis? storedAnalysis = null;
             try
             {
-                if (!string.IsNullOrEmpty(aiAnalysis.ChecklistJson))
-                    checklist = System.Text.Json.JsonSerializer.Deserialize<List<AIChecklistItem>>(aiAnalysis.ChecklistJson);
-                if (!string.IsNullOrEmpty(aiAnalysis.IssuesJson))
-                    issues = System.Text.Json.JsonSerializer.Deserialize<List<AIDocumentIssue>>(aiAnalysis.IssuesJson);
-                if (!string.IsNullOrEmpty(aiAnalysis.MissingItemsJson))
-                    missingItems = System.Text.Json.JsonSerializer.Deserialize<List<AIMissingItem>>(aiAnalysis.MissingItemsJson);
+                storedAnalysis = await _aiService.GetAnalysisAsync(id);
             }
-            catch { /* ignore parse errors */ }
+            catch (Exception dbEx)
+            {
+                _logger.LogWarning(dbEx, "Could not query AI analysis table for document {DocumentId} (table may not exist yet).", id);
+            }
 
+            if (storedAnalysis != null && storedAnalysis.IsProcessed == true)
+            {
+                List<AIChecklistItem>? checklist = null;
+                List<AIDocumentIssue>? issues = null;
+                List<AIMissingItem>? missingItems = null;
+
+                try
+                {
+                    if (!string.IsNullOrEmpty(storedAnalysis.ChecklistJson))
+                        checklist = System.Text.Json.JsonSerializer.Deserialize<List<AIChecklistItem>>(storedAnalysis.ChecklistJson);
+                    if (!string.IsNullOrEmpty(storedAnalysis.IssuesJson))
+                        issues = System.Text.Json.JsonSerializer.Deserialize<List<AIDocumentIssue>>(storedAnalysis.IssuesJson);
+                    if (!string.IsNullOrEmpty(storedAnalysis.MissingItemsJson))
+                        missingItems = System.Text.Json.JsonSerializer.Deserialize<List<AIMissingItem>>(storedAnalysis.MissingItemsJson);
+                }
+                catch { /* ignore JSON parse errors – handled by empty fallbacks */ }
+
+                return Ok(new
+                {
+                    success = true,
+                    documentId = id,
+                    analysis = new
+                    {
+                        detectedDocumentType = storedAnalysis.DetectedDocumentType,
+                        confidence = (storedAnalysis.Confidence ?? 0) / 100.0,
+                        summary = storedAnalysis.Summary,
+                        checklist = checklist ?? new List<AIChecklistItem>(),
+                        issues = issues ?? new List<AIDocumentIssue>(),
+                        missingItems = missingItems ?? new List<AIMissingItem>(),
+                        isProcessed = true,
+                        processedAt = storedAnalysis.ProcessedAt,
+                        modelUsed = storedAnalysis.ModelUsed
+                    },
+                    isDuplicate = document.IsDuplicate,
+                    duplicateInfo = document.IsDuplicate == true ? $"Possible duplicate of document #{document.DuplicateOfDocumentId}" : null
+                });
+            }
+
+            // ── 2. No stored analysis — trigger real-time analysis from file content ─
+            _logger.LogInformation("No stored AI analysis found for document {DocumentId}. Running real-time analysis.", id);
+
+            var currentVersion = document.Versions
+                .OrderByDescending(v => v.VersionNumber)
+                .FirstOrDefault(v => v.IsCurrentVersion == true)
+                ?? document.Versions.OrderByDescending(v => v.VersionNumber).FirstOrDefault();
+
+            OpenAIAnalysisResult? liveResult = null;
+
+            if (currentVersion != null && !string.IsNullOrEmpty(currentVersion.FilePath))
+            {
+                var resolvedPath = ResolveVersionFilePath(currentVersion.FilePath);
+                if (resolvedPath != null)
+                {
+                    try
+                    {
+                        var fileName = currentVersion.OriginalFileName ?? document.OriginalFileName ?? "document";
+                        var fileExt  = currentVersion.FileExtension ?? document.FileExtension ?? "";
+
+                        var extractedText = await _aiService.ExtractTextFromFileAsync(resolvedPath, fileName);
+                        liveResult = await _aiService.AnalyzeWithOpenAIAsync(extractedText, fileName, fileExt);
+
+                        // Persist the result so future calls are instant
+                        if (liveResult.Success)
+                        {
+                            try
+                            {
+                                var newRecord = new DocumentAIAnalysis
+                                {
+                                    DocumentId = id,
+                                    FirmId = firmId,
+                                    DetectedDocumentType = liveResult.DocumentType,
+                                    Confidence = liveResult.Confidence,
+                                    Summary = liveResult.Summary,
+                                    ChecklistJson = System.Text.Json.JsonSerializer.Serialize(liveResult.Checklist),
+                                    IssuesJson = System.Text.Json.JsonSerializer.Serialize(liveResult.Issues),
+                                    MissingItemsJson = System.Text.Json.JsonSerializer.Serialize(liveResult.MissingItems),
+                                    RawResponseJson = liveResult.RawResponse,
+                                    ExtractedText = extractedText.Length > 10000 ? extractedText[..10000] : extractedText,
+                                    IsProcessed = true,
+                                    ProcessedAt = DateTime.UtcNow,
+                                    ModelUsed = liveResult.ModelUsed,
+                                    TokensUsed = liveResult.TokensUsed,
+                                    CreatedAt = DateTime.UtcNow
+                                };
+
+                                _context.DocumentAIAnalyses.Add(newRecord);
+                                document.IsAIProcessed = true;
+                                if (!string.IsNullOrEmpty(liveResult.DocumentType))
+                                    document.DocumentType = liveResult.DocumentType;
+                                await _context.SaveChangesAsync();
+                            }
+                            catch (Exception saveEx)
+                            {
+                                _logger.LogWarning(saveEx, "Could not persist live AI analysis for document {DocumentId}.", id);
+                                foreach (var entry in _context.ChangeTracker.Entries()
+                                    .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified).ToList())
+                                    entry.State = EntityState.Detached;
+                            }
+                        }
+                    }
+                    catch (Exception aiEx)
+                    {
+                        _logger.LogWarning(aiEx, "Real-time AI analysis call failed for document {DocumentId}.", id);
+                    }
+                }
+            }
+
+            if (liveResult != null && liveResult.Success)
+            {
+                return Ok(new
+                {
+                    success = true,
+                    documentId = id,
+                    analysis = new
+                    {
+                        detectedDocumentType = liveResult.DocumentType,
+                        confidence = liveResult.Confidence / 100.0,
+                        summary = liveResult.Summary,
+                        checklist = liveResult.Checklist,
+                        issues = liveResult.Issues,
+                        missingItems = liveResult.MissingItems,
+                        isProcessed = true,
+                        processedAt = DateTime.UtcNow,
+                        modelUsed = liveResult.ModelUsed
+                    },
+                    isDuplicate = document.IsDuplicate,
+                    duplicateInfo = document.IsDuplicate == true ? $"Possible duplicate of document #{document.DuplicateOfDocumentId}" : null
+                });
+            }
+
+            // ── 3. Keyword-based fallback (no OpenAI / file not found) ─────────────
+            var fallback = await _aiService.AnalyzeDocumentAsync(id);
             return Ok(new
             {
-                success = true,
+                success = fallback.Success,
                 documentId = id,
                 analysis = new
                 {
-                    detectedDocumentType = aiAnalysis.DetectedDocumentType,
-                    confidence = (aiAnalysis.Confidence ?? 0) / 100.0,
-                    summary = aiAnalysis.Summary,
-                    checklist = checklist ?? new List<AIChecklistItem>(),
-                    issues = issues ?? new List<AIDocumentIssue>(),
-                    missingItems = missingItems ?? new List<AIMissingItem>(),
-                    isProcessed = true,
-                    processedAt = aiAnalysis.ProcessedAt,
-                    modelUsed = aiAnalysis.ModelUsed
+                    detectedDocumentType = fallback.DocumentType,
+                    confidence = fallback.Confidence / 100.0,
+                    summary = string.IsNullOrEmpty(fallback.Summary)
+                        ? "AI analysis is running. If this persists, check that OpenAI API key is configured and the document file is accessible."
+                        : fallback.Summary,
+                    checklist = fallback.AIChecklist,
+                    issues = fallback.AIIssues,
+                    missingItems = fallback.AIMissingItems,
+                    isProcessed = false,
+                    modelUsed = "Keyword-based fallback",
+                    processedAt = (DateTime?)null
                 },
-                isDuplicate = document.IsDuplicate,
-                duplicateInfo = document.IsDuplicate == true ? $"Possible duplicate of document #{document.DuplicateOfDocumentId}" : null
+                isDuplicate = fallback.IsDuplicate,
+                duplicateInfo = fallback.IsDuplicate ? $"Possible duplicate of document #{fallback.DuplicateOfDocumentId}" : null,
+                keywords = fallback.Keywords
             });
-        }
-
-        // Fallback to basic analysis
-        var analysis = await _aiService.AnalyzeDocumentAsync(id);
-        return Ok(new
-        {
-            success = analysis.Success,
-            documentId = id,
-            analysis = new
-            {
-                detectedDocumentType = analysis.DocumentType,
-                confidence = (analysis.Confidence) / 100.0,
-                summary = analysis.Summary ?? "AI analysis not yet completed.",
-                checklist = analysis.AIChecklist,
-                issues = analysis.AIIssues,
-                missingItems = analysis.AIMissingItems,
-                isProcessed = false,
-                modelUsed = (string?)null,
-                processedAt = (DateTime?)null
-            },
-            isDuplicate = analysis.IsDuplicate,
-            duplicateInfo = analysis.IsDuplicate ? $"Possible duplicate of document #{analysis.DuplicateOfDocumentId}" : null,
-            keywords = analysis.Keywords
-        });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error loading AI analysis for document {DocumentId}", id);
-            return Ok(new { success = false, message = "AI analysis unavailable", analysis = new { summary = "AI analysis could not be loaded.", isProcessed = false } });
+            return Ok(new { success = false, message = "AI analysis unavailable: " + ex.Message, analysis = new { summary = "An error occurred while loading AI analysis.", isProcessed = false } });
         }
     }
 
-    /// <summary>
-    /// Get audit trail for a document
-    /// </summary>
+
     [HttpGet("{id}/audit-trail")]
     public async Task<IActionResult> GetAuditTrail(int id)
     {
@@ -1314,6 +1491,52 @@ public class DocumentApiController : ControllerBase
             _logger.LogError(ex, "Error running AI change analysis for document {DocumentId}", id);
             return StatusCode(500, new { success = false, message = "Error running AI analysis" });
         }
+    }
+
+    // ─── Version-label helpers ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Calculate the next MINOR version label for a staff-only metadata/file edit.
+    /// Examples: "1" → "1.1", "1.1" → "1.2", "2" → "2.1"
+    /// </summary>
+    private static string CalcMinorVersionLabel(IEnumerable<string?> existingLabels)
+    {
+        var labels = existingLabels.Where(l => !string.IsNullOrEmpty(l)).Select(l => l!).ToList();
+        if (!labels.Any()) return "1.1";
+
+        // Find the label of the most recent version
+        var latest = labels.Last(); // last in the ordered list
+        if (latest.Contains('.'))
+        {
+            var parts = latest.Split('.');
+            if (int.TryParse(parts[0], out var maj) && int.TryParse(parts[1], out var min))
+                return $"{maj}.{min + 1}";
+        }
+        else
+        {
+            if (int.TryParse(latest, out var maj))
+                return $"{maj}.1";
+        }
+        return labels.Count + ".1";
+    }
+
+    /// <summary>
+    /// Calculate the next MAJOR version label for a lawyer or admin file upload.
+    /// Examples: "1" → "2", "1.1" → "2", "1.2" → "2", "2.1" → "3"
+    /// </summary>
+    private static string CalcMajorVersionLabel(IEnumerable<string?> existingLabels)
+    {
+        var labels = existingLabels.Where(l => !string.IsNullOrEmpty(l)).Select(l => l!).ToList();
+        if (!labels.Any()) return "1";
+
+        int currentMajor = 1;
+        foreach (var label in labels)
+        {
+            var majorStr = label.Split('.')[0];
+            if (int.TryParse(majorStr, out var m) && m > currentMajor)
+                currentMajor = m;
+        }
+        return $"{currentMajor + 1}";
     }
 
     // ─── File path resolver ──────────────────────────────────────────────────────

@@ -261,7 +261,8 @@ public class DashboardApiController : ControllerBase
                 originalFileName = r.Document != null ? r.Document.OriginalFileName : null,
                 fileExtension = r.Document != null ? r.Document.FileExtension : null,
                 clientName = r.Document != null && r.Document.Uploader != null ? (r.Document.Uploader.FirstName ?? "") + " " + (r.Document.Uploader.LastName ?? "") : "Unknown",
-                reviewStatus = r.ReviewStatus,
+                // Staff "Approved" means forwarded to Lawyer — translate for display
+                reviewStatus = r.ReviewStatus == "Approved" && r.ReviewerRole == "Staff" ? "Forwarded" : r.ReviewStatus,
                 reviewerRole = r.ReviewerRole,
                 reviewedAt = r.ReviewedAt,
                 remarks = r.Remarks,

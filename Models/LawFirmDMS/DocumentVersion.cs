@@ -18,6 +18,13 @@ public class DocumentVersion : BaseEntity
 
     public int VersionNumber { get; set; } = 1;
 
+    /// <summary>
+    /// Human-readable version label: "1" for initial, "1.1"/"1.2" for staff edits, "2" for lawyer uploads.
+    /// Falls back to VersionNumber.ToString() when null.
+    /// </summary>
+    [MaxLength(20)]
+    public string? VersionLabel { get; set; }
+
     [MaxLength(1000)]
     public string? FilePath { get; set; }
 

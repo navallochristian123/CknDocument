@@ -529,26 +529,42 @@
     function renderVersionHistory(versions) {
         const container = document.getElementById('versionHistory');
         
-        if (versions.length === 0) {
+        if (!versions || versions.length === 0) {
             container.innerHTML = '<p class="text-muted">No version history available</p>';
             return;
         }
         
-        container.innerHTML = versions.map(v => `
-            <div class="list-group-item">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <strong>Version ${v.versionNumber}</strong>
-                        ${v.isCurrentVersion ? '<span class="badge bg-primary ms-2">Current</span>' : ''}
-                        <br><small class="text-muted">${v.changeDescription || 'Initial upload'}</small>
+        // Sort newest first
+        const sorted = [...versions].sort((a, b) => b.versionNumber - a.versionNumber);
+
+        container.innerHTML = sorted.map(v => {
+            const label = v.versionLabel || v.versionNumber;
+            const isCurrent = v.isCurrentVersion;
+            return `
+            <div class="list-group-item px-3 py-2">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1 me-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge ${isCurrent ? 'bg-primary' : 'bg-secondary'}">v${label}</span>
+                            ${isCurrent ? '<small class="text-primary fw-semibold">Current</small>' : ''}
+                        </div>
+                        <small class="text-muted d-block mt-1">${escapeHtml(v.changeDescription || 'Initial upload')}</small>
+                        <small class="text-muted"><i class="bi bi-person me-1"></i>${escapeHtml(v.changedBy || 'Client')} &bull; ${formatDate(v.createdAt)}</small>
                     </div>
-                    <div class="text-end">
-                        <small class="text-muted">${formatDate(v.createdAt)}</small>
-                        <br><small class="text-muted">by ${v.changedBy || 'System'}</small>
+                    <div class="d-flex gap-1 flex-shrink-0">
+                        <button class="btn btn-sm btn-outline-info px-2 py-1"
+                            title="Preview this version"
+                            onclick="previewVersion(${v.versionId}, 'v${label}')">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <a href="/api/DocumentApi/${currentDocumentId}/download?versionId=${v.versionId}"
+                            class="btn btn-sm btn-outline-secondary px-2 py-1" title="Download v${label}">
+                            <i class="bi bi-download"></i>
+                        </a>
                     </div>
                 </div>
-            </div>
-        `).join('');
+            </div>`;
+        }).join('');
     }
     
     function renderReviewHistory(reviews) {
@@ -687,6 +703,50 @@
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    function previewVersion(versionId, versionLabel) {
+        // Reuse the existing client preview modal but load specific version
+        const modal = document.getElementById('clientPreviewModal');
+        if (!modal) { openClientPreview(); return; }
+        document.getElementById('clientPreviewTitle').textContent = versionLabel;
+        const ext = (currentDocExtension || '').toLowerCase();
+        const id = currentDocumentId;
+        // Reset state
+        document.getElementById('clientPreviewLoading').style.display = 'block';
+        document.getElementById('clientPreviewIframe').style.display = 'none';
+        document.getElementById('clientPreviewImageWrap').style.display = 'none';
+        document.getElementById('clientPreviewText').style.display = 'none';
+        document.getElementById('clientPreviewDownloadBtn').href = `/api/DocumentApi/${id}/download?versionId=${versionId}`;
+        new bootstrap.Modal(modal).show();
+        const viewUrl = `/api/DocumentApi/${id}/view?versionId=${versionId}`;
+        if (['.pdf'].includes(ext)) {
+            document.getElementById('clientPreviewLoading').style.display = 'none';
+            document.getElementById('clientPreviewIframe').src = viewUrl;
+            document.getElementById('clientPreviewIframe').style.display = 'block';
+        } else if (['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].includes(ext)) {
+            document.getElementById('clientPreviewLoading').style.display = 'none';
+            document.getElementById('clientPreviewImg').src = viewUrl;
+            document.getElementById('clientPreviewImageWrap').style.display = 'block';
+        } else if (['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'].includes(ext)) {
+            document.getElementById('clientPreviewLoading').style.display = 'none';
+            const officeUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(window.location.origin + viewUrl)}&embedded=true`;
+            document.getElementById('clientPreviewIframe').src = officeUrl;
+            document.getElementById('clientPreviewIframe').style.display = 'block';
+        } else {
+            fetch(viewUrl)
+                .then(r => r.ok ? r.text() : Promise.reject())
+                .then(text => {
+                    document.getElementById('clientPreviewLoading').style.display = 'none';
+                    document.getElementById('clientPreviewText').innerHTML = `<pre class="p-3" style="white-space:pre-wrap">${escapeHtml(text)}</pre>`;
+                    document.getElementById('clientPreviewText').style.display = 'block';
+                })
+                .catch(() => {
+                    document.getElementById('clientPreviewLoading').style.display = 'none';
+                    document.getElementById('clientPreviewText').innerHTML = `<div class="text-center py-5"><i class="bi bi-file-earmark-x display-1 text-muted"></i><p class="text-muted mt-3">Preview not available.</p><a href="/api/DocumentApi/${id}/download?versionId=${versionId}" class="btn btn-primary mt-2"><i class="bi bi-download me-1"></i>Download</a></div>`;
+                    document.getElementById('clientPreviewText').style.display = 'block';
+                });
+        }
     }
 </script>
 }

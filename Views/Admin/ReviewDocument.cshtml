@@ -692,7 +692,7 @@
                         <div class="d-flex justify-content-between align-items-start">
                             <div>
                                 <div class="d-flex align-items-center">
-                                    <strong>v${v.versionNumber}</strong>
+                                    <strong>v${v.versionLabel || v.versionNumber}</strong>
                                     ${i === 0 ? '<span class="badge bg-primary ms-2">Current</span>' : '<span class="badge bg-secondary ms-2">Previous</span>'}
                                 </div>
                                 <small class="text-muted">${formatDate(v.createdAt)}</small>
@@ -714,7 +714,7 @@
                 
                 // Populate version selectors
                 const versionOptions = data.versions.map(v => 
-                    `<option value="${v.versionId}">v${v.versionNumber} - ${v.changedBy || 'Client'} (${formatDate(v.createdAt)})</option>`
+                    `<option value="${v.versionId}">v${v.versionLabel || v.versionNumber} - ${v.changedBy || 'Client'} (${formatDate(v.createdAt)})</option>`
                 ).join('');
                 
                 document.getElementById('viewerVersionSelect').innerHTML = versionOptions;
@@ -729,7 +729,7 @@
                     versionSelectionCard.style.display = 'block';
                     approveVersionSelect.innerHTML = data.versions.map((v, i) => 
                         `<option value="${v.versionId}" ${i === 0 ? 'selected' : ''}>
-                            v${v.versionNumber} - ${v.changedBy || 'Client'} - ${v.changeDescription || 'Initial upload'}
+                            v${v.versionLabel || v.versionNumber} - ${v.changedBy || 'Client'} - ${v.changeDescription || 'Initial upload'}
                         </option>`
                     ).join('');
                 } else {
@@ -1196,7 +1196,7 @@
             const data = await response.json();
             
             if (data.success) {
-                alert(`Version ${data.versionNumber} created successfully. This version will be approved.`);
+                alert(`Version ${data.versionLabel || data.versionNumber} created successfully. This version will be approved.`);
                 
                 // Reload versions and select the new one
                 await loadVersions(docId);
@@ -1318,7 +1318,7 @@
 
         const version = documentVersions.find(v => v.versionId == versionId) || documentVersions[0];
         if (version) {
-            document.getElementById('viewerVersionLabel').textContent = `v${version.versionNumber}`;
+            document.getElementById('viewerVersionLabel').textContent = `v${version.versionLabel || version.versionNumber}`;
             document.getElementById('viewerVersionInfo').textContent = `${version.changedBy || 'Client'} - ${formatDate(version.createdAt)}`;
             document.getElementById('btnDownloadFromViewer').href = `/api/DocumentApi/${docId}/download?versionId=${versionId}`;
         }
@@ -1405,7 +1405,7 @@
         }
         // Populate selects
         const opts = documentVersions.map(v =>
-            `<option value="${v.versionId}">v${v.versionNumber} – ${v.changedBy || 'Client'} (${formatDate(v.createdAt)})</option>`
+            `<option value="${v.versionId}">v${v.versionLabel || v.versionNumber} – ${v.changedBy || 'Client'} (${formatDate(v.createdAt)})</option>`
         ).join('');
         document.getElementById('redlineFromVersion').innerHTML = opts;
         document.getElementById('redlineToVersion').innerHTML   = opts;
@@ -1481,7 +1481,7 @@
             return;
         }
         const opts = documentVersions.map(v =>
-            `<option value="${v.versionId}">v${v.versionNumber} – ${v.changedBy || 'Client'} (${formatDate(v.createdAt)})</option>`
+            `<option value="${v.versionId}">v${v.versionLabel || v.versionNumber} – ${v.changedBy || 'Client'} (${formatDate(v.createdAt)})</option>`
         ).join('');
         document.getElementById('aiChangesFromVersion').innerHTML = opts;
         document.getElementById('aiChangesToVersion').innerHTML   = opts;
@@ -1583,7 +1583,7 @@
         
         // Populate version dropdowns
         const versionOptions = documentVersions.map(v => 
-            `<option value="${v.versionId}">v${v.versionNumber} - ${v.changedBy || 'Client'} (${formatDate(v.createdAt)})</option>`
+            `<option value="${v.versionId}">v${v.versionLabel || v.versionNumber} - ${v.changedBy || 'Client'} (${formatDate(v.createdAt)})</option>`
         ).join('');
         
         document.getElementById('compareLeftVersion').innerHTML = '<option value="">Select version...</option>' + versionOptions;
@@ -1602,7 +1602,7 @@
         const timeline = document.getElementById('versionTimelineCompact');
         timeline.innerHTML = documentVersions.map(v => `
             <span class="badge ${v.isCurrentVersion ? 'bg-primary' : 'bg-secondary'} p-2">
-                v${v.versionNumber} - ${v.changedBy || 'Client'}
+                v${v.versionLabel || v.versionNumber} - ${v.changedBy || 'Client'}
                 <small class="d-block">${v.changeDescription || 'Initial'}</small>
             </span>
         `).join('');
@@ -1636,7 +1636,7 @@
         const imageContainerEl  = document.getElementById(`compare${capitalize(side)}Image`);
         const imgEl             = document.getElementById(`compare${capitalize(side)}Img`);
         
-        labelEl.textContent = `Version ${version.versionNumber}`;
+        labelEl.textContent = `Version ${version.versionLabel || version.versionNumber}`;
         infoEl.textContent  = `${version.changedBy || 'Client'} - ${version.changeDescription || 'Initial upload'}`;
         
         const viewUrl   = `/api/DocumentApi/${documentData.id}/view?versionId=${versionId}`;

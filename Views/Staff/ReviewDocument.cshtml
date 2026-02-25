@@ -605,7 +605,7 @@
                     <li class="list-group-item ${i === 0 ? 'bg-light' : ''}">
                         <div class="d-flex justify-content-between align-items-start">
                             <div>
-                                <strong>v${v.versionNumber}</strong>
+                                <strong>v${v.versionLabel || v.versionNumber}</strong>
                                 ${i === 0 ? '<span class="badge bg-primary ms-2">Current</span>' : ''}
                                 <br>
                                 <small class="text-muted">${formatDate(v.createdAt)}</small>
@@ -627,7 +627,7 @@
                 
                 // Populate version selectors
                 const versionOptions = data.versions.map(v => 
-                    `<option value="${v.versionId}">v${v.versionNumber} - ${v.changedBy || 'Client'} (${formatDate(v.createdAt)})</option>`
+                    `<option value="${v.versionId}">v${v.versionLabel || v.versionNumber} - ${v.changedBy || 'Client'} (${formatDate(v.createdAt)})</option>`
                 ).join('');
                 
                 document.getElementById('viewerVersionSelect').innerHTML = versionOptions;
@@ -1091,7 +1091,7 @@
         
         const version = documentVersions.find(v => v.versionId == versionId) || documentVersions[0];
         if (version) {
-            document.getElementById('viewerVersionLabel').textContent = `v${version.versionNumber}`;
+            document.getElementById('viewerVersionLabel').textContent = `v${version.versionLabel || version.versionNumber}`;
             document.getElementById('viewerVersionInfo').textContent = `${version.changedBy || 'Client'} - ${formatDate(version.createdAt)}`;
             document.getElementById('btnDownloadFromViewer').href = `/api/DocumentApi/${docId}/download?versionId=${versionId}`;
         }
@@ -1244,7 +1244,7 @@
         const tbody = document.getElementById('versionTimelineBody');
         tbody.innerHTML = documentVersions.map(v => `
             <tr>
-                <td><span class="badge ${v.isCurrentVersion ? 'bg-primary' : 'bg-secondary'}">v${v.versionNumber}</span></td>
+                <td><span class="badge ${v.isCurrentVersion ? 'bg-primary' : 'bg-secondary'}">v${v.versionLabel || v.versionNumber}</span></td>
                 <td>${escapeHtml(v.changedBy || 'Client')}</td>
                 <td>${escapeHtml(v.changeDescription || 'Initial upload')}</td>
                 <td>${formatDate(v.createdAt)}</td>
@@ -1281,7 +1281,7 @@
             <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-header bg-light">
-                        <strong>v${v1?.versionNumber || '?'}</strong> - ${escapeHtml(v1?.changedBy || 'Client')}
+                        <strong>v${v1?.versionLabel || v1?.versionNumber || '?'}</strong> - ${escapeHtml(v1?.changedBy || 'Client')}
                         <br><small class="text-muted">${formatDate(v1?.createdAt)}</small>
                     </div>
                     <div class="card-body">
@@ -1298,7 +1298,7 @@
             <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-header bg-light">
-                        <strong>v${v2?.versionNumber || '?'}</strong> - ${escapeHtml(v2?.changedBy || 'Client')}
+                        <strong>v${v2?.versionLabel || v2?.versionNumber || '?'}</strong> - ${escapeHtml(v2?.changedBy || 'Client')}
                         <br><small class="text-muted">${formatDate(v2?.createdAt)}</small>
                     </div>
                     <div class="card-body">

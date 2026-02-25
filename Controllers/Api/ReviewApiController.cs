@@ -368,6 +368,7 @@ public class ReviewApiController : ControllerBase
                 {
                     versionId = v.VersionId,
                     versionNumber = v.VersionNumber,
+                    versionLabel = v.VersionLabel ?? v.VersionNumber.ToString(),
                     originalFileName = v.OriginalFileName,
                     fileSize = v.FileSize,
                     changeDescription = v.ChangeDescription,
@@ -603,7 +604,8 @@ public class ReviewApiController : ControllerBase
                 success = true,
                 message = "Document updated, new version created",
                 versionId = version.VersionId,
-                versionNumber = version.VersionNumber
+                versionNumber = version.VersionNumber,
+                versionLabel = version.VersionLabel ?? version.VersionNumber.ToString()
             });
         }
         catch (Exception ex)
@@ -1090,7 +1092,8 @@ public class ReviewApiController : ControllerBase
                 success = true,
                 message = "Document updated, new version created",
                 versionId = version.VersionId,
-                versionNumber = version.VersionNumber
+                versionNumber = version.VersionNumber,
+                versionLabel = version.VersionLabel ?? version.VersionNumber.ToString()
             });
         }
         catch (Exception ex)

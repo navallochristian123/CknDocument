@@ -850,7 +850,7 @@
                     versionsList.innerHTML = doc.versions.map(v => `
                         <li class="list-group-item d-flex justify-content-between align-items-center py-2">
                             <div>
-                                <small><strong>v${v.versionNumber}</strong> ${v.isCurrentVersion ? '<span class="badge bg-primary">Current</span>' : ''}</small>
+                                <small><strong>v${v.versionLabel || v.versionNumber}</strong> ${v.isCurrentVersion ? '<span class="badge bg-primary">Current</span>' : ''}</small>
                                 <br><small class="text-muted">${v.changeDescription || 'Initial'}</small>
                             </div>
                             <a href="/api/DocumentApi/${documentId}/download?versionId=${v.versionId}" class="btn btn-sm btn-link"><i class="bi bi-download"></i></a>
@@ -909,11 +909,11 @@
         const v2Select = document.getElementById('compareVersion2');
         
         v1Select.innerHTML = currentVersions.map((v, i) => 
-            `<option value="${v.id}" ${i === 1 ? 'selected' : ''}>v${v.versionNumber}</option>`
+            `<option value="${v.id}" ${i === 1 ? 'selected' : ''}>v${v.versionLabel || v.versionNumber}</option>`
         ).join('');
         
         v2Select.innerHTML = currentVersions.map((v, i) => 
-            `<option value="${v.id}" ${i === 0 ? 'selected' : ''}>v${v.versionNumber}</option>`
+            `<option value="${v.id}" ${i === 0 ? 'selected' : ''}>v${v.versionLabel || v.versionNumber}</option>`
         ).join('');
 
         loadVersionComparison();
@@ -928,8 +928,8 @@
         
         if (!v1 || !v2) return;
 
-        document.getElementById('compare1Info').textContent = `Version ${v1.versionNumber}`;
-        document.getElementById('compare2Info').textContent = `Version ${v2.versionNumber}`;
+        document.getElementById('compare1Info').textContent = `Version ${v1.versionLabel || v1.versionNumber}`;
+        document.getElementById('compare2Info').textContent = `Version ${v2.versionLabel || v2.versionNumber}`;
 
         const frame1 = document.getElementById('compareFrame1');
         const frame2 = document.getElementById('compareFrame2');
@@ -1055,7 +1055,7 @@
             if (lawyerVersions.length > 0) {
                 versionContainer.innerHTML = lawyerVersions.map(v => `
                     <div class="small mb-1">
-                        <strong>v${v.versionNumber}:</strong> ${escapeHtml(v.changeDescription || 'No description')}
+                        <strong>v${v.versionLabel || v.versionNumber}:</strong> ${escapeHtml(v.changeDescription || 'No description')}
                     </div>
                 `).join('');
             } else {

@@ -874,14 +874,14 @@
                 const versionsList = document.getElementById('versionsList');
                 if (doc.versions && doc.versions.length > 0) {
                     const currentVersion = doc.versions.find(v => v.isCurrentVersion) || doc.versions[0];
-                    document.getElementById('currentVersionNumber').textContent = `v${currentVersion.versionNumber}`;
+                    document.getElementById('currentVersionNumber').textContent = `v${currentVersion.versionLabel || currentVersion.versionNumber}`;
                     document.getElementById('currentVersionBy').textContent = currentVersion.changedBy || '-';
                     document.getElementById('currentVersionDate').textContent = formatDate(currentVersion.createdAt);
                     
                     versionsList.innerHTML = doc.versions.map(v => `
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             <div>
-                                <strong>v${v.versionNumber}</strong> ${v.isCurrentVersion ? '<span class="badge bg-primary">Current</span>' : ''}
+                                <strong>v${v.versionLabel || v.versionNumber}</strong> ${v.isCurrentVersion ? '<span class="badge bg-primary">Current</span>' : ''}
                                 <br><small class="text-muted">${v.changeDescription || 'Initial upload'}</small>
                                 <br><small class="text-muted">${formatDate(v.createdAt)} by ${v.changedBy}</small>
                             </div>
@@ -1254,7 +1254,7 @@
             const data = await response.json();
 
             if (data.success) {
-                alert(`New version ${data.versionNumber} uploaded successfully!`);
+                alert(`New version ${data.versionLabel || data.versionNumber} uploaded successfully!`);
                 // Refresh the modal
                 openReviewModal(documentId);
             } else {

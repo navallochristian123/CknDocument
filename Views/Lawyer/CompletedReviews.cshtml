@@ -146,7 +146,7 @@
     async function loadCompleted() {
         const take = document.getElementById('showCount').value;
         try {
-            const response = await fetch(`/api/dashboard/lawyer-completed?take=${take}`);
+            const response = await fetch(`/api/DashboardApi/lawyer-completed?take=${take}`);
             if (!response.ok) throw new Error('Failed to load');
             const contentType = response.headers.get('content-type') || '';
             if (!contentType.includes('application/json')) throw new Error('Invalid response');

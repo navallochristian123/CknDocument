@@ -584,12 +584,19 @@ public class DocumentWorkflowService
         // Get file extension
         var fileExtension = Path.GetExtension(originalFileName);
 
-        // Create new version
+        // Create new version — Lawyer upload → MAJOR version label
         var newVersionNumber = (document.CurrentVersion ?? 1) + 1;
+        var existingLabels = document.Versions
+            .OrderBy(v => v.VersionNumber)
+            .Select(v => v.VersionLabel)
+            .ToList();
+        var newLabel = CalcMajorVersionLabel(existingLabels);
+
         var newVersion = new DocumentVersion
         {
             DocumentId = documentId,
             VersionNumber = newVersionNumber,
+            VersionLabel = newLabel,
             FilePath = filePath,
             FileSize = fileSize,
             UploadedBy = lawyerId,
@@ -681,12 +688,19 @@ public class DocumentWorkflowService
         // Get file extension
         var fileExtension = Path.GetExtension(originalFileName);
 
-        // Create new version
+        // Create new version — Staff upload → MINOR version label
         var newVersionNumber = (document.CurrentVersion ?? 1) + 1;
+        var existingLabels = document.Versions
+            .OrderBy(v => v.VersionNumber)
+            .Select(v => v.VersionLabel)
+            .ToList();
+        var newLabel = CalcMinorVersionLabel(existingLabels);
+
         var newVersion = new DocumentVersion
         {
             DocumentId = documentId,
             VersionNumber = newVersionNumber,
+            VersionLabel = newLabel,
             FilePath = filePath,
             FileSize = fileSize,
             UploadedBy = staffId,
@@ -1612,5 +1626,46 @@ public class DocumentWorkflowService
             .Where(r => r.DocumentId == documentId)
             .OrderByDescending(r => r.CreatedAt)
             .ToListAsync();
+    }
+
+    // ─── Version-label helpers ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Next MINOR version label: "1" → "1.1", "1.1" → "1.2", "2" → "2.1"
+    /// </summary>
+    private static string CalcMinorVersionLabel(IEnumerable<string?> existingLabels)
+    {
+        var labels = existingLabels.Where(l => !string.IsNullOrEmpty(l)).Select(l => l!).ToList();
+        if (!labels.Any()) return "1.1";
+        var latest = labels.Last();
+        if (latest.Contains('.'))
+        {
+            var parts = latest.Split('.');
+            if (int.TryParse(parts[0], out var maj) && int.TryParse(parts[1], out var min))
+                return $"{maj}.{min + 1}";
+        }
+        else
+        {
+            if (int.TryParse(latest, out var maj))
+                return $"{maj}.1";
+        }
+        return labels.Count + ".1";
+    }
+
+    /// <summary>
+    /// Next MAJOR version label: "1.1" → "2", "2.1" → "3"
+    /// </summary>
+    private static string CalcMajorVersionLabel(IEnumerable<string?> existingLabels)
+    {
+        var labels = existingLabels.Where(l => !string.IsNullOrEmpty(l)).Select(l => l!).ToList();
+        if (!labels.Any()) return "1";
+        int currentMajor = 1;
+        foreach (var label in labels)
+        {
+            var majorStr = label.Split('.')[0];
+            if (int.TryParse(majorStr, out var m) && m > currentMajor)
+                currentMajor = m;
+        }
+        return $"{currentMajor + 1}";
     }
 }
