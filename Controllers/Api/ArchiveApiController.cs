@@ -190,6 +190,7 @@ public class ArchiveApiController : ControllerBase
                     .ThenInclude(d => d!.Folder)
                 .Include(a => a.Document)
                     .ThenInclude(d => d!.Versions.OrderByDescending(v => v.VersionNumber))
+                        .ThenInclude(v => v.Uploader)
                 .Include(a => a.ArchivedByUser)
                 .Include(a => a.RestoredByUser)
                 .FirstOrDefaultAsync(a => a.ArchiveID == id && 
@@ -252,7 +253,10 @@ public class ArchiveApiController : ControllerBase
                         originalFileName = v.OriginalFileName,
                         fileSize = v.FileSize,
                         createdAt = v.CreatedAt,
-                        isCurrentVersion = v.IsCurrentVersion
+                        isCurrentVersion = v.IsCurrentVersion,
+                        changedBy = v.ChangedBy ?? (v.Uploader != null ? v.Uploader.FullName : null),
+                        changeDescription = v.ChangeDescription,
+                        uploaderName = v.Uploader != null ? v.Uploader.FullName : null
                     })
                 }
             });

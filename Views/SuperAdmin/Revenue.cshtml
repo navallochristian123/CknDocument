@@ -62,7 +62,7 @@
                     <option value="firm">Sort by Firm</option>
                 </select>
                 <a href="#" class="btn btn-sm btn-outline-primary" onclick="downloadRevReport()">
-                    <i class="bi bi-download me-1"></i>Download CSV
+                    <i class="bi bi-file-earmark-pdf me-1"></i>Download PDF
                 </a>
             </div>
         </div>
@@ -143,11 +143,42 @@
         } catch(e) { console.error(e); }
     }
 
-    function downloadRevReport() {
+    async function downloadRevReport() {
         const period = document.getElementById('period').value;
         const sortBy = document.getElementById('sortRevBy').value;
-        window.location.href = `/SuperAdminDashboard/DownloadReport?type=revenue&period=${period}&sortBy=${sortBy}`;
+        try {
+            const res = await fetch(`/SuperAdminDashboard/DownloadReport?type=revenue&period=${period}&sortBy=${sortBy}`);
+            const data = await res.json();
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            let y = 20;
+            doc.setFontSize(18);
+            doc.setTextColor(13, 110, 253);
+            doc.text('CKN Document - Revenue Report', 14, y);
+            y += 10;
+            doc.setFontSize(10);
+            doc.setTextColor(100);
+            doc.text(`Period: ${data.period} | Generated: ${data.generatedAt}`, 14, y);
+            y += 10;
+            if (data.revenue) {
+                doc.autoTable({
+                    startY: y,
+                    head: [['Date', 'Source', 'Category', 'Firm', 'Invoice', 'Gross', 'Tax (VAT)', 'Net']],
+                    body: data.revenue.rows.map(r => [
+                        r.date, r.source, r.category, r.firm, r.invoice,
+                        fpc(r.grossAmount), fpc(r.taxAmount), fpc(r.netAmount)
+                    ]),
+                    foot: [['TOTALS', '', '', '', '', fpc(data.revenue.totalGross), fpc(data.revenue.totalTax), fpc(data.revenue.totalNet)]],
+                    styles: { fontSize: 7, cellPadding: 2 },
+                    headStyles: { fillColor: [25, 135, 84] },
+                    footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
+                    theme: 'grid'
+                });
+            }
+            doc.save(`CKN_revenue_report_${period}_${new Date().toISOString().split('T')[0]}.pdf`);
+        } catch (e) { console.error('PDF error:', e); alert('Error generating PDF.'); }
     }
+    function fpc(v) { return 'PHP ' + Number(v||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
     function fc(v) { return '₱' + Number(v||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
     function fd(d) { return d ? new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'N/A'; }

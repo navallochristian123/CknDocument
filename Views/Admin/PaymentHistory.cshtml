@@ -19,8 +19,14 @@
 <div class="card border-0 shadow-sm">
     <div class="card-header bg-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Complete Payment History</h5>
-        <div>
+        <div class="d-flex align-items-center gap-2">
             <span class="text-muted small">Total Payments: @Model.Count</span>
+            @if (Model.Any())
+            {
+                <button class="btn btn-sm btn-outline-primary" onclick="downloadPaymentsPDF()">
+                    <i class="bi bi-file-earmark-pdf me-1"></i>Download PDF
+                </button>
+            }
         </div>
     </div>
     <div class="card-body p-0">
@@ -122,3 +128,52 @@
         }
     </div>
 </div>
+
+@section Scripts {
+<script>
+    function downloadPaymentsPDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('landscape');
+        let y = 20;
+
+        doc.setFontSize(18);
+        doc.setTextColor(13, 110, 253);
+        doc.text('Payment History Report', 14, y);
+        y += 8;
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(`Generated: ${new Date().toLocaleString()} | Total Payments: @Model.Count`, 14, y);
+        y += 10;
+
+        // Collect data from the table
+        const rows = [];
+        document.querySelectorAll('table tbody tr').forEach(tr => {
+            const cells = tr.querySelectorAll('td');
+            if (cells.length >= 9) {
+                rows.push([
+                    cells[0].textContent.trim(),
+                    cells[1].textContent.trim(),
+                    cells[2].textContent.trim(),
+                    cells[3].textContent.trim(),
+                    cells[4].textContent.trim(),
+                    cells[5].textContent.trim(),
+                    cells[6].textContent.trim(),
+                    cells[7].textContent.trim(),
+                    cells[8].textContent.trim()
+                ]);
+            }
+        });
+
+        doc.autoTable({
+            startY: y,
+            head: [['Reference', 'Invoice', 'Amount', 'Tax (VAT)', 'Net Amount', 'Method', 'Date', 'Status', 'PayMongo ID']],
+            body: rows,
+            styles: { fontSize: 7, cellPadding: 2 },
+            headStyles: { fillColor: [13, 110, 253] },
+            theme: 'grid'
+        });
+
+        doc.save(`payment_history_${new Date().toISOString().split('T')[0]}.pdf`);
+    }
+</script>
+}

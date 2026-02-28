@@ -3,73 +3,332 @@
     Layout = "_AdminLayout";
 }
 
+@section Styles {
+<style>
+    .report-card { cursor: pointer; transition: all 0.2s; border-radius: 12px; }
+    .report-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.1); }
+    .report-icon { width: 64px; height: 64px; border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; }
+</style>
+}
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h4 class="mb-0">Reports</h4>
-        <p class="text-muted mb-0">Generate and view reports</p>
+        <p class="text-muted mb-0">Generate and download PDF reports</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <select class="form-select form-select-sm" id="reportPeriod" style="width: auto;">
+            <option value="week">This Week</option>
+            <option value="month" selected>This Month</option>
+            <option value="quarter">This Quarter</option>
+            <option value="year">This Year</option>
+            <option value="all">All Time</option>
+        </select>
     </div>
 </div>
 
-<div class="row">
-    <div class="col-md-4">
-        <div class="card mb-4">
-            <div class="card-body text-center">
-                <i class="bi bi-file-earmark-bar-graph text-primary fs-1"></i>
-                <h5 class="mt-3">Document Report</h5>
-                <p class="text-muted">Document statistics and trends</p>
-                <a href="#" class="btn btn-primary">Generate</a>
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card report-card border-0 shadow-sm h-100" onclick="generateDocumentReport()">
+            <div class="card-body text-center py-4">
+                <div class="report-icon bg-primary-subtle mx-auto">
+                    <i class="bi bi-file-earmark-bar-graph text-primary fs-2"></i>
+                </div>
+                <h6 class="mt-2">Document Report</h6>
+                <p class="text-muted small mb-2">Document statistics, status breakdown, and trends</p>
+                <span class="btn btn-sm btn-primary"><i class="bi bi-file-earmark-pdf me-1"></i>Generate PDF</span>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card mb-4">
-            <div class="card-body text-center">
-                <i class="bi bi-people text-success fs-1"></i>
-                <h5 class="mt-3">User Activity Report</h5>
-                <p class="text-muted">User actions and engagement</p>
-                <a href="#" class="btn btn-success">Generate</a>
+    <div class="col-md-3">
+        <div class="card report-card border-0 shadow-sm h-100" onclick="generateUserActivityReport()">
+            <div class="card-body text-center py-4">
+                <div class="report-icon bg-success-subtle mx-auto">
+                    <i class="bi bi-people text-success fs-2"></i>
+                </div>
+                <h6 class="mt-2">User Activity Report</h6>
+                <p class="text-muted small mb-2">User actions, engagement, and audit trail</p>
+                <span class="btn btn-sm btn-success"><i class="bi bi-file-earmark-pdf me-1"></i>Generate PDF</span>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card mb-4">
-            <div class="card-body text-center">
-                <i class="bi bi-clipboard-check text-warning fs-1"></i>
-                <h5 class="mt-3">Compliance Report</h5>
-                <p class="text-muted">Retention and compliance status</p>
-                <a href="#" class="btn btn-warning">Generate</a>
+    <div class="col-md-3">
+        <div class="card report-card border-0 shadow-sm h-100" onclick="generateComplianceReport()">
+            <div class="card-body text-center py-4">
+                <div class="report-icon bg-warning-subtle mx-auto">
+                    <i class="bi bi-clipboard-check text-warning fs-2"></i>
+                </div>
+                <h6 class="mt-2">Compliance Report</h6>
+                <p class="text-muted small mb-2">Retention policies, archives, and compliance status</p>
+                <span class="btn btn-sm btn-warning"><i class="bi bi-file-earmark-pdf me-1"></i>Generate PDF</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card report-card border-0 shadow-sm h-100" onclick="generateOverallTransactionsReport()">
+            <div class="card-body text-center py-4">
+                <div class="report-icon bg-info-subtle mx-auto">
+                    <i class="bi bi-receipt text-info fs-2"></i>
+                </div>
+                <h6 class="mt-2">Overall Transactions</h6>
+                <p class="text-muted small mb-2">All documents, reviews, and payments combined</p>
+                <span class="btn btn-sm btn-info text-white"><i class="bi bi-file-earmark-pdf me-1"></i>Generate PDF</span>
             </div>
         </div>
     </div>
 </div>
 
-<div class="card">
-    <div class="card-header bg-white">
-        <h5 class="mb-0">Recent Reports</h5>
-    </div>
-    <div class="card-body p-0">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Report Name</th>
-                    <th>Type</th>
-                    <th>Generated By</th>
-                    <th>Date</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>Monthly Document Report - Jan 2024</td>
-                    <td>Document</td>
-                    <td>Admin</td>
-                    <td>Jan 31, 2024</td>
-                    <td>
-                        <a href="#" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>
-                        <a href="#" class="btn btn-sm btn-outline-secondary"><i class="bi bi-download"></i></a>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+<!-- Loading Overlay -->
+<div id="reportLoading" class="d-none">
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5">
+            <div class="spinner-border text-primary mb-3"></div>
+            <p class="text-muted">Generating report... Please wait.</p>
+        </div>
     </div>
 </div>
+
+@section Scripts {
+<script>
+    function showLoading() { document.getElementById('reportLoading').classList.remove('d-none'); }
+    function hideLoading() { document.getElementById('reportLoading').classList.add('d-none'); }
+    function getPeriod() { return document.getElementById('reportPeriod').value; }
+    function fpc(v) { return 'PHP ' + Number(v||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+    function fd(d) { return d ? new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'N/A'; }
+
+    async function generateDocumentReport() {
+        showLoading();
+        try {
+            const res = await fetch(`/Report/GetDocumentReportData?period=${getPeriod()}`);
+            const data = await res.json();
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            let y = 20;
+
+            doc.setFontSize(18); doc.setTextColor(13, 110, 253);
+            doc.text('Document Report', 14, y); y += 8;
+            doc.setFontSize(10); doc.setTextColor(100);
+            doc.text(`Period: ${data.period} | Generated: ${data.generatedAt}`, 14, y); y += 6;
+            doc.text(`Total Documents: ${data.totalDocuments}`, 14, y); y += 10;
+
+            // Status summary
+            doc.setFontSize(12); doc.setTextColor(0);
+            doc.text('Status Breakdown', 14, y); y += 6;
+            doc.autoTable({
+                startY: y,
+                head: [['Status', 'Count']],
+                body: data.byStatus.map(s => [s.status, s.count.toString()]),
+                styles: { fontSize: 9 }, headStyles: { fillColor: [13, 110, 253] }, theme: 'grid'
+            });
+            y = doc.lastAutoTable.finalY + 8;
+
+            // Type summary
+            doc.text('Document Types', 14, y); y += 6;
+            doc.autoTable({
+                startY: y,
+                head: [['Type', 'Count']],
+                body: data.byType.map(t => [t.type, t.count.toString()]),
+                styles: { fontSize: 9 }, headStyles: { fillColor: [25, 135, 84] }, theme: 'grid'
+            });
+            y = doc.lastAutoTable.finalY + 8;
+
+            // Document list
+            if (y > 220) { doc.addPage(); y = 20; }
+            doc.text('Document Details', 14, y); y += 6;
+            doc.autoTable({
+                startY: y,
+                head: [['Title', 'Type', 'Status', 'Uploaded By', 'Folder', 'Date', 'Version']],
+                body: data.documents.map(d => [d.title, d.documentType, d.status, d.uploadedBy, d.folder, fd(d.createdAt), 'v' + d.currentVersion]),
+                styles: { fontSize: 7, cellPadding: 2 }, headStyles: { fillColor: [13, 110, 253] }, theme: 'grid'
+            });
+
+            doc.save(`document_report_${getPeriod()}_${new Date().toISOString().split('T')[0]}.pdf`);
+        } catch (e) { console.error(e); alert('Error generating document report.'); }
+        hideLoading();
+    }
+
+    async function generateUserActivityReport() {
+        showLoading();
+        try {
+            const res = await fetch(`/Report/GetUserActivityReportData?period=${getPeriod()}`);
+            const data = await res.json();
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            let y = 20;
+
+            doc.setFontSize(18); doc.setTextColor(25, 135, 84);
+            doc.text('User Activity Report', 14, y); y += 8;
+            doc.setFontSize(10); doc.setTextColor(100);
+            doc.text(`Period: ${data.period} | Generated: ${data.generatedAt}`, 14, y); y += 6;
+            doc.text(`Total Activities: ${data.totalActivities}`, 14, y); y += 10;
+
+            doc.setFontSize(12); doc.setTextColor(0);
+            doc.text('Activity by User', 14, y); y += 6;
+            doc.autoTable({
+                startY: y,
+                head: [['User', 'Activity Count']],
+                body: data.byUser.map(u => [u.user, u.count.toString()]),
+                styles: { fontSize: 9 }, headStyles: { fillColor: [25, 135, 84] }, theme: 'grid'
+            });
+            y = doc.lastAutoTable.finalY + 8;
+
+            doc.text('Activity by Action', 14, y); y += 6;
+            doc.autoTable({
+                startY: y,
+                head: [['Action', 'Count']],
+                body: data.byAction.map(a => [a.action, a.count.toString()]),
+                styles: { fontSize: 9 }, headStyles: { fillColor: [111, 66, 193] }, theme: 'grid'
+            });
+            y = doc.lastAutoTable.finalY + 8;
+
+            if (y > 220) { doc.addPage(); y = 20; }
+            doc.text('Activity Log', 14, y); y += 6;
+            doc.autoTable({
+                startY: y,
+                head: [['Timestamp', 'User', 'Action', 'Category', 'Description']],
+                body: data.activities.slice(0, 200).map(a => [fd(a.timestamp), a.user, a.action, a.category, a.description]),
+                styles: { fontSize: 7, cellPadding: 2 }, headStyles: { fillColor: [25, 135, 84] }, theme: 'grid'
+            });
+
+            doc.save(`user_activity_report_${getPeriod()}_${new Date().toISOString().split('T')[0]}.pdf`);
+        } catch (e) { console.error(e); alert('Error generating user activity report.'); }
+        hideLoading();
+    }
+
+    async function generateComplianceReport() {
+        showLoading();
+        try {
+            const res = await fetch('/Report/GetComplianceReportData');
+            const data = await res.json();
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            let y = 20;
+
+            doc.setFontSize(18); doc.setTextColor(255, 193, 7);
+            doc.text('Compliance Report', 14, y); y += 8;
+            doc.setFontSize(10); doc.setTextColor(100);
+            doc.text(`Generated: ${data.generatedAt}`, 14, y); y += 10;
+
+            // Summary
+            doc.setFontSize(12); doc.setTextColor(0);
+            doc.autoTable({
+                startY: y,
+                head: [['Metric', 'Value']],
+                body: [
+                    ['Total Retention Policies', data.totalRetentionPolicies.toString()],
+                    ['Expired Retentions', data.expiredRetentions.toString()],
+                    ['Archived Retentions', data.archivedRetentions.toString()],
+                    ['Total Archives', data.totalArchives.toString()]
+                ],
+                styles: { fontSize: 9 }, headStyles: { fillColor: [255, 193, 7], textColor: [0,0,0] }, theme: 'grid'
+            });
+            y = doc.lastAutoTable.finalY + 8;
+
+            if (data.retentions.length > 0) {
+                doc.text('Retention Policies', 14, y); y += 6;
+                doc.autoTable({
+                    startY: y,
+                    head: [['Document', 'Policy', 'Duration', 'Expiry', 'Archived', 'Expired']],
+                    body: data.retentions.map(r => [
+                        r.documentTitle, r.policyName,
+                        `${r.retentionYears||0}Y ${r.retentionMonths||0}M ${r.retentionDays||0}D`,
+                        fd(r.expiryDate), r.isArchived ? 'Yes' : 'No', r.isExpired ? 'Yes' : 'No'
+                    ]),
+                    styles: { fontSize: 7, cellPadding: 2 }, headStyles: { fillColor: [255, 193, 7], textColor: [0,0,0] }, theme: 'grid'
+                });
+                y = doc.lastAutoTable.finalY + 8;
+            }
+
+            if (data.archives.length > 0) {
+                if (y > 220) { doc.addPage(); y = 20; }
+                doc.text('Archive Records', 14, y); y += 6;
+                doc.autoTable({
+                    startY: y,
+                    head: [['Document', 'Type', 'Archived Date', 'Archived By', 'Reason', 'Restored']],
+                    body: data.archives.map(a => [
+                        a.documentTitle, a.archiveType, fd(a.archivedAt), a.archivedBy, a.reason, a.isRestored ? 'Yes' : 'No'
+                    ]),
+                    styles: { fontSize: 7, cellPadding: 2 }, headStyles: { fillColor: [220, 53, 69] }, theme: 'grid'
+                });
+            }
+
+            doc.save(`compliance_report_${new Date().toISOString().split('T')[0]}.pdf`);
+        } catch (e) { console.error(e); alert('Error generating compliance report.'); }
+        hideLoading();
+    }
+
+    async function generateOverallTransactionsReport() {
+        showLoading();
+        try {
+            const res = await fetch(`/Report/GetOverallTransactionsReportData?period=${getPeriod()}`);
+            const data = await res.json();
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            let y = 20;
+
+            doc.setFontSize(18); doc.setTextColor(13, 202, 240);
+            doc.text('Overall Transactions Report', 14, y); y += 8;
+            doc.setFontSize(10); doc.setTextColor(100);
+            doc.text(`Period: ${data.period} | Generated: ${data.generatedAt}`, 14, y); y += 10;
+
+            // Summary table
+            doc.setFontSize(12); doc.setTextColor(0);
+            doc.text('Summary', 14, y); y += 6;
+            doc.autoTable({
+                startY: y,
+                head: [['Category', 'Details']],
+                body: [
+                    ['Documents', `Total: ${data.documentSummary.total} | Approved: ${data.documentSummary.approved} | Pending: ${data.documentSummary.pending} | Rejected: ${data.documentSummary.rejected}`],
+                    ['Reviews', `Total: ${data.reviewSummary.total} | Approved: ${data.reviewSummary.approved} | Rejected: ${data.reviewSummary.rejected}`],
+                    ['Payments', `Total: ${data.paymentSummary.total} | Amount: ${fpc(data.paymentSummary.totalAmount)} | Tax: ${fpc(data.paymentSummary.totalTax)}`]
+                ],
+                styles: { fontSize: 9 }, headStyles: { fillColor: [13, 202, 240], textColor: [0,0,0] }, theme: 'grid'
+            });
+            y = doc.lastAutoTable.finalY + 10;
+
+            // Documents
+            if (data.documents.length > 0) {
+                doc.text('Document Transactions', 14, y); y += 6;
+                doc.autoTable({
+                    startY: y,
+                    head: [['Title', 'Type', 'Status', 'Uploaded By', 'Date']],
+                    body: data.documents.map(d => [d.title, d.type, d.status, d.uploadedBy, fd(d.date)]),
+                    styles: { fontSize: 7, cellPadding: 2 }, headStyles: { fillColor: [13, 110, 253] }, theme: 'grid'
+                });
+                y = doc.lastAutoTable.finalY + 8;
+            }
+
+            // Reviews
+            if (data.reviews.length > 0) {
+                if (y > 220) { doc.addPage(); y = 20; }
+                doc.text('Review Transactions', 14, y); y += 6;
+                doc.autoTable({
+                    startY: y,
+                    head: [['Document', 'Reviewer', 'Role', 'Status', 'Date']],
+                    body: data.reviews.map(r => [r.documentTitle, r.reviewer, r.role, r.status, fd(r.date)]),
+                    styles: { fontSize: 7, cellPadding: 2 }, headStyles: { fillColor: [25, 135, 84] }, theme: 'grid'
+                });
+                y = doc.lastAutoTable.finalY + 8;
+            }
+
+            // Payments
+            if (data.payments.length > 0) {
+                if (y > 220) { doc.addPage(); y = 20; }
+                doc.text('Payment Transactions', 14, y); y += 6;
+                doc.autoTable({
+                    startY: y,
+                    head: [['Reference', 'Invoice', 'Amount', 'Tax', 'Net', 'Method', 'Status', 'Date']],
+                    body: data.payments.map(p => [
+                        p.reference, p.invoiceNumber, fpc(p.amount), fpc(p.taxAmount), fpc(p.netAmount),
+                        p.method, p.status, fd(p.date)
+                    ]),
+                    styles: { fontSize: 7, cellPadding: 2 }, headStyles: { fillColor: [111, 66, 193] }, theme: 'grid'
+                });
+            }
+
+            doc.save(`overall_transactions_report_${getPeriod()}_${new Date().toISOString().split('T')[0]}.pdf`);
+        } catch (e) { console.error(e); alert('Error generating overall transactions report.'); }
+        hideLoading();
+    }
+</script>
+}

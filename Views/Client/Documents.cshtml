@@ -192,6 +192,14 @@
                         <!-- Versions will be loaded here -->
                     </div>
                     
+                    <!-- Document Path Details -->
+                    <h6 class="mt-4 mb-3"><i class="bi bi-signpost-2"></i> Document Path Details</h6>
+                    <div id="documentPathDetails">
+                        <div class="text-center text-muted py-3">
+                            <div class="spinner-border spinner-border-sm me-2"></div>Loading path details...
+                        </div>
+                    </div>
+                    
                     <!-- Review History -->
                     <h6 class="mt-4 mb-3"><i class="bi bi-chat-left-text"></i> Review History</h6>
                     <div id="reviewHistory">
@@ -457,6 +465,9 @@
                 // Load version history
                 renderVersionHistory(doc.versions || []);
                 
+                // Load document path details
+                loadDocumentPath(id);
+                
                 // Load review history
                 renderReviewHistory(doc.reviews || []);
                 
@@ -566,6 +577,109 @@
                 </div>
             </div>`;
         }).join('');
+    }
+    
+    async function loadDocumentPath(documentId) {
+        const container = document.getElementById('documentPathDetails');
+        try {
+            const response = await fetch(`/api/DocumentApi/${documentId}/audit-trail`);
+            const data = await response.json();
+
+            if (data.success && data.auditTrail && data.auditTrail.length > 0) {
+                // Sort chronologically (oldest first) to show the journey
+                const sorted = [...data.auditTrail].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                
+                container.innerHTML = `
+                    <div class="position-relative ps-4">
+                        ${sorted.map((entry, index) => {
+                            const icon = getPathIcon(entry.action);
+                            const color = getPathColor(entry.action);
+                            const isLast = index === sorted.length - 1;
+                            return `
+                            <div class="d-flex mb-3 position-relative">
+                                <div class="position-absolute start-0 translate-middle-x" style="left: 0 !important; width: 2px; background: ${isLast ? 'transparent' : '#dee2e6'}; top: 24px; bottom: -12px;"></div>
+                                <div class="position-absolute start-0 translate-middle-x d-flex align-items-center justify-content-center rounded-circle bg-white border border-2" 
+                                     style="left: 0 !important; width: 32px; height: 32px; border-color: ${color} !important; z-index: 1;">
+                                    <i class="bi ${icon}" style="color: ${color}; font-size: 0.8rem;"></i>
+                                </div>
+                                <div class="ms-4 flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <strong class="small">${escapeHtml(formatPathAction(entry.action))}</strong>
+                                            <br><small class="text-muted">${escapeHtml(entry.description || '')}</small>
+                                        </div>
+                                        <div class="text-end flex-shrink-0">
+                                            <small class="text-muted d-block">${formatDate(entry.timestamp)}</small>
+                                            <small class="text-primary">${escapeHtml(entry.userName || 'System')}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                `;
+            } else {
+                container.innerHTML = '<p class="text-muted small">No path details available for this document.</p>';
+            }
+        } catch (error) {
+            console.error('Error loading document path:', error);
+            container.innerHTML = '<p class="text-danger small">Error loading document path details.</p>';
+        }
+    }
+
+    function getPathIcon(action) {
+        const icons = {
+            'DocumentUpload': 'bi-cloud-upload',
+            'Upload': 'bi-cloud-upload',
+            'StaffApprove': 'bi-check-circle',
+            'StaffReject': 'bi-x-circle',
+            'AdminApprove': 'bi-shield-check',
+            'AdminReject': 'bi-shield-x',
+            'Archive': 'bi-archive',
+            'Restore': 'bi-arrow-counterclockwise',
+            'Edit': 'bi-pencil',
+            'Version': 'bi-clock-history',
+            'LawyerEdit': 'bi-pencil-square',
+            'StaffEdit': 'bi-pencil-square',
+            'AssignStaff': 'bi-person-plus',
+            'AssignAdmin': 'bi-person-plus',
+            'Download': 'bi-download',
+            'View': 'bi-eye'
+        };
+        return icons[action] || 'bi-circle';
+    }
+
+    function getPathColor(action) {
+        if (action?.includes('Approve') || action?.includes('Complete')) return '#198754';
+        if (action?.includes('Reject')) return '#dc3545';
+        if (action?.includes('Upload')) return '#0d6efd';
+        if (action?.includes('Edit') || action?.includes('Version')) return '#6f42c1';
+        if (action?.includes('Archive')) return '#ffc107';
+        if (action?.includes('Restore')) return '#0dcaf0';
+        if (action?.includes('Assign')) return '#fd7e14';
+        return '#6c757d';
+    }
+
+    function formatPathAction(action) {
+        const labels = {
+            'DocumentUpload': 'Document Uploaded',
+            'Upload': 'Document Uploaded',
+            'StaffApprove': 'Approved by Staff',
+            'StaffReject': 'Rejected by Staff',
+            'AdminApprove': 'Approved by Admin',
+            'AdminReject': 'Rejected by Admin',
+            'Archive': 'Document Archived',
+            'Restore': 'Document Restored',
+            'Edit': 'Document Edited',
+            'Version': 'New Version Created',
+            'LawyerEdit': 'Edited by Lawyer',
+            'StaffEdit': 'Edited by Staff',
+            'AssignStaff': 'Assigned to Staff',
+            'AssignAdmin': 'Assigned to Admin',
+            'Download': 'Document Downloaded',
+            'View': 'Document Viewed'
+        };
+        return labels[action] || action || 'Unknown Action';
     }
     
     function renderReviewHistory(reviews) {

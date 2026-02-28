@@ -160,7 +160,7 @@
                             </select>
                         </div>
                         <button class="btn btn-primary btn-sm w-100" onclick="downloadReport()">
-                            <i class="bi bi-file-earmark-spreadsheet me-1"></i>Download CSV
+                            <i class="bi bi-file-earmark-pdf me-1"></i>Download PDF
                         </button>
                     </div>
                 </div>
@@ -490,7 +490,108 @@
         const type = document.getElementById('reportType').value;
         const period = document.getElementById('reportPeriod').value;
         const sortBy = document.getElementById('reportSort').value;
-        window.location.href = `/SuperAdminDashboard/DownloadReport?type=${type}&period=${period}&sortBy=${sortBy}`;
+        generatePdfReport(type, period, sortBy);
+    }
+
+    async function generatePdfReport(type, period, sortBy) {
+        try {
+            const res = await fetch(`/SuperAdminDashboard/DownloadReport?type=${type}&period=${period}&sortBy=${sortBy}`);
+            const data = await res.json();
+            
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            let y = 20;
+
+            // Header
+            doc.setFontSize(18);
+            doc.setTextColor(13, 110, 253);
+            doc.text('CKN Document - Financial Report', 14, y);
+            y += 10;
+            doc.setFontSize(10);
+            doc.setTextColor(100);
+            doc.text(`Report Type: ${type.charAt(0).toUpperCase() + type.slice(1)} | Period: ${data.period}`, 14, y);
+            y += 6;
+            doc.text(`Generated: ${data.generatedAt}`, 14, y);
+            y += 10;
+
+            if (data.revenue) {
+                doc.setFontSize(13);
+                doc.setTextColor(25, 135, 84);
+                doc.text('Revenue Report', 14, y);
+                y += 8;
+
+                doc.autoTable({
+                    startY: y,
+                    head: [['Date', 'Source', 'Category', 'Firm', 'Invoice', 'Gross', 'Tax (VAT)', 'Net']],
+                    body: data.revenue.rows.map(r => [
+                        r.date, r.source, r.category, r.firm, r.invoice,
+                        formatPdfCurrency(r.grossAmount), formatPdfCurrency(r.taxAmount), formatPdfCurrency(r.netAmount)
+                    ]),
+                    foot: [['TOTALS', '', '', '', '', formatPdfCurrency(data.revenue.totalGross), formatPdfCurrency(data.revenue.totalTax), formatPdfCurrency(data.revenue.totalNet)]],
+                    styles: { fontSize: 7, cellPadding: 2 },
+                    headStyles: { fillColor: [25, 135, 84] },
+                    footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
+                    theme: 'grid'
+                });
+                y = doc.lastAutoTable.finalY + 10;
+            }
+
+            if (data.expenses) {
+                if (y > 240) { doc.addPage(); y = 20; }
+                doc.setFontSize(13);
+                doc.setTextColor(220, 53, 69);
+                doc.text('Expense Report', 14, y);
+                y += 8;
+
+                doc.autoTable({
+                    startY: y,
+                    head: [['Date', 'Category', 'Description', 'Amount', 'Status']],
+                    body: data.expenses.rows.map(e => [
+                        e.date, e.category, e.description, formatPdfCurrency(e.amount), e.status
+                    ]),
+                    foot: [['TOTAL EXPENSES', '', '', formatPdfCurrency(data.expenses.totalExpenses), '']],
+                    styles: { fontSize: 7, cellPadding: 2 },
+                    headStyles: { fillColor: [220, 53, 69] },
+                    footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
+                    theme: 'grid'
+                });
+                y = doc.lastAutoTable.finalY + 10;
+            }
+
+            if (data.summary) {
+                if (y > 240) { doc.addPage(); y = 20; }
+                doc.setFontSize(13);
+                doc.setTextColor(13, 110, 253);
+                doc.text('Profit & Loss Summary', 14, y);
+                y += 8;
+
+                doc.autoTable({
+                    startY: y,
+                    head: [['Metric', 'Amount']],
+                    body: [
+                        ['Gross Revenue', formatPdfCurrency(data.summary.grossRevenue)],
+                        ['Tax Collected (VAT)', formatPdfCurrency(data.summary.taxCollected)],
+                        ['Net Revenue', formatPdfCurrency(data.summary.netRevenue)],
+                        ['Total Expenses', formatPdfCurrency(data.summary.totalExpenses)],
+                        ['Net Profit', formatPdfCurrency(data.summary.netProfit)]
+                    ],
+                    styles: { fontSize: 9, cellPadding: 3 },
+                    headStyles: { fillColor: [13, 110, 253] },
+                    theme: 'grid',
+                    columnStyles: { 1: { halign: 'right' } }
+                });
+            }
+
+            const fileName = `CKN_${type}_report_${period}_${new Date().toISOString().split('T')[0]}.pdf`;
+            doc.save(fileName);
+        } catch (e) {
+            console.error('PDF generation error:', e);
+            alert('Error generating PDF report.');
+        }
+    }
+
+    function formatPdfCurrency(value) {
+        return 'PHP ' + Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
     function formatCurrency(value) {

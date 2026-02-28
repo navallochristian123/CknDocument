@@ -57,7 +57,7 @@
                     <i class="bi bi-plus-circle me-1"></i>Add Expense
                 </button>
                 <a href="#" class="btn btn-sm btn-outline-primary ms-1" onclick="downloadExpReport()">
-                    <i class="bi bi-download me-1"></i>Download
+                    <i class="bi bi-file-earmark-pdf me-1"></i>Download PDF
                 </a>
             </div>
         </div>
@@ -226,10 +226,40 @@
         } catch(e) { console.error(e); }
     }
 
-    function downloadExpReport() {
+    async function downloadExpReport() {
         const period = document.getElementById('period').value;
-        window.location.href = `/SuperAdminDashboard/DownloadReport?type=expenses&period=${period}&sortBy=date`;
+        try {
+            const res = await fetch(`/SuperAdminDashboard/DownloadReport?type=expenses&period=${period}&sortBy=date`);
+            const data = await res.json();
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            let y = 20;
+            doc.setFontSize(18);
+            doc.setTextColor(220, 53, 69);
+            doc.text('CKN Document - Expense Report', 14, y);
+            y += 10;
+            doc.setFontSize(10);
+            doc.setTextColor(100);
+            doc.text(`Period: ${data.period} | Generated: ${data.generatedAt}`, 14, y);
+            y += 10;
+            if (data.expenses) {
+                doc.autoTable({
+                    startY: y,
+                    head: [['Date', 'Category', 'Description', 'Amount', 'Status']],
+                    body: data.expenses.rows.map(e => [
+                        e.date, e.category, e.description, fpc(e.amount), e.status
+                    ]),
+                    foot: [['TOTAL', '', '', fpc(data.expenses.totalExpenses), '']],
+                    styles: { fontSize: 8, cellPadding: 2 },
+                    headStyles: { fillColor: [220, 53, 69] },
+                    footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
+                    theme: 'grid'
+                });
+            }
+            doc.save(`CKN_expenses_report_${period}_${new Date().toISOString().split('T')[0]}.pdf`);
+        } catch (e) { console.error('PDF error:', e); alert('Error generating PDF.'); }
     }
+    function fpc(v) { return 'PHP ' + Number(v||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
     function fc(v) { return '₱' + Number(v||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
     function fd(d) { return d ? new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'N/A'; }

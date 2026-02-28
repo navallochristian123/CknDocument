@@ -269,7 +269,7 @@ public class SuperAdminDashboardController : Controller
     }
 
     /// <summary>
-    /// Download comprehensive revenue report as CSV
+    /// Get report data as JSON for PDF generation
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> DownloadReport(string type = "revenue", string period = "month", string sortBy = "date")
@@ -284,16 +284,15 @@ public class SuperAdminDashboardController : Controller
             _ => new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1)
         };
 
-        var csv = new StringBuilder();
+        var periodLabel = period == "all" ? "All Time" : $"{startDate:MMM dd, yyyy} - {DateTime.Now:MMM dd, yyyy}";
+        var generatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+
+        object? revenueData = null;
+        object? expenseData = null;
+        object? summaryData = null;
 
         if (type == "revenue" || type == "full")
         {
-            csv.AppendLine("=== REVENUE REPORT ===");
-            csv.AppendLine($"Period: {(period == "all" ? "All Time" : $"{startDate:MMM dd, yyyy} - {DateTime.Now:MMM dd, yyyy}")}");
-            csv.AppendLine($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-            csv.AppendLine();
-            csv.AppendLine("Date,Source,Category,Firm,Invoice,Gross Amount,Tax (VAT 12%),Net Amount");
-
             var revenuesQuery = _context.Revenues
                 .Include(r => r.Subscription).ThenInclude(s => s!.Firm)
                 .Include(r => r.Payment).ThenInclude(p => p!.Invoice)
@@ -308,7 +307,7 @@ public class SuperAdminDashboardController : Controller
             };
 
             decimal totalGross = 0, totalTax = 0, totalNet = 0;
-            foreach (var r in revenues)
+            var rows = revenues.Select(r =>
             {
                 var gross = r.GrossAmount ?? r.Amount ?? 0;
                 var tax = r.TaxAmount ?? 0;
@@ -316,28 +315,24 @@ public class SuperAdminDashboardController : Controller
                 totalGross += gross;
                 totalTax += tax;
                 totalNet += net;
+                return new
+                {
+                    date = r.RevenueDate?.ToString("yyyy-MM-dd"),
+                    source = r.Source ?? "N/A",
+                    category = r.Category ?? "N/A",
+                    firm = r.Subscription?.Firm?.FirmName ?? "N/A",
+                    invoice = r.Payment?.Invoice?.InvoiceNumber ?? "N/A",
+                    grossAmount = gross,
+                    taxAmount = tax,
+                    netAmount = net
+                };
+            }).ToList();
 
-                csv.AppendLine($"{r.RevenueDate:yyyy-MM-dd}," +
-                    $"\"{r.Source ?? "N/A"}\"," +
-                    $"\"{r.Category ?? "N/A"}\"," +
-                    $"\"{r.Subscription?.Firm?.FirmName ?? "N/A"}\"," +
-                    $"\"{r.Payment?.Invoice?.InvoiceNumber ?? "N/A"}\"," +
-                    $"{gross:F2},{tax:F2},{net:F2}");
-            }
-
-            csv.AppendLine();
-            csv.AppendLine($"TOTALS,,,,,{totalGross:F2},{totalTax:F2},{totalNet:F2}");
-            csv.AppendLine();
+            revenueData = new { rows, totalGross, totalTax, totalNet };
         }
 
         if (type == "expenses" || type == "full")
         {
-            csv.AppendLine("=== EXPENSE REPORT ===");
-            csv.AppendLine($"Period: {(period == "all" ? "All Time" : $"{startDate:MMM dd, yyyy} - {DateTime.Now:MMM dd, yyyy}")}");
-            csv.AppendLine($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-            csv.AppendLine();
-            csv.AppendLine("Date,Category,Description,Amount,Status");
-
             var expensesQuery = _context.Expenses
                 .Where(e => e.ExpenseDate >= startDate && e.Status != "Rejected");
 
@@ -349,38 +344,46 @@ public class SuperAdminDashboardController : Controller
             };
 
             decimal totalExpenses = 0;
-            foreach (var e in expenses)
+            var rows = expenses.Select(e =>
             {
                 totalExpenses += e.Amount ?? 0;
-                csv.AppendLine($"{e.ExpenseDate:yyyy-MM-dd}," +
-                    $"\"{e.Category ?? "N/A"}\"," +
-                    $"\"{e.Description ?? "N/A"}\"," +
-                    $"{(e.Amount ?? 0):F2}," +
-                    $"\"{e.Status ?? "N/A"}\"");
-            }
+                return new
+                {
+                    date = e.ExpenseDate?.ToString("yyyy-MM-dd"),
+                    category = e.Category ?? "N/A",
+                    description = e.Description ?? "N/A",
+                    amount = e.Amount ?? 0,
+                    status = e.Status ?? "N/A"
+                };
+            }).ToList();
 
-            csv.AppendLine();
-            csv.AppendLine($"TOTAL EXPENSES,,,{totalExpenses:F2},");
-            csv.AppendLine();
+            expenseData = new { rows, totalExpenses };
         }
 
         if (type == "full")
         {
-            // Summary section
             var totalRev = await _context.Revenues.Where(r => r.RevenueDate >= startDate).SumAsync(r => r.GrossAmount ?? r.Amount ?? 0);
             var totalTaxRev = await _context.Revenues.Where(r => r.RevenueDate >= startDate).SumAsync(r => r.TaxAmount ?? 0);
             var totalExp = await _context.Expenses.Where(e => e.ExpenseDate >= startDate && e.Status != "Rejected").SumAsync(e => e.Amount ?? 0);
 
-            csv.AppendLine("=== PROFIT & LOSS SUMMARY ===");
-            csv.AppendLine($"Gross Revenue,{totalRev:F2}");
-            csv.AppendLine($"Tax Collected (VAT),{totalTaxRev:F2}");
-            csv.AppendLine($"Net Revenue,{(totalRev - totalTaxRev):F2}");
-            csv.AppendLine($"Total Expenses,{totalExp:F2}");
-            csv.AppendLine($"Net Profit,{((totalRev - totalTaxRev) - totalExp):F2}");
+            summaryData = new
+            {
+                grossRevenue = totalRev,
+                taxCollected = totalTaxRev,
+                netRevenue = totalRev - totalTaxRev,
+                totalExpenses = totalExp,
+                netProfit = (totalRev - totalTaxRev) - totalExp
+            };
         }
 
-        var fileName = $"CKN_{type}_report_{period}_{DateTime.Now:yyyyMMdd}.csv";
-        var bytes = Encoding.UTF8.GetBytes(csv.ToString());
-        return File(bytes, "text/csv", fileName);
+        return Json(new
+        {
+            type,
+            period = periodLabel,
+            generatedAt,
+            revenue = revenueData,
+            expenses = expenseData,
+            summary = summaryData
+        });
     }
 }

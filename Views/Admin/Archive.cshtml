@@ -738,12 +738,14 @@
                         <div class="mt-3">
                             <h6 class="text-muted border-bottom pb-2"><i class="bi bi-layers me-2"></i>Document Versions</h6>
                             <table class="table table-sm">
-                                <thead class="table-light"><tr><th>Version</th><th>File Name</th><th>Size</th><th>Date</th><th></th></tr></thead>
+                                <thead class="table-light"><tr><th>Version</th><th>File Name</th><th>Changed By</th><th>Description</th><th>Size</th><th>Date</th><th></th></tr></thead>
                                 <tbody>
                                     ${a.versions.map(v => `
                                         <tr>
                                             <td><span class="badge ${v.isCurrentVersion ? 'bg-primary' : 'bg-light text-dark'}">v${v.versionNumber}</span></td>
                                             <td><small>${escapeHtml(v.originalFileName)}</small></td>
+                                            <td><small>${escapeHtml(v.changedBy || v.uploaderName || '-')}</small></td>
+                                            <td><small>${escapeHtml(v.changeDescription || '-')}</small></td>
                                             <td><small>${formatFileSize(v.fileSize)}</small></td>
                                             <td><small>${formatDate(v.createdAt)}</small></td>
                                             <td><button class="btn btn-sm btn-outline-secondary" onclick="downloadArchive(${archiveId}, ${v.versionId})"><i class="bi bi-download"></i></button></td>
@@ -753,12 +755,64 @@
                             </table>
                         </div>
                     ` : ''}
+                    <div class="mt-3">
+                        <h6 class="text-muted border-bottom pb-2"><i class="bi bi-signpost-2 me-2"></i>Document Path Details</h6>
+                        <div id="adminArchiveDocPath">
+                            <div class="text-center text-muted py-2"><div class="spinner-border spinner-border-sm me-1"></div> Loading path...</div>
+                        </div>
+                    </div>
                 `;
+                // Load document path details
+                loadAdminArchiveDocPath(a.documentId);
             } else {
                 content.innerHTML = `<div class="alert alert-danger">${data.message || 'Failed to load archive details'}</div>`;
             }
         } catch (e) {
             content.innerHTML = '<div class="alert alert-danger">Error loading archive details</div>';
+        }
+    }
+
+    async function loadAdminArchiveDocPath(documentId) {
+        const container = document.getElementById('adminArchiveDocPath');
+        if (!container) return;
+        try {
+            const response = await fetch(`/api/DocumentApi/${documentId}/audit-trail`);
+            const data = await response.json();
+            if (data.success && data.auditTrail && data.auditTrail.length > 0) {
+                const sorted = [...data.auditTrail].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                container.innerHTML = sorted.map(entry => {
+                    const iconMap = { 'DocumentUpload': 'bi-cloud-upload', 'Upload': 'bi-cloud-upload', 'StaffApprove': 'bi-check-circle', 'StaffReject': 'bi-x-circle', 'AdminApprove': 'bi-shield-check', 'AdminReject': 'bi-shield-x', 'Archive': 'bi-archive', 'Restore': 'bi-arrow-counterclockwise', 'Edit': 'bi-pencil', 'Version': 'bi-clock-history', 'LawyerEdit': 'bi-pencil-square', 'StaffEdit': 'bi-pencil-square', 'AssignStaff': 'bi-person-plus', 'AssignAdmin': 'bi-person-plus' };
+                    const icon = iconMap[entry.action] || 'bi-circle';
+                    let color = '#6c757d';
+                    if (entry.action?.includes('Approve') || entry.action?.includes('Complete')) color = '#198754';
+                    else if (entry.action?.includes('Reject')) color = '#dc3545';
+                    else if (entry.action?.includes('Upload')) color = '#0d6efd';
+                    else if (entry.action?.includes('Edit') || entry.action?.includes('Version')) color = '#6f42c1';
+                    else if (entry.action?.includes('Archive')) color = '#ffc107';
+                    else if (entry.action?.includes('Restore')) color = '#0dcaf0';
+                    const labelMap = { 'DocumentUpload': 'Document Uploaded', 'Upload': 'Document Uploaded', 'StaffApprove': 'Approved by Staff', 'StaffReject': 'Rejected by Staff', 'AdminApprove': 'Approved by Admin', 'AdminReject': 'Rejected by Admin', 'Archive': 'Document Archived', 'Restore': 'Document Restored', 'Edit': 'Document Edited', 'Version': 'New Version Created', 'LawyerEdit': 'Edited by Lawyer', 'StaffEdit': 'Edited by Staff', 'AssignStaff': 'Assigned to Staff', 'AssignAdmin': 'Assigned to Admin' };
+                    const label = labelMap[entry.action] || entry.action || 'Unknown';
+                    return `
+                    <div class="d-flex align-items-start mb-2">
+                        <div class="flex-shrink-0 me-2 d-flex align-items-center justify-content-center rounded-circle border border-2" 
+                             style="width: 28px; height: 28px; min-width: 28px; border-color: ${color} !important;">
+                            <i class="bi ${icon}" style="color: ${color}; font-size: 0.75rem;"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="d-flex justify-content-between">
+                                <strong class="small">${escapeHtml(label)}</strong>
+                                <small class="text-muted">${formatDate(entry.timestamp)}</small>
+                            </div>
+                            <small class="text-muted">${escapeHtml(entry.description || '')}</small>
+                            <small class="text-primary d-block">${escapeHtml(entry.userName || 'System')}</small>
+                        </div>
+                    </div>`;
+                }).join('');
+            } else {
+                container.innerHTML = '<small class="text-muted">No path details available.</small>';
+            }
+        } catch (error) {
+            container.innerHTML = '<small class="text-danger">Error loading path details.</small>';
         }
     }
 

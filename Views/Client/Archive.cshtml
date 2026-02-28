@@ -401,7 +401,7 @@
                                 ${a.versions.map(v => `
                                     <tr>
                                         <td><span class="badge bg-info">v${v.versionNumber}</span></td>
-                                        <td>${escapeHtml(v.changedBy || '-')}</td>
+                                        <td>${escapeHtml(v.changedBy || v.uploaderName || '-')}</td>
                                         <td>${escapeHtml(v.changeDescription || '-')}</td>
                                         <td>${formatDate(v.createdAt)}</td>
                                     </tr>
@@ -410,7 +410,14 @@
                         </table>
                     </div>
                     ` : ''}
+                    <hr>
+                    <h6><i class="bi bi-signpost-2 me-2"></i>Document Path Details</h6>
+                    <div id="archiveDocPathDetails" class="mt-2">
+                        <div class="text-center text-muted py-2"><div class="spinner-border spinner-border-sm me-1"></div> Loading path...</div>
+                    </div>
                 `;
+                // Load audit trail for document path
+                loadArchiveDocPath(a.documentId);
             } else {
                 body.innerHTML = '<div class="alert alert-danger">Error loading archive details</div>';
             }
@@ -452,6 +459,61 @@
             '.png': 'bi-file-image text-info'
         };
         return icons[ext?.toLowerCase()] || 'bi-file-earmark text-secondary';
+    }
+
+    async function loadArchiveDocPath(documentId) {
+        const container = document.getElementById('archiveDocPathDetails');
+        if (!container) return;
+        try {
+            const response = await fetch(`/api/DocumentApi/${documentId}/audit-trail`);
+            const data = await response.json();
+            if (data.success && data.auditTrail && data.auditTrail.length > 0) {
+                const sorted = [...data.auditTrail].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                container.innerHTML = sorted.map(entry => {
+                    const icon = getPathIcon(entry.action);
+                    const color = getPathColor(entry.action);
+                    return `
+                    <div class="d-flex align-items-start mb-2">
+                        <div class="flex-shrink-0 me-2 d-flex align-items-center justify-content-center rounded-circle border border-2" 
+                             style="width: 28px; height: 28px; min-width: 28px; border-color: ${color} !important;">
+                            <i class="bi ${icon}" style="color: ${color}; font-size: 0.75rem;"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="d-flex justify-content-between">
+                                <strong class="small">${escapeHtml(formatPathAction(entry.action))}</strong>
+                                <small class="text-muted">${formatDate(entry.timestamp)}</small>
+                            </div>
+                            <small class="text-muted">${escapeHtml(entry.description || '')}</small>
+                            <small class="text-primary d-block">${escapeHtml(entry.userName || 'System')}</small>
+                        </div>
+                    </div>`;
+                }).join('');
+            } else {
+                container.innerHTML = '<small class="text-muted">No path details available.</small>';
+            }
+        } catch (error) {
+            container.innerHTML = '<small class="text-danger">Error loading path details.</small>';
+        }
+    }
+
+    function getPathIcon(action) {
+        const icons = { 'DocumentUpload': 'bi-cloud-upload', 'Upload': 'bi-cloud-upload', 'StaffApprove': 'bi-check-circle', 'StaffReject': 'bi-x-circle', 'AdminApprove': 'bi-shield-check', 'AdminReject': 'bi-shield-x', 'Archive': 'bi-archive', 'Restore': 'bi-arrow-counterclockwise', 'Edit': 'bi-pencil', 'Version': 'bi-clock-history', 'LawyerEdit': 'bi-pencil-square', 'StaffEdit': 'bi-pencil-square', 'AssignStaff': 'bi-person-plus', 'AssignAdmin': 'bi-person-plus' };
+        return icons[action] || 'bi-circle';
+    }
+
+    function getPathColor(action) {
+        if (action?.includes('Approve') || action?.includes('Complete')) return '#198754';
+        if (action?.includes('Reject')) return '#dc3545';
+        if (action?.includes('Upload')) return '#0d6efd';
+        if (action?.includes('Edit') || action?.includes('Version')) return '#6f42c1';
+        if (action?.includes('Archive')) return '#ffc107';
+        if (action?.includes('Restore')) return '#0dcaf0';
+        return '#6c757d';
+    }
+
+    function formatPathAction(action) {
+        const labels = { 'DocumentUpload': 'Document Uploaded', 'Upload': 'Document Uploaded', 'StaffApprove': 'Approved by Staff', 'StaffReject': 'Rejected by Staff', 'AdminApprove': 'Approved by Admin', 'AdminReject': 'Rejected by Admin', 'Archive': 'Document Archived', 'Restore': 'Document Restored', 'Edit': 'Document Edited', 'Version': 'New Version Created', 'LawyerEdit': 'Edited by Lawyer', 'StaffEdit': 'Edited by Staff', 'AssignStaff': 'Assigned to Staff', 'AssignAdmin': 'Assigned to Admin' };
+        return labels[action] || action || 'Unknown Action';
     }
 
     function formatDate(dateStr) {
