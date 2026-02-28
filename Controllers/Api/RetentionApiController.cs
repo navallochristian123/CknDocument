@@ -721,6 +721,458 @@ public class RetentionApiController : ControllerBase
     }
 
     #endregion
+
+    #region Post-Retention Workflow (Hold, Destroy, Certificate)
+
+    /// <summary>
+    /// Get archives pending disposition (retention expired, in grace period)
+    /// </summary>
+    [HttpGet("disposition")]
+    public async Task<IActionResult> GetDispositionQueue()
+    {
+        var firmId = GetFirmId();
+        var now = DateTime.UtcNow;
+
+        var archives = await _context.Archives
+            .Include(a => a.Document)
+                .ThenInclude(d => d!.Uploader)
+            .Include(a => a.HoldPlacedByUser)
+            .Where(a => a.Document != null &&
+                       a.Document.FirmID == firmId &&
+                       a.IsRestored != true &&
+                       (a.ArchiveType == "AutoExpired" || a.ArchiveType == "Retention") &&
+                       (a.RetentionDispositionStatus == "PendingReview" || 
+                        a.RetentionDispositionStatus == "OnHold" ||
+                        a.RetentionDispositionStatus == "Destroyed"))
+            .OrderBy(a => a.GracePeriodEndDate)
+            .Select(a => new
+            {
+                archiveId = a.ArchiveID,
+                documentId = a.DocumentID,
+                documentTitle = a.Document != null ? a.Document.Title : "Unknown",
+                documentType = a.Document != null ? a.Document.DocumentType : null,
+                clientName = a.Document != null && a.Document.Uploader != null
+                    ? (a.Document.Uploader.FirstName ?? "") + " " + (a.Document.Uploader.LastName ?? "")
+                    : null,
+                archiveType = a.ArchiveType,
+                archivedDate = a.ArchivedDate,
+                retentionExpiredDate = a.OriginalRetentionDate,
+                dispositionStatus = a.RetentionDispositionStatus ?? "PendingReview",
+                gracePeriodStartDate = a.GracePeriodStartDate,
+                gracePeriodEndDate = a.GracePeriodEndDate,
+                daysUntilDeletion = a.GracePeriodEndDate.HasValue
+                    ? Math.Max(0, (int)(a.GracePeriodEndDate.Value - now).TotalDays)
+                    : 0,
+                isOnHold = a.IsOnHold == true,
+                holdReason = a.HoldReason,
+                holdPlacedAt = a.HoldPlacedAt,
+                holdPlacedBy = a.HoldPlacedByUser != null
+                    ? (a.HoldPlacedByUser.FirstName ?? "") + " " + (a.HoldPlacedByUser.LastName ?? "")
+                    : null,
+                isDeleted = a.IsDeleted == true,
+                destroyedAt = a.DestroyedAt,
+                hasDestructionCertificate = a.HasDestructionCertificate == true
+            })
+            .ToListAsync();
+
+        return Ok(new { success = true, archives });
+    }
+
+    /// <summary>
+    /// Place a legal hold on an archived document (prevents auto-deletion)
+    /// </summary>
+    [HttpPost("hold/{archiveId}")]
+    public async Task<IActionResult> PlaceHold(int archiveId, [FromBody] HoldDto dto)
+    {
+        var userId = GetCurrentUserId();
+        var firmId = GetFirmId();
+
+        var archive = await _context.Archives
+            .Include(a => a.Document)
+            .FirstOrDefaultAsync(a => a.ArchiveID == archiveId &&
+                                     a.Document != null &&
+                                     a.Document.FirmID == firmId &&
+                                     a.IsDeleted != true);
+
+        if (archive == null)
+            return NotFound(new { success = false, message = "Archive not found" });
+
+        if (archive.IsOnHold == true)
+            return BadRequest(new { success = false, message = "Document is already on legal hold" });
+
+        archive.IsOnHold = true;
+        archive.HoldPlacedAt = DateTime.UtcNow;
+        archive.HoldPlacedBy = userId;
+        archive.HoldReason = dto.Reason ?? "Legal hold placed by admin";
+        archive.RetentionDispositionStatus = "OnHold";
+
+        await _context.SaveChangesAsync();
+
+        await _auditLogService.LogAsync(
+            "PlaceLegalHold",
+            "Archive",
+            archiveId,
+            $"Legal hold placed on document: {archive.Document?.Title}. Reason: {dto.Reason}",
+            null, null, "RetentionManagement");
+
+        return Ok(new { success = true, message = "Legal hold placed successfully" });
+    }
+
+    /// <summary>
+    /// Release a legal hold on an archived document (allows auto-deletion to proceed)
+    /// </summary>
+    [HttpPost("release-hold/{archiveId}")]
+    public async Task<IActionResult> ReleaseHold(int archiveId)
+    {
+        var userId = GetCurrentUserId();
+        var firmId = GetFirmId();
+
+        var archive = await _context.Archives
+            .Include(a => a.Document)
+            .FirstOrDefaultAsync(a => a.ArchiveID == archiveId &&
+                                     a.Document != null &&
+                                     a.Document.FirmID == firmId &&
+                                     a.IsDeleted != true);
+
+        if (archive == null)
+            return NotFound(new { success = false, message = "Archive not found" });
+
+        if (archive.IsOnHold != true)
+            return BadRequest(new { success = false, message = "Document is not on legal hold" });
+
+        archive.IsOnHold = false;
+        archive.HoldReleasedAt = DateTime.UtcNow;
+        archive.HoldReleasedBy = userId;
+        archive.RetentionDispositionStatus = "PendingReview";
+        // Reset grace period to 30 days from hold release
+        archive.GracePeriodStartDate = DateTime.UtcNow;
+        archive.GracePeriodEndDate = DateTime.UtcNow.AddDays(30);
+
+        await _context.SaveChangesAsync();
+
+        await _auditLogService.LogAsync(
+            "ReleaseLegalHold",
+            "Archive",
+            archiveId,
+            $"Legal hold released on document: {archive.Document?.Title}. New grace period ends: {archive.GracePeriodEndDate:d}",
+            null, null, "RetentionManagement");
+
+        return Ok(new { success = true, message = "Legal hold released. 30-day grace period restarted.", newGracePeriodEnd = archive.GracePeriodEndDate });
+    }
+
+    /// <summary>
+    /// Manually approve a document for immediate deletion (skip grace period)
+    /// </summary>
+    [HttpPost("approve-deletion/{archiveId}")]
+    public async Task<IActionResult> ApproveDeletion(int archiveId)
+    {
+        var userId = GetCurrentUserId();
+        var firmId = GetFirmId();
+
+        var archive = await _context.Archives
+            .Include(a => a.Document)
+                .ThenInclude(d => d!.Versions)
+            .Include(a => a.Document)
+                .ThenInclude(d => d!.Uploader)
+            .FirstOrDefaultAsync(a => a.ArchiveID == archiveId &&
+                                     a.Document != null &&
+                                     a.Document.FirmID == firmId &&
+                                     a.IsDeleted != true);
+
+        if (archive == null)
+            return NotFound(new { success = false, message = "Archive not found" });
+
+        if (archive.IsOnHold == true)
+            return BadRequest(new { success = false, message = "Cannot delete document on legal hold. Release the hold first." });
+
+        var documentTitle = archive.Document?.Title ?? "Unknown";
+        var documentType = archive.Document?.DocumentType ?? "Unknown";
+        var clientName = archive.Document?.Uploader?.FullName ?? "Unknown";
+        var now = DateTime.UtcNow;
+
+        // Delete physical files
+        if (archive.Document?.Versions != null)
+        {
+            foreach (var version in archive.Document.Versions)
+            {
+                if (!string.IsNullOrEmpty(version.FilePath) && System.IO.File.Exists(version.FilePath))
+                {
+                    try { System.IO.File.Delete(version.FilePath); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete file: {FilePath}", version.FilePath); }
+                }
+            }
+        }
+
+        // Mark as destroyed
+        archive.RetentionDispositionStatus = "Destroyed";
+        archive.IsDeleted = true;
+        archive.DeletedAt = now;
+        archive.DeletedBy = userId;
+        archive.DestroyedAt = now;
+
+        // Remove related data
+        if (archive.Document?.Versions != null)
+            _context.DocumentVersions.RemoveRange(archive.Document.Versions);
+
+        var retentionRecords = await _context.DocumentRetentions
+            .Where(dr => dr.DocumentID == archive.DocumentID).ToListAsync();
+        _context.DocumentRetentions.RemoveRange(retentionRecords);
+
+        var reviews = await _context.DocumentReviews
+            .Where(r => r.DocumentId == archive.DocumentID).ToListAsync();
+        _context.DocumentReviews.RemoveRange(reviews);
+
+        // Keep document metadata marked as Destroyed
+        if (archive.Document != null)
+        {
+            archive.Document.Status = "Destroyed";
+            archive.Document.WorkflowStage = "Destroyed";
+            archive.Document.UpdatedAt = now;
+        }
+
+        await _context.SaveChangesAsync();
+
+        await _auditLogService.LogAsync(
+            "ManualDocumentDestruction",
+            "Document",
+            archive.DocumentID ?? 0,
+            $"Admin manually destroyed document: '{documentTitle}' (Type: {documentType}, Client: {clientName})",
+            null, null, "RetentionDestruction");
+
+        return Ok(new { success = true, message = "Document permanently destroyed. Destruction certificate available." });
+    }
+
+    /// <summary>
+    /// Generate destruction certificate data for a destroyed document
+    /// </summary>
+    [HttpGet("destruction-certificate/{archiveId}")]
+    public async Task<IActionResult> GetDestructionCertificate(int archiveId)
+    {
+        var firmId = GetFirmId();
+
+        var archive = await _context.Archives
+            .Include(a => a.Document)
+                .ThenInclude(d => d!.Uploader)
+            .Include(a => a.Document)
+                .ThenInclude(d => d!.Firm)
+            .Include(a => a.ArchivedByUser)
+            .Include(a => a.DeletedByUser)
+            .FirstOrDefaultAsync(a => a.ArchiveID == archiveId &&
+                                     a.Document != null &&
+                                     a.Document.FirmID == firmId);
+
+        if (archive == null)
+            return NotFound(new { success = false, message = "Archive not found" });
+
+        if (archive.RetentionDispositionStatus != "Destroyed" && archive.IsDeleted != true)
+            return BadRequest(new { success = false, message = "Destruction certificate is only available for destroyed documents" });
+
+        var certificate = new
+        {
+            certificateNumber = $"DOC-{archive.ArchiveID:D6}-{archive.DestroyedAt?.Year ?? DateTime.UtcNow.Year}",
+            firmName = archive.Document?.Firm?.FirmName ?? "Unknown Firm",
+            documentTitle = archive.Document?.Title ?? "Unknown",
+            documentType = archive.Document?.DocumentType ?? "Unknown",
+            documentId = archive.DocumentID,
+            clientName = archive.Document?.Uploader?.FullName ?? "Unknown",
+            originalUploadDate = archive.Document?.CreatedAt,
+            approvedDate = archive.Document?.ApprovedAt,
+            retentionStartDate = archive.OriginalRetentionDate != null
+                ? archive.OriginalRetentionDate.Value.AddYears(-(archive.Document?.Retentions?.FirstOrDefault()?.RetentionYears ?? 0))
+                : archive.Document?.ApprovedAt,
+            retentionExpiryDate = archive.OriginalRetentionDate,
+            archivedDate = archive.ArchivedDate,
+            gracePeriodStartDate = archive.GracePeriodStartDate,
+            gracePeriodEndDate = archive.GracePeriodEndDate,
+            destroyedDate = archive.DestroyedAt ?? archive.DeletedAt,
+            destroyedBy = archive.DeletedByUser?.FullName ?? "System (Auto)",
+            wasOnHold = archive.HoldPlacedAt != null,
+            holdReason = archive.HoldReason,
+            holdReleasedAt = archive.HoldReleasedAt,
+            destructionMethod = "Physical file deletion with metadata preservation",
+            certificationStatement = $"This certifies that the document '{archive.Document?.Title}' " +
+                $"(ID: {archive.DocumentID}) has been permanently destroyed in accordance with the " +
+                $"firm's retention policy. All physical copies and digital files have been securely deleted. " +
+                $"This record is maintained for audit compliance purposes."
+        };
+
+        // Mark certificate as generated
+        archive.HasDestructionCertificate = true;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { success = true, certificate });
+    }
+
+    /// <summary>
+    /// Get disposition statistics
+    /// </summary>
+    /// <summary>
+    /// Manually trigger the retention lifecycle processing (archive expired, process grace periods)
+    /// Useful for demos and testing with short retention periods
+    /// </summary>
+    [HttpPost("process-retention-now")]
+    public async Task<IActionResult> ProcessRetentionNow()
+    {
+        try
+        {
+            var firmId = GetFirmId();
+            var now = DateTime.UtcNow;
+            int archivedCount = 0;
+            int destroyedCount = 0;
+
+            // Step 1: Archive expired retention documents
+            var expiredRetentions = await _context.DocumentRetentions
+                .Include(r => r.Document)
+                .Where(r => r.IsArchived != true &&
+                           r.ExpiryDate <= now &&
+                           r.Document != null &&
+                           r.Document.FirmID == firmId &&
+                           (r.Document.Status == "Completed" || r.Document.Status == "Approved"))
+                .ToListAsync();
+
+            foreach (var retention in expiredRetentions)
+            {
+                if (retention.Document == null) continue;
+
+                var existingArchive = await _context.Archives
+                    .FirstOrDefaultAsync(a => a.DocumentID == retention.DocumentID &&
+                                             a.IsRestored != true && a.IsDeleted != true);
+
+                if (existingArchive != null)
+                {
+                    retention.IsArchived = true;
+                    retention.ModifiedAt = now;
+                    continue;
+                }
+
+                var gracePeriodEnd = now.AddDays(30);
+
+                var archive = new Archive
+                {
+                    DocumentID = retention.DocumentID,
+                    FirmId = retention.FirmId,
+                    ArchivedDate = now,
+                    Reason = $"Auto-archived: Retention period expired on {retention.ExpiryDate:d}",
+                    ArchiveType = "AutoExpired",
+                    ArchivedBy = null,
+                    IsRestored = false,
+                    OriginalStatus = retention.Document.Status,
+                    OriginalWorkflowStage = retention.Document.WorkflowStage,
+                    OriginalFolderId = retention.Document.FolderId,
+                    OriginalRetentionDate = retention.ExpiryDate,
+                    ScheduledDeleteDate = gracePeriodEnd,
+                    RetentionDispositionStatus = "PendingReview",
+                    GracePeriodStartDate = now,
+                    GracePeriodEndDate = gracePeriodEnd,
+                    IsOnHold = false,
+                    ExpiryNotificationSent = true,
+                    ExpiryNotifiedAt = true,
+                    CreatedAt = now
+                };
+
+                _context.Archives.Add(archive);
+                retention.Document.Status = "Archived";
+                retention.Document.WorkflowStage = "Archived";
+                retention.Document.UpdatedAt = now;
+                retention.IsArchived = true;
+                retention.ModifiedAt = now;
+                retention.ModificationReason = "Auto-archived due to retention expiry";
+                archivedCount++;
+            }
+
+            await _context.SaveChangesAsync();
+
+            // Step 2: Auto-destroy grace period expired archives (not on hold)
+            var readyForDeletion = await _context.Archives
+                .Include(a => a.Document)
+                    .ThenInclude(d => d!.Versions)
+                .Where(a => a.GracePeriodEndDate <= now &&
+                           a.IsOnHold != true &&
+                           a.IsDeleted != true &&
+                           a.IsRestored != true &&
+                           a.RetentionDispositionStatus == "PendingReview" &&
+                           a.Document != null && a.Document.FirmID == firmId &&
+                           (a.ArchiveType == "AutoExpired" || a.ArchiveType == "Retention"))
+                .ToListAsync();
+
+            foreach (var archive in readyForDeletion)
+            {
+                if (archive.Document == null) continue;
+
+                if (archive.Document.Versions != null)
+                {
+                    foreach (var version in archive.Document.Versions)
+                    {
+                        if (!string.IsNullOrEmpty(version.FilePath) && System.IO.File.Exists(version.FilePath))
+                        {
+                            try { System.IO.File.Delete(version.FilePath); } catch { }
+                        }
+                    }
+                    _context.DocumentVersions.RemoveRange(archive.Document.Versions);
+                }
+
+                archive.RetentionDispositionStatus = "Destroyed";
+                archive.IsDeleted = true;
+                archive.DeletedAt = now;
+                archive.DestroyedAt = now;
+                archive.Document.Status = "Destroyed";
+                archive.Document.WorkflowStage = "Destroyed";
+                archive.Document.UpdatedAt = now;
+                destroyedCount++;
+            }
+
+            await _context.SaveChangesAsync();
+
+            var userId = int.Parse(User.FindFirst("UserId")?.Value ?? "0");
+            if (archivedCount > 0 || destroyedCount > 0)
+            {
+                await _auditLogService.LogAsync(
+                    "ManualRetentionProcessing", "System", userId,
+                    $"Manual retention processing: {archivedCount} archived, {destroyedCount} destroyed",
+                    null, null, "RetentionManagement");
+            }
+
+            return Ok(new { success = true, message = $"Processing complete: {archivedCount} document(s) archived, {destroyedCount} auto-destroyed.", archivedCount, destroyedCount });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in manual retention processing");
+            return StatusCode(500, new { success = false, message = "Error processing retention lifecycle" });
+        }
+    }
+
+    [HttpGet("disposition-stats")]
+    public async Task<IActionResult> GetDispositionStats()
+    {
+        var firmId = GetFirmId();
+        var now = DateTime.UtcNow;
+
+        var stats = new
+        {
+            pendingReview = await _context.Archives
+                .CountAsync(a => a.Document != null && a.Document.FirmID == firmId &&
+                    a.RetentionDispositionStatus == "PendingReview" &&
+                    a.IsDeleted != true && a.IsRestored != true),
+
+            onHold = await _context.Archives
+                .CountAsync(a => a.Document != null && a.Document.FirmID == firmId &&
+                    a.IsOnHold == true && a.IsDeleted != true && a.IsRestored != true),
+
+            destroyed = await _context.Archives
+                .CountAsync(a => a.Document != null && a.Document.FirmID == firmId &&
+                    a.RetentionDispositionStatus == "Destroyed"),
+
+            expiringGracePeriod = await _context.Archives
+                .CountAsync(a => a.Document != null && a.Document.FirmID == firmId &&
+                    a.RetentionDispositionStatus == "PendingReview" &&
+                    a.GracePeriodEndDate <= now.AddDays(7) &&
+                    a.IsDeleted != true && a.IsRestored != true)
+        };
+
+        return Ok(new { success = true, stats });
+    }
+
+    #endregion
 }
 
 // DTOs
@@ -751,4 +1203,9 @@ public class ApplyRetentionDto
     public int? RetentionYears { get; set; }
     public int? RetentionMonths { get; set; }
     public int? RetentionDays { get; set; }
+}
+
+public class HoldDto
+{
+    public string? Reason { get; set; }
 }

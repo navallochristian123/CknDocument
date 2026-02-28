@@ -125,6 +125,12 @@
             <i class="bi bi-file-ruled me-1"></i> Policies
         </button>
     </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="disposition-tab" data-bs-toggle="tab" data-bs-target="#dispositionTab" type="button" role="tab">
+            <i class="bi bi-shield-exclamation me-1"></i> Disposition Queue
+            <span class="badge bg-dark" id="dispositionCount">0</span>
+        </button>
+    </li>
 </ul>
 
 <div class="tab-content" id="retentionTabContent">
@@ -252,9 +258,126 @@
             </div>
         </div>
     </div>
+
+    <!-- Disposition Queue Tab -->
+    <div class="tab-pane fade" id="dispositionTab" role="tabpanel">
+        <!-- Disposition Stats -->
+        <div class="row mb-3 g-3">
+            <div class="col-md-3">
+                <div class="card border-start border-warning border-3">
+                    <div class="card-body py-2">
+                        <small class="text-muted">Pending Review</small>
+                        <h4 class="mb-0 fw-bold" id="dispPending">0</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-start border-danger border-3">
+                    <div class="card-body py-2">
+                        <small class="text-muted">On Hold</small>
+                        <h4 class="mb-0 fw-bold" id="dispOnHold">0</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-start border-secondary border-3">
+                    <div class="card-body py-2">
+                        <small class="text-muted">Destroyed</small>
+                        <h4 class="mb-0 fw-bold" id="dispDestroyed">0</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-start border-info border-3">
+                    <div class="card-body py-2">
+                        <small class="text-muted">Grace Expiring &lt;7d</small>
+                        <h4 class="mb-0 fw-bold" id="dispExpiring">0</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workflow Diagram -->
+        <div class="alert alert-light border mb-3">
+            <div class="d-flex align-items-center justify-content-center flex-wrap gap-2" style="font-size: 0.85rem;">
+                <span class="badge bg-warning text-dark px-3 py-2"><i class="bi bi-clock me-1"></i>Retention Ends</span>
+                <i class="bi bi-arrow-right text-muted"></i>
+                <span class="badge bg-primary px-3 py-2"><i class="bi bi-shield-check me-1"></i>Admin Hold Check</span>
+                <i class="bi bi-arrow-right text-muted"></i>
+                <span class="badge bg-info text-dark px-3 py-2"><i class="bi bi-check2-circle me-1"></i>30-Day Grace</span>
+                <i class="bi bi-arrow-right text-muted"></i>
+                <span class="badge bg-danger px-3 py-2"><i class="bi bi-trash me-1"></i>Delete</span>
+                <i class="bi bi-arrow-right text-muted"></i>
+                <span class="badge bg-dark px-3 py-2"><i class="bi bi-file-earmark-lock me-1"></i>Audit & Certificate</span>
+            </div>
+        </div>
+
+        <div class="card border">
+            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-shield-exclamation me-2"></i>Post-Retention Disposition Queue</span>
+                <div>
+                    <button class="btn btn-sm btn-primary me-2" onclick="processRetentionNow()" id="btnProcessNow">
+                        <i class="bi bi-lightning-charge me-1"></i>Process Retention Now
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="loadDispositionQueue()">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Document</th>
+                                <th>Client</th>
+                                <th>Retention Expired</th>
+                                <th>Grace Period Ends</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dispositionTableBody">
+                            <tr><td colspan="6" class="text-center py-4 text-muted">Click tab to load disposition queue</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
-<!-- Create/Edit Policy Modal -->
+<!-- Legal Hold Modal -->
+<div class="modal fade" id="holdModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title"><i class="bi bi-shield-lock me-2"></i>Place Legal Hold</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Placing a legal hold will prevent this document from being auto-deleted even after the grace period ends.
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Document</label>
+                    <p id="holdDocTitle" class="mb-0"></p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Reason for Legal Hold <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="holdReason" rows="3" placeholder="Enter reason for placing legal hold (e.g., ongoing litigation, regulatory inquiry)..." required></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" onclick="confirmPlaceHold()">
+                    <i class="bi bi-shield-lock me-1"></i>Place Hold
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 <div class="modal fade" id="createPolicyModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -361,11 +484,18 @@
 @section Scripts {
 <script>
     let yearsData = [], monthsData = [], daysData = [], policiesData = [];
+    let dispositionData = [];
+    let currentHoldArchiveId = null;
 
     document.addEventListener('DOMContentLoaded', function() {
         loadStats();
         loadRetentionDocuments();
         loadPolicies();
+        
+        // Load disposition when tab is clicked
+        document.getElementById('disposition-tab').addEventListener('shown.bs.tab', function() {
+            loadDispositionQueue();
+        });
     });
 
     async function loadStats() {
@@ -715,5 +845,259 @@
 
     // Reset form when modal closes
     document.getElementById('createPolicyModal').addEventListener('hidden.bs.modal', resetPolicyForm);
+
+    // ===== Process Retention Now =====
+    async function processRetentionNow() {
+        const btn = document.getElementById('btnProcessNow');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
+        try {
+            const response = await fetch('/api/RetentionApi/process-retention-now', { method: 'POST' });
+            const result = await response.json();
+            if (result.success) {
+                alert(`${result.message}`);
+                loadDispositionQueue();
+                loadStats();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (e) {
+            alert('Error processing retention lifecycle');
+            console.error(e);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-lightning-charge me-1"></i>Process Retention Now';
+        }
+    }
+
+    // ===== Disposition Queue =====
+    async function loadDispositionQueue() {
+        try {
+            const [queueRes, statsRes] = await Promise.all([
+                fetch('/api/RetentionApi/disposition'),
+                fetch('/api/RetentionApi/disposition-stats')
+            ]);
+
+            if (queueRes.ok) {
+                const data = await queueRes.json();
+                dispositionData = data.archives || [];
+                renderDispositionTable();
+            }
+
+            if (statsRes.ok) {
+                const data = await statsRes.json();
+                if (data.success) {
+                    document.getElementById('dispPending').textContent = data.stats.pendingReview;
+                    document.getElementById('dispOnHold').textContent = data.stats.onHold;
+                    document.getElementById('dispDestroyed').textContent = data.stats.destroyed;
+                    document.getElementById('dispExpiring').textContent = data.stats.expiringGracePeriod;
+                    document.getElementById('dispositionCount').textContent = data.stats.pendingReview + data.stats.onHold;
+                }
+            }
+        } catch (e) { console.error('Error loading disposition queue:', e); }
+    }
+
+    function renderDispositionTable() {
+        const tbody = document.getElementById('dispositionTableBody');
+        if (dispositionData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted"><i class="bi bi-check-circle me-2"></i>No documents in disposition queue</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = dispositionData.map(a => {
+            let statusBadge = '';
+            let actions = '';
+            
+            if (a.dispositionStatus === 'Destroyed') {
+                statusBadge = '<span class="badge bg-secondary"><i class="bi bi-trash me-1"></i>Destroyed</span>';
+                actions = `
+                    <button class="btn btn-sm btn-outline-dark" onclick="downloadCertificate(${a.archiveId})" title="Download Destruction Certificate">
+                        <i class="bi bi-file-earmark-lock"></i>
+                    </button>`;
+            } else if (a.isOnHold) {
+                statusBadge = `<span class="badge bg-danger"><i class="bi bi-shield-lock me-1"></i>On Hold</span>
+                    <br><small class="text-muted mt-1 d-block">${escapeHtml(a.holdReason || '')}</small>`;
+                actions = `
+                    <button class="btn btn-sm btn-outline-success" onclick="releaseHold(${a.archiveId})" title="Release Hold">
+                        <i class="bi bi-shield-slash"></i>
+                    </button>`;
+            } else {
+                const urgency = a.daysUntilDeletion <= 7 ? 'bg-danger' : a.daysUntilDeletion <= 14 ? 'bg-warning text-dark' : 'bg-info text-dark';
+                statusBadge = `<span class="badge ${urgency}"><i class="bi bi-hourglass-split me-1"></i>${a.daysUntilDeletion}d grace remaining</span>`;
+                actions = `
+                    <button class="btn btn-sm btn-outline-warning" onclick="showHoldModal(${a.archiveId}, '${escapeHtml(a.documentTitle)}')" title="Place Legal Hold">
+                        <i class="bi bi-shield-lock"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="approveDeletion(${a.archiveId}, '${escapeHtml(a.documentTitle)}')" title="Approve Immediate Deletion">
+                        <i class="bi bi-trash"></i>
+                    </button>`;
+            }
+
+            return `
+                <tr class="${a.dispositionStatus === 'Destroyed' ? 'table-light text-muted' : a.isOnHold ? 'table-warning' : ''}">
+                    <td>
+                        <strong>${escapeHtml(a.documentTitle)}</strong>
+                        <br><small class="text-muted">${escapeHtml(a.documentType || 'Unknown')}</small>
+                    </td>
+                    <td>${escapeHtml(a.clientName || '-')}</td>
+                    <td>${formatDate(a.retentionExpiredDate)}</td>
+                    <td>${a.dispositionStatus === 'Destroyed' ? '<span class="text-muted">N/A</span>' : formatDate(a.gracePeriodEndDate)}</td>
+                    <td>${statusBadge}</td>
+                    <td>${actions}</td>
+                </tr>`;
+        }).join('');
+    }
+
+    function showHoldModal(archiveId, title) {
+        currentHoldArchiveId = archiveId;
+        document.getElementById('holdDocTitle').textContent = title;
+        document.getElementById('holdReason').value = '';
+        new bootstrap.Modal(document.getElementById('holdModal')).show();
+    }
+
+    async function confirmPlaceHold() {
+        const reason = document.getElementById('holdReason').value.trim();
+        if (!reason) { alert('Please enter a reason for the legal hold.'); return; }
+
+        try {
+            const response = await fetch(`/api/RetentionApi/hold/${currentHoldArchiveId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason })
+            });
+            const result = await response.json();
+            if (result.success) {
+                alert('Legal hold placed successfully!');
+                bootstrap.Modal.getInstance(document.getElementById('holdModal')).hide();
+                loadDispositionQueue();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (e) { alert('Error placing legal hold'); }
+    }
+
+    async function releaseHold(archiveId) {
+        if (!confirm('Release the legal hold? A new 30-day grace period will start.')) return;
+
+        try {
+            const response = await fetch(`/api/RetentionApi/release-hold/${archiveId}`, { method: 'POST' });
+            const result = await response.json();
+            if (result.success) {
+                alert(result.message);
+                loadDispositionQueue();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (e) { alert('Error releasing hold'); }
+    }
+
+    async function approveDeletion(archiveId, title) {
+        if (!confirm(`PERMANENTLY DELETE "${title}"?\n\nThis will delete all physical files. Metadata will be preserved for audit purposes. A destruction certificate will be generated.\n\nThis action CANNOT be undone.`)) return;
+
+        try {
+            const response = await fetch(`/api/RetentionApi/approve-deletion/${archiveId}`, { method: 'POST' });
+            const result = await response.json();
+            if (result.success) {
+                alert('Document permanently destroyed. You can download the destruction certificate.');
+                loadDispositionQueue();
+                loadStats();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (e) { alert('Error approving deletion'); }
+    }
+
+    async function downloadCertificate(archiveId) {
+        try {
+            const response = await fetch(`/api/RetentionApi/destruction-certificate/${archiveId}`);
+            const data = await response.json();
+            if (!data.success) { alert(data.message || 'Error loading certificate'); return; }
+
+            const cert = data.certificate;
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            // Header
+            doc.setFontSize(20);
+            doc.setFont('helvetica', 'bold');
+            doc.text('CERTIFICATE OF DESTRUCTION', 105, 25, { align: 'center' });
+            
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Certificate No: ${cert.certificateNumber}`, 105, 33, { align: 'center' });
+            
+            doc.setDrawColor(0, 100, 200);
+            doc.setLineWidth(0.5);
+            doc.line(20, 38, 190, 38);
+
+            // Firm info
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.text(cert.firmName, 20, 48);
+
+            // Document details
+            let y = 58;
+            const addRow = (label, value) => {
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(10);
+                doc.text(label + ':', 20, y);
+                doc.setFont('helvetica', 'normal');
+                doc.text(String(value || 'N/A'), 75, y);
+                y += 7;
+            };
+
+            addRow('Document Title', cert.documentTitle);
+            addRow('Document ID', cert.documentId);
+            addRow('Document Type', cert.documentType);
+            addRow('Client Name', cert.clientName);
+            addRow('Original Upload', cert.originalUploadDate ? new Date(cert.originalUploadDate).toLocaleDateString() : 'N/A');
+            addRow('Approved Date', cert.approvedDate ? new Date(cert.approvedDate).toLocaleDateString() : 'N/A');
+            addRow('Retention Expiry', cert.retentionExpiryDate ? new Date(cert.retentionExpiryDate).toLocaleDateString() : 'N/A');
+            addRow('Grace Period End', cert.gracePeriodEndDate ? new Date(cert.gracePeriodEndDate).toLocaleDateString() : 'N/A');
+            addRow('Destroyed Date', cert.destroyedDate ? new Date(cert.destroyedDate).toLocaleDateString() : 'N/A');
+            addRow('Destroyed By', cert.destroyedBy);
+            addRow('Destruction Method', cert.destructionMethod);
+            
+            if (cert.wasOnHold) {
+                addRow('Was On Legal Hold', 'Yes');
+                addRow('Hold Reason', cert.holdReason || 'N/A');
+            }
+
+            // Certification statement
+            y += 10;
+            doc.setDrawColor(0, 100, 200);
+            doc.line(20, y, 190, y);
+            y += 10;
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11);
+            doc.text('CERTIFICATION STATEMENT', 20, y);
+            y += 8;
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+            const lines = doc.splitTextToSize(cert.certificationStatement, 170);
+            doc.text(lines, 20, y);
+            y += lines.length * 5 + 15;
+
+            // Signature line
+            doc.line(20, y, 80, y);
+            y += 5;
+            doc.setFontSize(8);
+            doc.text('Authorized Signature', 20, y);
+            y += 5;
+            doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, y);
+
+            // Footer
+            doc.setFontSize(7);
+            doc.setTextColor(128);
+            doc.text('This certificate was electronically generated and is valid without signature.', 105, 285, { align: 'center' });
+
+            doc.save(`Destruction_Certificate_${cert.certificateNumber}.pdf`);
+        } catch (e) {
+            console.error('Error generating certificate:', e);
+            alert('Error generating destruction certificate');
+        }
+    }
 </script>
 }

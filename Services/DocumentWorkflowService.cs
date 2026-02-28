@@ -851,12 +851,31 @@ public class DocumentWorkflowService
         if (existingRetention != null)
             return; // Already has retention
 
-        // Find default policy for this document type
+        // Find default policy for this document type, or fallback to "All Types" policy
         var defaultPolicy = await _context.RetentionPolicies
             .FirstOrDefaultAsync(p => p.FirmId == document.FirmID && 
                                       p.DocumentType == document.DocumentType && 
                                       p.IsDefault == true && 
                                       p.IsActive == true);
+
+        // If no type-specific policy, try "All Types" policy (empty or null DocumentType)
+        if (defaultPolicy == null)
+        {
+            defaultPolicy = await _context.RetentionPolicies
+                .FirstOrDefaultAsync(p => p.FirmId == document.FirmID && 
+                                          (p.DocumentType == null || p.DocumentType == "") && 
+                                          p.IsDefault == true && 
+                                          p.IsActive == true);
+        }
+
+        // Last resort: find ANY active default policy for this firm
+        if (defaultPolicy == null)
+        {
+            defaultPolicy = await _context.RetentionPolicies
+                .FirstOrDefaultAsync(p => p.FirmId == document.FirmID && 
+                                          p.IsDefault == true && 
+                                          p.IsActive == true);
+        }
 
         int retentionYears = 7; // Default 7 years
         int retentionMonths = 0;

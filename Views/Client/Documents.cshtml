@@ -148,68 +148,110 @@
     </div>
 </div>
 
-<!-- Document Detail Modal -->
+<!-- Document Detail Modal - 2 Tabs -->
 <div class="modal fade" id="documentModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="documentModalTitle">Document Details</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div id="documentDetails">
-                    <!-- Document info -->
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label text-muted">Title</label>
-                            <p id="docTitle" class="fw-bold"></p>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-muted">Document Type</label>
-                            <p id="docType"></p>
+                <!-- Tab Navigation -->
+                <ul class="nav nav-tabs mb-3" id="docDetailTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="viewDocTab" data-bs-toggle="tab" data-bs-target="#viewDocPane" type="button" role="tab">
+                            <i class="bi bi-file-earmark-text me-1"></i> View Document
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="pathHistoryTab" data-bs-toggle="tab" data-bs-target="#pathHistoryPane" type="button" role="tab">
+                            <i class="bi bi-signpost-2 me-1"></i> Review Path History
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Tab Content -->
+                <div class="tab-content" id="docDetailTabContent">
+                    <!-- Tab 1: View Document -->
+                    <div class="tab-pane fade show active" id="viewDocPane" role="tabpanel">
+                        <div id="documentDetails">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted">Title</label>
+                                    <p id="docTitle" class="fw-bold"></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted">Document Type</label>
+                                    <p id="docType"></p>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted">Status</label>
+                                    <p id="docStatus"></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted">Workflow Stage</label>
+                                    <p id="docWorkflowStage"></p>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <label class="form-label text-muted">Description</label>
+                                    <p id="docDescription"></p>
+                                </div>
+                            </div>
+
+                            <!-- Inline Document Preview -->
+                            <h6 class="mt-3 mb-3"><i class="bi bi-eye"></i> Document Preview</h6>
+                            <div id="inlineDocPreview" class="border rounded mb-3" style="min-height: 300px; max-height: 500px; overflow: auto; background: #f8f9fa;">
+                                <div class="text-center py-5 text-muted" id="inlinePreviewPlaceholder">
+                                    <i class="bi bi-file-earmark-text display-4"></i>
+                                    <p class="mt-2">Click "Load Preview" to view the document</p>
+                                    <button class="btn btn-outline-primary btn-sm" onclick="loadInlinePreview()">
+                                        <i class="bi bi-eye me-1"></i> Load Preview
+                                    </button>
+                                </div>
+                                <div id="inlinePreviewLoading" class="text-center py-5" style="display:none;">
+                                    <div class="spinner-border text-primary"></div>
+                                    <p class="mt-2 text-muted">Loading preview...</p>
+                                </div>
+                                <iframe id="inlinePreviewIframe" class="w-100 border-0" style="display:none; height:450px;"></iframe>
+                                <div id="inlinePreviewImageWrap" class="text-center p-3" style="display:none;">
+                                    <img id="inlinePreviewImg" style="max-width:100%; max-height:450px;" />
+                                </div>
+                                <div id="inlinePreviewText" class="p-3" style="display:none; font-family:'Segoe UI',sans-serif; line-height:1.7; overflow-y:auto; max-height:450px;"></div>
+                            </div>
+
+                            <!-- Version History -->
+                            <h6 class="mt-4 mb-3"><i class="bi bi-clock-history"></i> Version History</h6>
+                            <div id="versionHistory" class="list-group">
+                            </div>
+
+                            <!-- Remarks -->
+                            <div id="remarksSection" class="alert alert-info mt-3 d-none">
+                                <strong><i class="bi bi-chat-left-quote"></i> Admin Remarks:</strong>
+                                <p id="docRemarks" class="mb-0 mt-2"></p>
+                            </div>
                         </div>
                     </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label text-muted">Status</label>
-                            <p id="docStatus"></p>
+
+                    <!-- Tab 2: Review Path History -->
+                    <div class="tab-pane fade" id="pathHistoryPane" role="tabpanel">
+                        <!-- Document Path Details -->
+                        <h6 class="mb-3"><i class="bi bi-signpost-2"></i> Document Path Details</h6>
+                        <p class="text-muted small mb-3">Track how your document traveled through the review workflow and all changes made.</p>
+                        <div id="documentPathDetails">
+                            <div class="text-center text-muted py-3">
+                                <div class="spinner-border spinner-border-sm me-2"></div>Loading path details...
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-muted">Workflow Stage</label>
-                            <p id="docWorkflowStage"></p>
+
+                        <!-- Review History -->
+                        <h6 class="mt-4 mb-3"><i class="bi bi-chat-left-text"></i> Review History</h6>
+                        <div id="reviewHistory">
                         </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-12">
-                            <label class="form-label text-muted">Description</label>
-                            <p id="docDescription"></p>
-                        </div>
-                    </div>
-                    
-                    <!-- Version History -->
-                    <h6 class="mt-4 mb-3"><i class="bi bi-clock-history"></i> Version History</h6>
-                    <div id="versionHistory" class="list-group">
-                        <!-- Versions will be loaded here -->
-                    </div>
-                    
-                    <!-- Document Path Details -->
-                    <h6 class="mt-4 mb-3"><i class="bi bi-signpost-2"></i> Document Path Details</h6>
-                    <div id="documentPathDetails">
-                        <div class="text-center text-muted py-3">
-                            <div class="spinner-border spinner-border-sm me-2"></div>Loading path details...
-                        </div>
-                    </div>
-                    
-                    <!-- Review History -->
-                    <h6 class="mt-4 mb-3"><i class="bi bi-chat-left-text"></i> Review History</h6>
-                    <div id="reviewHistory">
-                        <!-- Reviews will be loaded here -->
-                    </div>
-                    
-                    <!-- Remarks (for approved/rejected documents) -->
-                    <div id="remarksSection" class="alert alert-info mt-3 d-none">
-                        <strong><i class="bi bi-chat-left-quote"></i> Admin Remarks:</strong>
-                        <p id="docRemarks" class="mb-0 mt-2"></p>
                     </div>
                 </div>
             </div>
@@ -218,45 +260,9 @@
                 <button type="button" class="btn btn-outline-danger" id="archiveBtn" onclick="archiveDocument()">
                     <i class="bi bi-archive"></i> Archive
                 </button>
-                <button type="button" class="btn btn-outline-info" id="previewDocBtn" onclick="openClientPreview()">
-                    <i class="bi bi-eye"></i> Preview
-                </button>
                 <a href="#" id="downloadBtn" class="btn btn-primary">
                     <i class="bi bi-download"></i> Download
                 </a>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Inline Document Preview Modal (Client) -->
-<div class="modal fade" id="clientPreviewModal" tabindex="-1">
-    <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
-        <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title"><i class="bi bi-eye me-2"></i>Document Preview - <span id="clientPreviewTitle"></span></h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-0" style="height: 78vh; overflow: auto;">
-                <!-- Loading -->
-                <div class="text-center py-5" id="clientPreviewLoading">
-                    <div class="spinner-border text-primary"></div>
-                    <p class="mt-2">Loading preview...</p>
-                </div>
-                <!-- PDF -->
-                <iframe id="clientPreviewIframe" class="w-100 h-100 border-0" style="display:none;"></iframe>
-                <!-- Image -->
-                <div id="clientPreviewImageWrap" class="text-center p-4" style="display:none;">
-                    <img id="clientPreviewImg" style="max-width:100%; max-height:72vh;" />
-                </div>
-                <!-- Text / docx -->
-                <div id="clientPreviewText" class="p-4" style="display:none; font-family:'Segoe UI',sans-serif; line-height:1.7; overflow-y:auto;"></div>
-            </div>
-            <div class="modal-footer">
-                <a href="#" id="clientPreviewDownloadBtn" class="btn btn-outline-secondary">
-                    <i class="bi bi-download"></i> Download
-                </a>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -443,14 +449,11 @@
                 document.getElementById('docDescription').textContent = doc.description || 'No description';
                 document.getElementById('downloadBtn').href = `/api/DocumentApi/${id}/download`;
                 currentDocExtension = doc.fileExtension || '';
-                document.getElementById('clientPreviewTitle').textContent = doc.title;
-                document.getElementById('clientPreviewDownloadBtn').href = `/api/DocumentApi/${id}/download`;
                 
-                // Show remarks if present (for both approved and rejected documents)
+                // Show remarks if present
                 const remarksSection = document.getElementById('remarksSection');
                 if (doc.currentRemarks) {
                     remarksSection.classList.remove('d-none');
-                    // Color based on status
                     remarksSection.className = doc.status === 'Rejected' 
                         ? 'alert alert-danger mt-3' 
                         : 'alert alert-info mt-3';
@@ -465,11 +468,16 @@
                 // Load version history
                 renderVersionHistory(doc.versions || []);
                 
-                // Load document path details
-                loadDocumentPath(id);
+                // Reset inline preview
+                resetInlinePreview();
                 
-                // Load review history
+                // Load document path details and review history (Tab 2)
+                loadDocumentPath(id);
                 renderReviewHistory(doc.reviews || []);
+                
+                // Reset to first tab
+                const firstTab = document.querySelector('#viewDocTab');
+                if (firstTab) new bootstrap.Tab(firstTab).show();
                 
                 new bootstrap.Modal(document.getElementById('documentModal')).show();
             }
@@ -478,62 +486,58 @@
         }
     }
     
-    function openClientPreview() {
-        // Reset all panels
-        document.getElementById('clientPreviewLoading').style.display = 'block';
-        document.getElementById('clientPreviewIframe').style.display = 'none';
-        document.getElementById('clientPreviewImageWrap').style.display = 'none';
-        document.getElementById('clientPreviewText').style.display = 'none';
-
-        // Show the preview modal
-        const previewModal = new bootstrap.Modal(document.getElementById('clientPreviewModal'));
-
-        // Close detail modal first
-        const detailModal = bootstrap.Modal.getInstance(document.getElementById('documentModal'));
-        if (detailModal) detailModal.hide();
-
-        previewModal.show();
-
+    function resetInlinePreview() {
+        document.getElementById('inlinePreviewPlaceholder').style.display = 'block';
+        document.getElementById('inlinePreviewLoading').style.display = 'none';
+        document.getElementById('inlinePreviewIframe').style.display = 'none';
+        document.getElementById('inlinePreviewImageWrap').style.display = 'none';
+        document.getElementById('inlinePreviewText').style.display = 'none';
+    }
+    
+    function loadInlinePreview() {
         const ext = (currentDocExtension || '').toLowerCase();
         const id = currentDocumentId;
-
+        
+        document.getElementById('inlinePreviewPlaceholder').style.display = 'none';
+        document.getElementById('inlinePreviewLoading').style.display = 'block';
+        
         if (ext === '.pdf') {
-            const iframe = document.getElementById('clientPreviewIframe');
+            const iframe = document.getElementById('inlinePreviewIframe');
             iframe.src = `/api/DocumentApi/${id}/view#toolbar=0&navpanes=0`;
             iframe.onload = () => {
-                document.getElementById('clientPreviewLoading').style.display = 'none';
+                document.getElementById('inlinePreviewLoading').style.display = 'none';
                 iframe.style.display = 'block';
             };
         } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
-            const img = document.getElementById('clientPreviewImg');
+            const img = document.getElementById('inlinePreviewImg');
             img.src = `/api/DocumentApi/${id}/view`;
             img.onload = () => {
-                document.getElementById('clientPreviewLoading').style.display = 'none';
-                document.getElementById('clientPreviewImageWrap').style.display = 'block';
+                document.getElementById('inlinePreviewLoading').style.display = 'none';
+                document.getElementById('inlinePreviewImageWrap').style.display = 'block';
             };
         } else if (['.doc', '.docx', '.xls', '.xlsx', '.txt'].includes(ext)) {
             fetch(`/api/DocumentApi/${id}/text-content`)
                 .then(r => r.json())
                 .then(data => {
-                    document.getElementById('clientPreviewLoading').style.display = 'none';
-                    const el = document.getElementById('clientPreviewText');
+                    document.getElementById('inlinePreviewLoading').style.display = 'none';
+                    const el = document.getElementById('inlinePreviewText');
                     el.style.display = 'block';
                     if (data.success && data.content) {
                         const escaped = data.content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
                         el.innerHTML = escaped.split('\n').map(l => l.trim()).filter(l => l.length > 0).map(l => `<p class="mb-2">${l}</p>`).join('');
                     } else {
-                        el.innerHTML = `<div class="text-center py-5"><i class="bi bi-file-earmark-x display-1 text-muted"></i><p class="text-muted mt-3">Content preview not available.</p><a href="/api/DocumentApi/${id}/download" class="btn btn-primary mt-2"><i class="bi bi-download me-1"></i>Download</a></div>`;
+                        el.innerHTML = `<div class="text-center py-3"><i class="bi bi-file-earmark-x display-4 text-muted"></i><p class="text-muted mt-2">Content preview not available.</p><a href="/api/DocumentApi/${id}/download" class="btn btn-primary btn-sm mt-1"><i class="bi bi-download me-1"></i>Download</a></div>`;
                     }
                 })
                 .catch(() => {
-                    document.getElementById('clientPreviewLoading').style.display = 'none';
-                    document.getElementById('clientPreviewText').innerHTML = '<p class="text-center text-danger mt-3">Error loading document content.</p>';
-                    document.getElementById('clientPreviewText').style.display = 'block';
+                    document.getElementById('inlinePreviewLoading').style.display = 'none';
+                    document.getElementById('inlinePreviewText').innerHTML = '<p class="text-center text-danger mt-3">Error loading document content.</p>';
+                    document.getElementById('inlinePreviewText').style.display = 'block';
                 });
         } else {
-            document.getElementById('clientPreviewLoading').style.display = 'none';
-            document.getElementById('clientPreviewText').innerHTML = `<div class="text-center py-5"><i class="bi bi-file-earmark-x display-1 text-muted"></i><p class="text-muted mt-3">Preview not available for this file type.</p><a href="/api/DocumentApi/${id}/download" class="btn btn-primary mt-2"><i class="bi bi-download me-1"></i>Download</a></div>`;
-            document.getElementById('clientPreviewText').style.display = 'block';
+            document.getElementById('inlinePreviewLoading').style.display = 'none';
+            document.getElementById('inlinePreviewText').innerHTML = `<div class="text-center py-3"><i class="bi bi-file-earmark-x display-4 text-muted"></i><p class="text-muted mt-2">Preview not available for this file type.</p><a href="/api/DocumentApi/${id}/download" class="btn btn-primary btn-sm mt-1"><i class="bi bi-download me-1"></i>Download</a></div>`;
+            document.getElementById('inlinePreviewText').style.display = 'block';
         }
     }
 
@@ -821,45 +825,46 @@
     }
 
     function previewVersion(versionId, versionLabel) {
-        // Reuse the existing client preview modal but load specific version
-        const modal = document.getElementById('clientPreviewModal');
-        if (!modal) { openClientPreview(); return; }
-        document.getElementById('clientPreviewTitle').textContent = versionLabel;
         const ext = (currentDocExtension || '').toLowerCase();
         const id = currentDocumentId;
-        // Reset state
-        document.getElementById('clientPreviewLoading').style.display = 'block';
-        document.getElementById('clientPreviewIframe').style.display = 'none';
-        document.getElementById('clientPreviewImageWrap').style.display = 'none';
-        document.getElementById('clientPreviewText').style.display = 'none';
-        document.getElementById('clientPreviewDownloadBtn').href = `/api/DocumentApi/${id}/download?versionId=${versionId}`;
-        new bootstrap.Modal(modal).show();
+        
+        // Reset inline preview area
+        document.getElementById('inlinePreviewPlaceholder').style.display = 'none';
+        document.getElementById('inlinePreviewLoading').style.display = 'block';
+        document.getElementById('inlinePreviewIframe').style.display = 'none';
+        document.getElementById('inlinePreviewImageWrap').style.display = 'none';
+        document.getElementById('inlinePreviewText').style.display = 'none';
+        
+        // Switch to View Document tab
+        const viewTab = document.querySelector('#viewDocTab');
+        if (viewTab) new bootstrap.Tab(viewTab).show();
+        
         const viewUrl = `/api/DocumentApi/${id}/view?versionId=${versionId}`;
         if (['.pdf'].includes(ext)) {
-            document.getElementById('clientPreviewLoading').style.display = 'none';
-            document.getElementById('clientPreviewIframe').src = viewUrl;
-            document.getElementById('clientPreviewIframe').style.display = 'block';
+            document.getElementById('inlinePreviewLoading').style.display = 'none';
+            document.getElementById('inlinePreviewIframe').src = viewUrl;
+            document.getElementById('inlinePreviewIframe').style.display = 'block';
         } else if (['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].includes(ext)) {
-            document.getElementById('clientPreviewLoading').style.display = 'none';
-            document.getElementById('clientPreviewImg').src = viewUrl;
-            document.getElementById('clientPreviewImageWrap').style.display = 'block';
+            document.getElementById('inlinePreviewLoading').style.display = 'none';
+            document.getElementById('inlinePreviewImg').src = viewUrl;
+            document.getElementById('inlinePreviewImageWrap').style.display = 'block';
         } else if (['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'].includes(ext)) {
-            document.getElementById('clientPreviewLoading').style.display = 'none';
+            document.getElementById('inlinePreviewLoading').style.display = 'none';
             const officeUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(window.location.origin + viewUrl)}&embedded=true`;
-            document.getElementById('clientPreviewIframe').src = officeUrl;
-            document.getElementById('clientPreviewIframe').style.display = 'block';
+            document.getElementById('inlinePreviewIframe').src = officeUrl;
+            document.getElementById('inlinePreviewIframe').style.display = 'block';
         } else {
             fetch(viewUrl)
                 .then(r => r.ok ? r.text() : Promise.reject())
                 .then(text => {
-                    document.getElementById('clientPreviewLoading').style.display = 'none';
-                    document.getElementById('clientPreviewText').innerHTML = `<pre class="p-3" style="white-space:pre-wrap">${escapeHtml(text)}</pre>`;
-                    document.getElementById('clientPreviewText').style.display = 'block';
+                    document.getElementById('inlinePreviewLoading').style.display = 'none';
+                    document.getElementById('inlinePreviewText').innerHTML = `<pre class="p-3" style="white-space:pre-wrap">${escapeHtml(text)}</pre>`;
+                    document.getElementById('inlinePreviewText').style.display = 'block';
                 })
                 .catch(() => {
-                    document.getElementById('clientPreviewLoading').style.display = 'none';
-                    document.getElementById('clientPreviewText').innerHTML = `<div class="text-center py-5"><i class="bi bi-file-earmark-x display-1 text-muted"></i><p class="text-muted mt-3">Preview not available.</p><a href="/api/DocumentApi/${id}/download?versionId=${versionId}" class="btn btn-primary mt-2"><i class="bi bi-download me-1"></i>Download</a></div>`;
-                    document.getElementById('clientPreviewText').style.display = 'block';
+                    document.getElementById('inlinePreviewLoading').style.display = 'none';
+                    document.getElementById('inlinePreviewText').innerHTML = `<div class="text-center py-3"><i class="bi bi-file-earmark-x display-4 text-muted"></i><p class="text-muted mt-2">Preview not available.</p><a href="/api/DocumentApi/${id}/download?versionId=${versionId}" class="btn btn-primary btn-sm mt-1"><i class="bi bi-download me-1"></i>Download</a></div>`;
+                    document.getElementById('inlinePreviewText').style.display = 'block';
                 });
         }
     }

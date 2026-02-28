@@ -77,6 +77,81 @@ public class Archive
 
     public int? DeletedBy { get; set; }
 
+    // ===== Post-Retention Workflow Fields =====
+
+    /// <summary>
+    /// Whether the document is on legal hold (prevents deletion even after retention expires)
+    /// </summary>
+    public bool? IsOnHold { get; set; } = false;
+
+    /// <summary>
+    /// Date the legal hold was placed
+    /// </summary>
+    public DateTime? HoldPlacedAt { get; set; }
+
+    /// <summary>
+    /// Admin who placed the legal hold
+    /// </summary>
+    public int? HoldPlacedBy { get; set; }
+
+    /// <summary>
+    /// Reason for placing legal hold
+    /// </summary>
+    [MaxLength(500)]
+    public string? HoldReason { get; set; }
+
+    /// <summary>
+    /// Date the legal hold was released
+    /// </summary>
+    public DateTime? HoldReleasedAt { get; set; }
+
+    /// <summary>
+    /// Admin who released the legal hold
+    /// </summary>
+    public int? HoldReleasedBy { get; set; }
+
+    /// <summary>
+    /// Post-retention workflow status: PendingReview, OnHold, ApprovedForDeletion, Destroyed
+    /// </summary>
+    [MaxLength(50)]
+    public string? RetentionDispositionStatus { get; set; }
+
+    /// <summary>
+    /// When the grace period started (retention expiry date)
+    /// </summary>
+    public DateTime? GracePeriodStartDate { get; set; }
+
+    /// <summary>
+    /// When the grace period ends (30 days after retention expiry)
+    /// </summary>
+    public DateTime? GracePeriodEndDate { get; set; }
+
+    /// <summary>
+    /// Whether destruction certificate was generated
+    /// </summary>
+    public bool? HasDestructionCertificate { get; set; } = false;
+
+    /// <summary>
+    /// Path to the destruction certificate PDF
+    /// </summary>
+    [MaxLength(500)]
+    public string? DestructionCertificatePath { get; set; }
+
+    /// <summary>
+    /// Date of destruction
+    /// </summary>
+    public DateTime? DestroyedAt { get; set; }
+
+    /// <summary>
+    /// Whether admin was notified about upcoming retention expiry
+    /// </summary>
+    public bool? ExpiryNotificationSent { get; set; } = false;
+
+    /// <summary>
+    /// Whether admin was notified at retention expiry
+    /// </summary>
+    public bool? ExpiryNotifiedAt { get; set; } = false;
+
     public DateTime? CreatedAt { get; set; }
 
     // Navigation properties
@@ -94,6 +169,12 @@ public class Archive
 
     [ForeignKey("DeletedBy")]
     public virtual User? DeletedByUser { get; set; }
+
+    [ForeignKey("HoldPlacedBy")]
+    public virtual User? HoldPlacedByUser { get; set; }
+
+    [ForeignKey("HoldReleasedBy")]
+    public virtual User? HoldReleasedByUser { get; set; }
 
     [ForeignKey("OriginalFolderId")]
     public virtual ClientFolder? OriginalFolder { get; set; }
