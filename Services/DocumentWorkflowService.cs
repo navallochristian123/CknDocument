@@ -1,4 +1,4 @@
-using CKNDocument.Data;
+﻿using CKNDocument.Data;
 using CKNDocument.Models.LawFirmDMS;
 using Microsoft.EntityFrameworkCore;
 
@@ -6,7 +6,7 @@ namespace CKNDocument.Services;
 
 /// <summary>
 /// Service for managing document workflow stages
-/// Workflow: ClientUpload → PendingStaffReview → StaffReview → PendingAdminReview → AdminReview → Approved → Completed
+/// Workflow: ClientUpload â†’ PendingStaffReview â†’ StaffReview â†’ PendingAdminReview â†’ AdminReview â†’ Approved â†’ Completed
 /// </summary>
 public class DocumentWorkflowService
 {
@@ -77,7 +77,6 @@ public class DocumentWorkflowService
             {
                 unassignedDoc.WorkflowStage = STAGE_PENDING_STAFF_REVIEW;
                 unassignedDoc.Status = STATUS_PENDING;
-                unassignedDoc.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
             }
             return null;
@@ -104,7 +103,6 @@ public class DocumentWorkflowService
             document.AssignedStaffId = selectedStaff.UserID;
             document.WorkflowStage = STAGE_PENDING_STAFF_REVIEW;
             document.Status = STATUS_PENDING;
-            document.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
         }
 
@@ -134,7 +132,6 @@ public class DocumentWorkflowService
             if (unassignedDoc != null)
             {
                 unassignedDoc.WorkflowStage = STAGE_PENDING_ADMIN_REVIEW;
-                unassignedDoc.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
             }
             return null;
@@ -160,7 +157,6 @@ public class DocumentWorkflowService
         {
             document.AssignedAdminId = selectedAdmin.UserID;
             document.WorkflowStage = STAGE_PENDING_ADMIN_REVIEW;
-            document.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
         }
 
@@ -190,7 +186,6 @@ public class DocumentWorkflowService
             if (unassignedDoc != null)
             {
                 unassignedDoc.WorkflowStage = STAGE_PENDING_LAWYER_REVIEW;
-                unassignedDoc.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
             }
             return null;
@@ -216,7 +211,6 @@ public class DocumentWorkflowService
         {
             document.AssignedLawyerId = selectedLawyer.UserID;
             document.WorkflowStage = STAGE_PENDING_LAWYER_REVIEW;
-            document.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
         }
 
@@ -267,9 +261,8 @@ public class DocumentWorkflowService
 
         // Update document workflow
         document.StaffReviewedAt = DateTime.UtcNow;
-        document.UpdatedAt = DateTime.UtcNow;
 
-        // Assign to lawyer (new workflow: Staff → Lawyer → Admin)
+        // Assign to lawyer (new workflow: Staff â†’ Lawyer â†’ Admin)
         var lawyer = await AssignToLawyerAsync(documentId, document.FirmID);
 
         // Notify lawyer
@@ -355,7 +348,6 @@ public class DocumentWorkflowService
         document.Status = STATUS_REJECTED;
         document.CurrentRemarks = remarks;
         document.StaffReviewedAt = DateTime.UtcNow;
-        document.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
         // Auto-archive rejected document immediately
@@ -430,7 +422,6 @@ public class DocumentWorkflowService
 
         // Update document workflow
         document.LawyerReviewedAt = DateTime.UtcNow;
-        document.UpdatedAt = DateTime.UtcNow;
 
         // Assign to admin
         var admin = await AssignToAdminAsync(documentId, document.FirmID);
@@ -518,7 +509,6 @@ public class DocumentWorkflowService
         document.Status = STATUS_REJECTED;
         document.CurrentRemarks = remarks;
         document.LawyerReviewedAt = DateTime.UtcNow;
-        document.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
         // Auto-archive rejected document
@@ -584,7 +574,7 @@ public class DocumentWorkflowService
         // Get file extension
         var fileExtension = Path.GetExtension(originalFileName);
 
-        // Create new version — Lawyer upload → MAJOR version label
+        // Create new version â€” Lawyer upload â†’ MAJOR version label
         var newVersionNumber = (document.CurrentVersion ?? 1) + 1;
         var existingLabels = document.Versions
             .OrderBy(v => v.VersionNumber)
@@ -611,13 +601,12 @@ public class DocumentWorkflowService
 
         _context.DocumentVersions.Add(newVersion);
 
-        // Update document — sync all fields with the new current version
+        // Update document â€” sync all fields with the new current version
         document.CurrentVersion = newVersionNumber;
         document.TotalFileSize = fileSize;
         document.OriginalFileName = originalFileName;
         document.FileExtension = fileExtension;
         document.MimeType = mimeType;
-        document.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
         // Notify client
@@ -689,7 +678,7 @@ public class DocumentWorkflowService
         // Get file extension
         var fileExtension = Path.GetExtension(originalFileName);
 
-        // Create new version — Staff upload → MINOR version label
+        // Create new version â€” Staff upload â†’ MINOR version label
         var newVersionNumber = (document.CurrentVersion ?? 1) + 1;
         var existingLabels = document.Versions
             .OrderBy(v => v.VersionNumber)
@@ -716,13 +705,12 @@ public class DocumentWorkflowService
 
         _context.DocumentVersions.Add(newVersion);
 
-        // Update document — sync all fields with the new current version
+        // Update document â€” sync all fields with the new current version
         document.CurrentVersion = newVersionNumber;
         document.TotalFileSize = fileSize;
         document.OriginalFileName = originalFileName;
         document.FileExtension = fileExtension;
         document.MimeType = mimeType;
-        document.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
         // Notify client
@@ -782,7 +770,6 @@ public class DocumentWorkflowService
         document.Status = STATUS_COMPLETED;
         document.AdminReviewedAt = DateTime.UtcNow;
         document.ApprovedAt = DateTime.UtcNow;
-        document.UpdatedAt = DateTime.UtcNow;
 
         // Sync main document record with the current version's filename
         var currentVersion = await _context.DocumentVersions
@@ -959,7 +946,6 @@ public class DocumentWorkflowService
         document.Status = STATUS_COMPLETED;
         document.AdminReviewedAt = DateTime.UtcNow;
         document.ApprovedAt = DateTime.UtcNow;
-        document.UpdatedAt = DateTime.UtcNow;
 
         // Sync main document record with the current version's filename
         var curVer = await _context.DocumentVersions
@@ -1081,7 +1067,6 @@ public class DocumentWorkflowService
         document.Status = STATUS_REJECTED;
         document.CurrentRemarks = remarks;
         document.AdminReviewedAt = DateTime.UtcNow;
-        document.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
         // Auto-archive rejected document immediately
@@ -1213,7 +1198,6 @@ public class DocumentWorkflowService
         // Update document
         document.WorkflowStage = STAGE_ARCHIVED;
         document.Status = STATUS_ARCHIVED;
-        document.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
         // Notify client (non-blocking - archive succeeds even if notification fails)
@@ -1277,12 +1261,14 @@ public class DocumentWorkflowService
         var query = _context.Documents
             .Include(d => d.Uploader)
             .Include(d => d.Folder)
+            .Include(d => d.AssignedStaff)
             .Include(d => d.Versions.OrderByDescending(v => v.VersionNumber).Take(1))
             .Where(d => d.FirmID == firmId &&
                         !d.IsHighRisk &&
                         (d.WorkflowStage == STAGE_CLIENT_UPLOAD || 
                          d.WorkflowStage == STAGE_PENDING_STAFF_REVIEW || 
-                         d.WorkflowStage == STAGE_STAFF_REVIEW));
+                         d.WorkflowStage == STAGE_STAFF_REVIEW ||
+                         d.WorkflowStage == STAGE_STAFF_REJECTED));
 
         if (staffId.HasValue)
         {
@@ -1383,14 +1369,13 @@ public class DocumentWorkflowService
         document.FirstOpinionLawyerId = requestingLawyerId;
         document.SecondOpinionRemarks = remarks;
         document.CurrentRemarks = $"Awaiting 2nd opinion from {secondLawyer.FullName}";
-        document.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
         // Notify 2nd lawyer
         await _notificationService.NotifyAsync(
             assignedToLawyerId,
-            "🔍 2nd Opinion Requested",
+            "ðŸ” 2nd Opinion Requested",
             $"Lawyer {requestingLawyer?.FullName} has requested your 2nd opinion on document '{document.Title}'. Reason: {remarks}",
             "SecondOpinionRequested",
             documentId,
@@ -1422,7 +1407,7 @@ public class DocumentWorkflowService
     }
 
     /// <summary>
-    /// 2nd lawyer approves the document → forwards to admin
+    /// 2nd lawyer approves the document â†’ forwards to admin
     /// </summary>
     public async Task<DocumentReview> SecondOpinionApproveAsync(
         int documentId, int secondLawyerId, string? remarks)
@@ -1471,7 +1456,6 @@ public class DocumentWorkflowService
 
         // Update document and forward to admin
         document.LawyerReviewedAt = DateTime.UtcNow;
-        document.UpdatedAt = DateTime.UtcNow;
         document.CurrentRemarks = $"Approved by 2nd opinion lawyer ({secondLawyer?.FullName}). {remarks}";
 
         // Clear 2nd opinion fields (keep FirstOpinionLawyerId for audit trail)
@@ -1586,7 +1570,6 @@ public class DocumentWorkflowService
         document.SecondOpinionLawyerId = null;
         document.SecondOpinionRemarks = null;
         document.CurrentRemarks = $"Returned by {secondLawyer?.FullName}: {remarks}";
-        document.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
@@ -1595,7 +1578,7 @@ public class DocumentWorkflowService
         {
             await _notificationService.NotifyAsync(
                 document.FirstOpinionLawyerId.Value,
-                "⚠️ Document Returned from 2nd Opinion",
+                "âš ï¸ Document Returned from 2nd Opinion",
                 $"Lawyer {secondLawyer?.FullName} has returned document '{document.Title}' for your review. Reason: {remarks}",
                 "SecondOpinionReturned",
                 documentId,
@@ -1677,10 +1660,10 @@ public class DocumentWorkflowService
             .ToListAsync();
     }
 
-    // ─── Version-label helpers ──────────────────────────────────────────────────
+    // â”€â”€â”€ Version-label helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
-    /// Next MINOR version label: "1" → "1.1", "1.1" → "1.2", "2" → "2.1"
+    /// Next MINOR version label: "1" â†’ "1.1", "1.1" â†’ "1.2", "2" â†’ "2.1"
     /// </summary>
     private static string CalcMinorVersionLabel(IEnumerable<string?> existingLabels)
     {
@@ -1702,7 +1685,7 @@ public class DocumentWorkflowService
     }
 
     /// <summary>
-    /// Next MAJOR version label: "1.1" → "2", "2.1" → "3"
+    /// Next MAJOR version label: "1.1" â†’ "2", "2.1" â†’ "3"
     /// </summary>
     private static string CalcMajorVersionLabel(IEnumerable<string?> existingLabels)
     {

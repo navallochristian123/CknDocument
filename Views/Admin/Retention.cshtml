@@ -920,11 +920,17 @@
                 actions = `
                     <button class="btn btn-sm btn-outline-success" onclick="releaseHold(${a.archiveId})" title="Release Hold">
                         <i class="bi bi-shield-slash"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" onclick="retrieveFromDisposition(${a.archiveId}, '${escapeHtml(a.documentTitle)}')" title="Retrieve Document">
+                        <i class="bi bi-arrow-counterclockwise"></i>
                     </button>`;
             } else {
                 const urgency = a.daysUntilDeletion <= 7 ? 'bg-danger' : a.daysUntilDeletion <= 14 ? 'bg-warning text-dark' : 'bg-info text-dark';
                 statusBadge = `<span class="badge ${urgency}"><i class="bi bi-hourglass-split me-1"></i>${a.daysUntilDeletion}d grace remaining</span>`;
                 actions = `
+                    <button class="btn btn-sm btn-outline-info" onclick="retrieveFromDisposition(${a.archiveId}, '${escapeHtml(a.documentTitle)}')" title="Retrieve Document">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>
                     <button class="btn btn-sm btn-outline-warning" onclick="showHoldModal(${a.archiveId}, '${escapeHtml(a.documentTitle)}')" title="Place Legal Hold">
                         <i class="bi bi-shield-lock"></i>
                     </button>
@@ -998,13 +1004,38 @@
             const response = await fetch(`/api/RetentionApi/approve-deletion/${archiveId}`, { method: 'POST' });
             const result = await response.json();
             if (result.success) {
-                alert('Document permanently destroyed. You can download the destruction certificate.');
+                alert('Document permanently destroyed successfully!');
                 loadDispositionQueue();
                 loadStats();
+                // Auto-download the destruction certificate
+                setTimeout(() => downloadCertificate(archiveId), 500);
             } else {
-                alert('Error: ' + result.message);
+                alert('Error: ' + (result.message || 'Unknown error'));
             }
-        } catch (e) { alert('Error approving deletion'); }
+        } catch (e) {
+            console.error('Error approving deletion:', e);
+            alert('Error approving deletion. Please check the console for details.');
+        }
+    }
+
+    async function retrieveFromDisposition(archiveId, title) {
+        if (!confirm(`Retrieve "${title}" from disposition queue?\n\nThis will restore the document to its original status and reset its retention period.`)) return;
+
+        try {
+            const response = await fetch(`/api/RetentionApi/retrieve/${archiveId}`, { method: 'POST' });
+            const result = await response.json();
+            if (result.success) {
+                alert(result.message || 'Document retrieved successfully!');
+                loadDispositionQueue();
+                loadStats();
+                loadRetentionDocuments();
+            } else {
+                alert('Error: ' + (result.message || 'Unknown error'));
+            }
+        } catch (e) {
+            console.error('Error retrieving document:', e);
+            alert('Error retrieving document from disposition queue.');
+        }
     }
 
     async function downloadCertificate(archiveId) {

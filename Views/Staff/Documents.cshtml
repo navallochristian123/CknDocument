@@ -214,8 +214,8 @@
                         <a href="/api/DocumentApi/${doc.id}/download" class="btn btn-outline-secondary" title="Download">
                             <i class="bi bi-download"></i>
                         </a>
-                        ${doc.workflowStage === 'StaffReview' ? `
-                        <a href="/Review/Review/${doc.id}" class="btn btn-outline-success" title="Review">
+                        ${['ClientUpload', 'PendingStaffReview', 'StaffReview'].includes(doc.workflowStage) ? `
+                        <a href="/Review/Pending" class="btn btn-outline-success" title="Go to Review">
                             <i class="bi bi-check-circle"></i>
                         </a>
                         ` : ''}

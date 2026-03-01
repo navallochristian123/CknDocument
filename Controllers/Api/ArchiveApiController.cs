@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CKNDocument.Data;
@@ -323,11 +323,6 @@ public class ArchiveApiController : ControllerBase
 
             _context.Archives.Add(archive);
 
-            // Update document to archived status - remove from normal document list
-            document.Status = "Archived";
-            document.WorkflowStage = "Archived";
-            document.UpdatedAt = DateTime.UtcNow;
-
             // Update retention as archived
             if (retention != null)
             {
@@ -338,6 +333,13 @@ public class ArchiveApiController : ControllerBase
             }
 
             await _context.SaveChangesAsync();
+
+            // Update document to archived status using ExecuteUpdateAsync to avoid UpdatedAt column issue
+            await _context.Documents
+                .Where(d => d.DocumentID == documentId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(d => d.Status, "Archived")
+                    .SetProperty(d => d.WorkflowStage, "Archived"));
 
             await _auditLogService.LogAsync(
                 "ManualArchive",
@@ -403,12 +405,14 @@ public class ArchiveApiController : ControllerBase
 
             _context.Archives.Add(archive);
 
-            // Update document status
-            document.WorkflowStage = "Archived";
-            document.Status = "Archived";
-            document.UpdatedAt = DateTime.UtcNow;
-
             await _context.SaveChangesAsync();
+
+            // Update document status using ExecuteUpdateAsync to avoid UpdatedAt column issue
+            await _context.Documents
+                .Where(d => d.DocumentID == documentId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(d => d.Status, "Archived")
+                    .SetProperty(d => d.WorkflowStage, "Archived"));
 
             await _auditLogService.LogAsync(
                 "ArchiveRejected",
@@ -470,6 +474,8 @@ public class ArchiveApiController : ControllerBase
             // Restore the document to original or default status
             var restoreStatus = archive.OriginalStatus ?? "Completed";
             var restoreStage = archive.OriginalWorkflowStage ?? "Completed";
+            var restoreFolderId = archive.OriginalFolderId;
+            var documentId = archive.DocumentID!.Value;
 
             // If was rejected, restore to pending for re-review
             if (archive.ArchiveType == "Rejected")
@@ -478,22 +484,13 @@ public class ArchiveApiController : ControllerBase
                 restoreStage = "PendingStaffReview";
             }
 
-            archive.Document.Status = restoreStatus;
-            archive.Document.WorkflowStage = restoreStage;
-            archive.Document.UpdatedAt = DateTime.UtcNow;
-
-            // Restore to original folder if specified
-            if (archive.OriginalFolderId.HasValue)
-            {
-                archive.Document.FolderId = archive.OriginalFolderId;
-            }
-
             // Mark archive as restored (keep record for audit)
             archive.IsRestored = true;
             archive.RestoredAt = DateTime.UtcNow;
             archive.RestoredBy = userId;
 
             // Reset retention if requested or by default
+            DateTime? newExpiryDate = null;
             if (dto?.ResetRetention != false)
             {
                 var existingRetention = await _context.DocumentRetentions
@@ -514,11 +511,34 @@ public class ArchiveApiController : ControllerBase
                     existingRetention.ModifiedBy = userId;
                     existingRetention.ModifiedAt = DateTime.UtcNow;
 
-                    archive.Document.RetentionExpiryDate = existingRetention.ExpiryDate;
+                    newExpiryDate = existingRetention.ExpiryDate;
                 }
             }
 
+            // Detach the Document entity to prevent EF from trying to update it via tracking
+            _context.Entry(archive.Document).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+
             await _context.SaveChangesAsync();
+
+            // Update document using ExecuteUpdateAsync to avoid UpdatedAt column issue
+            var updateBuilder = _context.Documents
+                .Where(d => d.DocumentID == documentId);
+
+            if (restoreFolderId.HasValue)
+            {
+                await updateBuilder.ExecuteUpdateAsync(setters => setters
+                    .SetProperty(d => d.Status, restoreStatus)
+                    .SetProperty(d => d.WorkflowStage, restoreStage)
+                    .SetProperty(d => d.FolderId, restoreFolderId)
+                    .SetProperty(d => d.RetentionExpiryDate, newExpiryDate));
+            }
+            else
+            {
+                await updateBuilder.ExecuteUpdateAsync(setters => setters
+                    .SetProperty(d => d.Status, restoreStatus)
+                    .SetProperty(d => d.WorkflowStage, restoreStage)
+                    .SetProperty(d => d.RetentionExpiryDate, newExpiryDate));
+            }
 
             await _auditLogService.LogAsync(
                 "ArchiveRestore",
@@ -836,6 +856,7 @@ public class ArchiveApiController : ControllerBase
                 .ToListAsync();
 
             int archivedCount = 0;
+            var docsToArchive = new List<int>();
 
             foreach (var retention in expiredRetentions)
             {
@@ -868,10 +889,11 @@ public class ArchiveApiController : ControllerBase
 
                 _context.Archives.Add(archive);
 
-                // Update document
-                retention.Document.Status = "Archived";
-                retention.Document.WorkflowStage = "Archived";
-                retention.Document.UpdatedAt = now;
+                // Collect document ID for bulk update
+                if (retention.DocumentID.HasValue)
+                {
+                    docsToArchive.Add(retention.DocumentID.Value);
+                }
 
                 // Mark retention as archived
                 retention.IsArchived = true;
@@ -879,10 +901,23 @@ public class ArchiveApiController : ControllerBase
                 retention.ModifiedAt = now;
                 retention.ModificationReason = "Auto-archived due to expiry";
 
+                // Detach document to prevent UpdatedAt column issue
+                _context.Entry(retention.Document).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+
                 archivedCount++;
             }
 
             await _context.SaveChangesAsync();
+
+            // Update document statuses using ExecuteUpdateAsync to avoid UpdatedAt column issue
+            if (docsToArchive.Any())
+            {
+                await _context.Documents
+                    .Where(d => docsToArchive.Contains(d.DocumentID))
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(d => d.Status, "Archived")
+                        .SetProperty(d => d.WorkflowStage, "Archived"));
+            }
 
             await _auditLogService.LogAsync(
                 "AutoArchiveExpired",

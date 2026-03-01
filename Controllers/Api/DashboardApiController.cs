@@ -112,8 +112,7 @@ public class DashboardApiController : ControllerBase
                 category = d.Category,
                 status = d.Status,
                 workflowStage = d.WorkflowStage,
-                createdAt = d.CreatedAt,
-                updatedAt = d.UpdatedAt
+                createdAt = d.CreatedAt
             })
             .ToListAsync();
 

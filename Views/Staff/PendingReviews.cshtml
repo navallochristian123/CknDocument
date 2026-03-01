@@ -613,7 +613,11 @@
 
     document.addEventListener('DOMContentLoaded', function() {
         loadStats();
-        loadPendingDocuments(true);
+        // Default to All Pending so staff sees all documents including unassigned ones
+        assignedToMe = false;
+        document.getElementById('btnAllPending').classList.add('active');
+        document.getElementById('btnAssignedToMe').classList.remove('active');
+        loadPendingDocuments(false);
 
         document.getElementById('btnAssignedToMe').addEventListener('click', function() {
             this.classList.add('active');

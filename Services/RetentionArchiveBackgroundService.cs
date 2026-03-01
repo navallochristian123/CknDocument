@@ -214,7 +214,7 @@ public class RetentionArchiveBackgroundService : BackgroundService
                 // Update document status
                 retention.Document.Status = "Archived";
                 retention.Document.WorkflowStage = "Archived";
-                retention.Document.UpdatedAt = now;
+
 
                 // Mark retention as archived
                 retention.IsArchived = true;
@@ -342,6 +342,28 @@ public class RetentionArchiveBackgroundService : BackgroundService
                 archive.IsDeleted = true;
                 archive.DeletedAt = now;
                 archive.DestroyedAt = now;
+                archive.HasDestructionCertificate = true;
+
+                // Remove related records with FK constraints first
+                var signatures = await context.DocumentSignatures
+                    .Where(s => s.DocumentId == archive.DocumentID).ToListAsync(stoppingToken);
+                if (signatures.Any())
+                    context.DocumentSignatures.RemoveRange(signatures);
+
+                var accesses = await context.DocumentAccesses
+                    .Where(a => a.DocumentID == archive.DocumentID).ToListAsync(stoppingToken);
+                if (accesses.Any())
+                    context.DocumentAccesses.RemoveRange(accesses);
+
+                var notifications = await context.Notifications
+                    .Where(n => n.DocumentId == archive.DocumentID).ToListAsync(stoppingToken);
+                if (notifications.Any())
+                    context.Notifications.RemoveRange(notifications);
+
+                var aiAnalyses = await context.DocumentAIAnalyses
+                    .Where(a => a.DocumentId == archive.DocumentID).ToListAsync(stoppingToken);
+                if (aiAnalyses.Any())
+                    context.DocumentAIAnalyses.RemoveRange(aiAnalyses);
 
                 // Delete document versions from DB
                 if (archive.Document.Versions != null)
@@ -353,18 +375,46 @@ public class RetentionArchiveBackgroundService : BackgroundService
                 var retentionRecords = await context.DocumentRetentions
                     .Where(dr => dr.DocumentID == archive.DocumentID)
                     .ToListAsync(stoppingToken);
-                context.DocumentRetentions.RemoveRange(retentionRecords);
+                if (retentionRecords.Any())
+                    context.DocumentRetentions.RemoveRange(retentionRecords);
 
-                // Delete reviews
+                // Delete checklist results BEFORE reviews (FK constraint: ChecklistResult -> Review)
                 var reviews = await context.DocumentReviews
                     .Where(r => r.DocumentId == archive.DocumentID)
                     .ToListAsync(stoppingToken);
-                context.DocumentReviews.RemoveRange(reviews);
+                if (reviews.Any())
+                {
+                    var reviewIds = reviews.Select(r => r.ReviewId).ToList();
+                    var checklistResults = await context.DocumentChecklistResults
+                        .Where(cr => reviewIds.Contains(cr.ReviewId))
+                        .ToListAsync(stoppingToken);
+                    if (checklistResults.Any())
+                        context.DocumentChecklistResults.RemoveRange(checklistResults);
+                    context.DocumentReviews.RemoveRange(reviews);
+                }
 
-                // Keep the Document record marked as Destroyed for audit trail
-                archive.Document.Status = "Destroyed";
-                archive.Document.WorkflowStage = "Destroyed";
-                archive.Document.UpdatedAt = now;
+                // Delete second opinion requests referencing this document
+                var secondOpinions = await context.SecondOpinionRequests
+                    .Where(s => s.DocumentId == archive.DocumentID)
+                    .ToListAsync(stoppingToken);
+                if (secondOpinions.Any())
+                    context.SecondOpinionRequests.RemoveRange(secondOpinions);
+
+                // Update Document status using ExecuteUpdateAsync to avoid UpdatedAt column issue
+                if (archive.DocumentID.HasValue)
+                {
+                    await context.Documents
+                        .Where(d => d.DocumentID == archive.DocumentID.Value)
+                        .ExecuteUpdateAsync(setters => setters
+                            .SetProperty(d => d.Status, "Destroyed")
+                            .SetProperty(d => d.WorkflowStage, "Destroyed"), stoppingToken);
+                }
+
+                // Detach the Document entity to prevent EF from trying to update it via tracking
+                if (archive.Document != null)
+                {
+                    context.Entry(archive.Document).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+                }
 
                 await context.SaveChangesAsync(stoppingToken);
 

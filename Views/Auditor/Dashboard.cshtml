@@ -292,13 +292,38 @@
     }
 
     async function loadRecentActivity() {
+        const tbody = document.getElementById('recentActivityTable');
         try {
-            const res = await fetch('/api/AuditorApi/audit-logs?page=1&pageSize=8');
-            const data = await res.json();
-            const logs = data.logs || [];
-            const tbody = document.getElementById('recentActivityTable');
+            // Try the AuditorApi endpoint first
+            let logs = [];
+            let res = await fetch('/api/AuditorApi/audit-logs?page=1&pageSize=8');
+            
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success && data.logs) {
+                    logs = data.logs;
+                } else {
+                    console.warn('AuditorApi audit-logs returned success=false:', data.message);
+                }
+            } else {
+                console.warn('AuditorApi audit-logs status:', res.status);
+            }
+
+            // Fallback to AuditController if no results
             if (logs.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No recent activity</td></tr>';
+                try {
+                    const res2 = await fetch('/Audit/GetLogs?page=1&pageSize=8');
+                    if (res2.ok) {
+                        const data2 = await res2.json();
+                        if (data2.success && data2.logs) {
+                            logs = data2.logs;
+                        }
+                    }
+                } catch (e2) { console.warn('Fallback fetch also failed:', e2); }
+            }
+
+            if (logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3"><i class="bi bi-clipboard-x me-2"></i>No recent activity found</td></tr>';
                 return;
             }
             const actionColors = {
@@ -319,7 +344,10 @@
                     <td class="text-truncate" style="max-width:160px;"><small title="${escapeHtml(desc)}">${escapeHtml(desc)}</small></td>
                 </tr>`;
             }).join('');
-        } catch { document.getElementById('recentActivityTable').innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">Could not load activity</td></tr>'; }
+        } catch (err) {
+            console.error('loadRecentActivity error:', err);
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3"><i class="bi bi-exclamation-triangle me-2"></i>Could not load activity</td></tr>';
+        }
     }
 
     function formatAge(s) {

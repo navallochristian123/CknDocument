@@ -33,6 +33,52 @@ public class AuditorApiController : ControllerBase
     private int GetCurrentUserId() => int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
     private int GetFirmId() => int.Parse(User.FindFirst("FirmId")?.Value ?? "0");
 
+    /// <summary>
+    /// Get firm ID with fallback to user's DB record if claim is missing
+    /// </summary>
+    private async Task<int> GetFirmIdAsync()
+    {
+        var firmId = GetFirmId();
+        if (firmId > 0) return firmId;
+
+        // Fallback: look up firm from user record
+        var userId = GetCurrentUserId();
+        if (userId > 0)
+        {
+            var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserID == userId);
+            if (user != null && user.FirmID > 0) return user.FirmID;
+        }
+        return 0;
+    }
+
+    /// <summary>
+    /// Build the firm-scoped audit log query
+    /// </summary>
+    private async Task<(IQueryable<CKNDocument.Models.LawFirmDMS.AuditLog> query, List<int> firmUserIds)> BuildFirmAuditQuery(int firmId)
+    {
+        var firmUserIds = firmId > 0
+            ? await _context.Users.Where(u => u.FirmID == firmId).Select(u => u.UserID).ToListAsync()
+            : new List<int>();
+
+        var query = _context.AuditLogs
+            .Include(a => a.User)
+            .AsNoTracking()
+            .AsQueryable();
+
+        if (firmId > 0)
+        {
+            query = query.Where(a => a.FirmID == firmId 
+                || (a.FirmID == null && a.UserID != null && firmUserIds.Contains(a.UserID.Value)));
+        }
+        else
+        {
+            // No firm context — return nothing (safety guard)
+            query = query.Where(a => false);
+        }
+
+        return (query, firmUserIds);
+    }
+
     // ===== DASHBOARD =====
 
     /// <summary>
@@ -43,7 +89,8 @@ public class AuditorApiController : ControllerBase
     {
         try
         {
-            var firmId = GetFirmId();
+            var firmId = await GetFirmIdAsync();
+            _logger.LogInformation("Auditor stats requested. FirmId={FirmId}, UserId={UserId}", firmId, GetCurrentUserId());
 
             var totalDocs = await _context.Documents
                 .CountAsync(d => d.FirmID == firmId);
@@ -63,25 +110,21 @@ public class AuditorApiController : ControllerBase
             var totalVersions = await _context.DocumentVersions
                 .CountAsync(v => v.Document != null && v.Document.FirmID == firmId);
 
-            // Audit log count for the firm
-            var firmUserIds = await _context.Users
-                .Where(u => u.FirmID == firmId)
-                .Select(u => u.UserID)
-                .ToListAsync();
+            // Use shared query builder for audit logs
+            var (auditQuery, firmUserIds) = await BuildFirmAuditQuery(firmId);
 
-            var auditLogCount = await _context.AuditLogs
-                .CountAsync(a => a.FirmID == firmId || (a.FirmID == null && a.UserID != null && firmUserIds.Contains(a.UserID.Value)));
+            var auditLogCount = await auditQuery.CountAsync();
 
             // Recent activity (last 7 days)
             var since = DateTime.UtcNow.AddDays(-7);
-            var recentActivity = await _context.AuditLogs
-                .CountAsync(a => (a.FirmID == firmId || (a.FirmID == null && a.UserID != null && firmUserIds.Contains(a.UserID.Value)))
-                                 && a.Timestamp >= since);
+            var recentActivity = await auditQuery
+                .Where(a => a.Timestamp >= since)
+                .CountAsync();
 
             // Unauthorized/security events
-            var unauthorizedCount = await _context.AuditLogs
-                .CountAsync(a => (a.FirmID == firmId || (a.FirmID == null && a.UserID != null && firmUserIds.Contains(a.UserID.Value)))
-                                 && (a.ActionCategory == "Security" || a.Action.Contains("Failed") || a.Action.Contains("Unauthorized") || a.Action.Contains("Locked")));
+            var unauthorizedCount = await auditQuery
+                .Where(a => a.ActionCategory == "Security" || a.Action.Contains("Failed") || a.Action.Contains("Unauthorized") || a.Action.Contains("Locked"))
+                .CountAsync();
 
             return Ok(new
             {
@@ -122,7 +165,7 @@ public class AuditorApiController : ControllerBase
     {
         try
         {
-            var firmId = GetFirmId();
+            var firmId = await GetFirmIdAsync();
 
             var query = _context.Documents
                 .Include(d => d.Uploader)
@@ -196,7 +239,7 @@ public class AuditorApiController : ControllerBase
     {
         try
         {
-            var firmId = GetFirmId();
+            var firmId = await GetFirmIdAsync();
 
             var query = _context.DocumentVersions
                 .Include(v => v.Document)
@@ -258,12 +301,7 @@ public class AuditorApiController : ControllerBase
     {
         try
         {
-            var firmId = GetFirmId();
-
-            var firmUserIds = await _context.Users
-                .Where(u => u.FirmID == firmId)
-                .Select(u => u.UserID)
-                .ToListAsync();
+            var firmId = await GetFirmIdAsync();
 
             var suspiciousActions = new[] {
                 "LoginFailed", "AccountLocked", "UnauthorizedAccess",
@@ -271,18 +309,17 @@ public class AuditorApiController : ControllerBase
                 "PermissionDenied", "ForbiddenAccess"
             };
 
-            var query = _context.AuditLogs
-                .Include(a => a.User)
+            var (baseQuery, firmUserIds) = await BuildFirmAuditQuery(firmId);
+
+            var query = baseQuery
                 .Where(a =>
-                    (a.FirmID == firmId || (a.FirmID == null && a.UserID != null && firmUserIds.Contains(a.UserID.Value))) &&
-                    (a.ActionCategory == "Security" ||
+                    a.ActionCategory == "Security" ||
                      a.Action.Contains("Failed") ||
                      a.Action.Contains("Unauthorized") ||
                      a.Action.Contains("Locked") ||
                      a.Action.Contains("Invalid") ||
                      a.Action.Contains("Rejected") ||
-                     suspiciousActions.Contains(a.Action)))
-                .AsNoTracking();
+                     suspiciousActions.Contains(a.Action));
 
             var totalCount = await query.CountAsync();
 
@@ -324,7 +361,7 @@ public class AuditorApiController : ControllerBase
     {
         try
         {
-            var firmId = GetFirmId();
+            var firmId = await GetFirmIdAsync();
 
             var query = _context.Archives
                 .Include(a => a.Document)
@@ -384,7 +421,7 @@ public class AuditorApiController : ControllerBase
     {
         try
         {
-            var firmId = GetFirmId();
+            var firmId = await GetFirmIdAsync();
             var uploadsRoot = Path.Combine(_environment.ContentRootPath, "Uploads");
 
             var versions = await _context.DocumentVersions
@@ -475,18 +512,10 @@ public class AuditorApiController : ControllerBase
     {
         try
         {
-            var firmId = GetFirmId();
+            var firmId = await GetFirmIdAsync();
+            _logger.LogInformation("Auditor audit-logs requested. FirmId={FirmId}, UserId={UserId}, Page={Page}", firmId, GetCurrentUserId(), page);
 
-            var firmUserIds = await _context.Users
-                .Where(u => u.FirmID == firmId)
-                .Select(u => u.UserID)
-                .ToListAsync();
-
-            var query = _context.AuditLogs
-                .Include(a => a.User)
-                .Where(a => a.FirmID == firmId || (a.FirmID == null && a.UserID != null && firmUserIds.Contains(a.UserID.Value)))
-                .AsNoTracking()
-                .AsQueryable();
+            var (query, firmUserIds) = await BuildFirmAuditQuery(firmId);
 
             if (!string.IsNullOrWhiteSpace(search))
             {

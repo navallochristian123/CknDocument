@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CKNDocument.Data;
@@ -483,14 +483,22 @@ public class RetentionApiController : ControllerBase
         retention.ModifiedBy = userId;
         retention.ModifiedAt = DateTime.UtcNow;
 
-        // Update document retention expiry date
+        // Detach document to prevent UpdatedAt column issue
         if (retention.Document != null)
         {
-            retention.Document.RetentionExpiryDate = retention.ExpiryDate;
-            retention.Document.UpdatedAt = DateTime.UtcNow;
+            _context.Entry(retention.Document).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
         }
 
         await _context.SaveChangesAsync();
+
+        // Update document retention expiry date using ExecuteUpdateAsync to avoid UpdatedAt column issue
+        if (retention.DocumentID.HasValue)
+        {
+            await _context.Documents
+                .Where(d => d.DocumentID == retention.DocumentID.Value)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(d => d.RetentionExpiryDate, retention.ExpiryDate));
+        }
 
         await _auditLogService.LogAsync(
             "ModifyRetention",
@@ -583,7 +591,6 @@ public class RetentionApiController : ControllerBase
 
         // Update document retention expiry
         document.RetentionExpiryDate = expiryDate;
-        document.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
@@ -631,6 +638,7 @@ public class RetentionApiController : ControllerBase
             .ToListAsync();
 
         var archivedCount = 0;
+        var docsToArchive = new List<int>();
 
         foreach (var retention in expiredRetentions)
         {
@@ -653,15 +661,29 @@ public class RetentionApiController : ControllerBase
             // Update retention record
             retention.IsArchived = true;
 
-            // Update document status
-            retention.Document.WorkflowStage = "Archived";
-            retention.Document.Status = "Archived";
-            retention.Document.UpdatedAt = now;
+            // Collect document ID for bulk update
+            if (retention.DocumentID.HasValue)
+            {
+                docsToArchive.Add(retention.DocumentID.Value);
+            }
+
+            // Detach document to prevent UpdatedAt column issue
+            _context.Entry(retention.Document).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
 
             archivedCount++;
         }
 
         await _context.SaveChangesAsync();
+
+        // Update document statuses using ExecuteUpdateAsync to avoid UpdatedAt column issue
+        if (docsToArchive.Any())
+        {
+            await _context.Documents
+                .Where(d => docsToArchive.Contains(d.DocumentID))
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(d => d.Status, "Archived")
+                    .SetProperty(d => d.WorkflowStage, "Archived"));
+        }
 
         await _auditLogService.LogAsync(
             "ProcessExpiredRetentions",
@@ -866,80 +888,141 @@ public class RetentionApiController : ControllerBase
     [HttpPost("approve-deletion/{archiveId}")]
     public async Task<IActionResult> ApproveDeletion(int archiveId)
     {
-        var userId = GetCurrentUserId();
-        var firmId = GetFirmId();
-
-        var archive = await _context.Archives
-            .Include(a => a.Document)
-                .ThenInclude(d => d!.Versions)
-            .Include(a => a.Document)
-                .ThenInclude(d => d!.Uploader)
-            .FirstOrDefaultAsync(a => a.ArchiveID == archiveId &&
-                                     a.Document != null &&
-                                     a.Document.FirmID == firmId &&
-                                     a.IsDeleted != true);
-
-        if (archive == null)
-            return NotFound(new { success = false, message = "Archive not found" });
-
-        if (archive.IsOnHold == true)
-            return BadRequest(new { success = false, message = "Cannot delete document on legal hold. Release the hold first." });
-
-        var documentTitle = archive.Document?.Title ?? "Unknown";
-        var documentType = archive.Document?.DocumentType ?? "Unknown";
-        var clientName = archive.Document?.Uploader?.FullName ?? "Unknown";
-        var now = DateTime.UtcNow;
-
-        // Delete physical files
-        if (archive.Document?.Versions != null)
+        try
         {
-            foreach (var version in archive.Document.Versions)
+            var userId = GetCurrentUserId();
+            var firmId = GetFirmId();
+
+            var archive = await _context.Archives
+                .Include(a => a.Document)
+                    .ThenInclude(d => d!.Versions)
+                .Include(a => a.Document)
+                    .ThenInclude(d => d!.Uploader)
+                .Include(a => a.Document)
+                    .ThenInclude(d => d!.Firm)
+                .FirstOrDefaultAsync(a => a.ArchiveID == archiveId &&
+                                         a.Document != null &&
+                                         a.Document.FirmID == firmId &&
+                                         a.IsDeleted != true);
+
+            if (archive == null)
+                return NotFound(new { success = false, message = "Archive not found" });
+
+            if (archive.IsOnHold == true)
+                return BadRequest(new { success = false, message = "Cannot delete document on legal hold. Release the hold first." });
+
+            var documentTitle = archive.Document?.Title ?? "Unknown";
+            var documentType = archive.Document?.DocumentType ?? "Unknown";
+            var clientName = archive.Document?.Uploader?.FullName ?? "Unknown";
+            var now = DateTime.UtcNow;
+
+            // Delete physical files
+            if (archive.Document?.Versions != null)
             {
-                if (!string.IsNullOrEmpty(version.FilePath) && System.IO.File.Exists(version.FilePath))
+                foreach (var version in archive.Document.Versions)
                 {
-                    try { System.IO.File.Delete(version.FilePath); }
-                    catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete file: {FilePath}", version.FilePath); }
+                    if (!string.IsNullOrEmpty(version.FilePath) && System.IO.File.Exists(version.FilePath))
+                    {
+                        try { System.IO.File.Delete(version.FilePath); }
+                        catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete file: {FilePath}", version.FilePath); }
+                    }
                 }
             }
+
+            // Mark as destroyed
+            archive.RetentionDispositionStatus = "Destroyed";
+            archive.IsDeleted = true;
+            archive.DeletedAt = now;
+            archive.DeletedBy = userId;
+            archive.DestroyedAt = now;
+            archive.HasDestructionCertificate = true;
+
+            // Remove related data in correct order (signatures first due to Restrict delete behavior)
+            var signatures = await _context.DocumentSignatures
+                .Where(s => s.DocumentId == archive.DocumentID).ToListAsync();
+            if (signatures.Any())
+                _context.DocumentSignatures.RemoveRange(signatures);
+
+            var accesses = await _context.DocumentAccesses
+                .Where(a => a.DocumentID == archive.DocumentID).ToListAsync();
+            if (accesses.Any())
+                _context.DocumentAccesses.RemoveRange(accesses);
+
+            var notifications = await _context.Notifications
+                .Where(n => n.DocumentId == archive.DocumentID).ToListAsync();
+            if (notifications.Any())
+                _context.Notifications.RemoveRange(notifications);
+
+            var aiAnalyses = await _context.DocumentAIAnalyses
+                .Where(a => a.DocumentId == archive.DocumentID).ToListAsync();
+            if (aiAnalyses.Any())
+                _context.DocumentAIAnalyses.RemoveRange(aiAnalyses);
+
+            if (archive.Document?.Versions != null)
+                _context.DocumentVersions.RemoveRange(archive.Document.Versions);
+
+            var retentionRecords = await _context.DocumentRetentions
+                .Where(dr => dr.DocumentID == archive.DocumentID).ToListAsync();
+            if (retentionRecords.Any())
+                _context.DocumentRetentions.RemoveRange(retentionRecords);
+
+            // Delete checklist results BEFORE reviews (FK constraint: ChecklistResult -> Review)
+            var reviews = await _context.DocumentReviews
+                .Where(r => r.DocumentId == archive.DocumentID).ToListAsync();
+            if (reviews.Any())
+            {
+                var reviewIds = reviews.Select(r => r.ReviewId).ToList();
+                var checklistResults = await _context.DocumentChecklistResults
+                    .Where(cr => reviewIds.Contains(cr.ReviewId)).ToListAsync();
+                if (checklistResults.Any())
+                    _context.DocumentChecklistResults.RemoveRange(checklistResults);
+                _context.DocumentReviews.RemoveRange(reviews);
+            }
+
+            // Delete second opinion requests referencing this document
+            var secondOpinions = await _context.SecondOpinionRequests
+                .Where(s => s.DocumentId == archive.DocumentID).ToListAsync();
+            if (secondOpinions.Any())
+                _context.SecondOpinionRequests.RemoveRange(secondOpinions);
+
+            // Update document status using ExecuteUpdateAsync to avoid UpdatedAt column issue
+            if (archive.DocumentID.HasValue)
+            {
+                await _context.Documents
+                    .Where(d => d.DocumentID == archive.DocumentID.Value)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(d => d.Status, "Destroyed")
+                        .SetProperty(d => d.WorkflowStage, "Destroyed"));
+            }
+
+            // Detach the Document entity to prevent EF from trying to update it via tracking
+            if (archive.Document != null)
+            {
+                _context.Entry(archive.Document).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+            }
+
+            await _context.SaveChangesAsync();
+
+            await _auditLogService.LogAsync(
+                "ManualDocumentDestruction",
+                "Document",
+                archive.DocumentID ?? 0,
+                $"Admin manually destroyed document: '{documentTitle}' (Type: {documentType}, Client: {clientName})",
+                null, null, "RetentionDestruction");
+
+            return Ok(new
+            {
+                success = true,
+                message = "Document permanently destroyed. Destruction certificate available.",
+                archiveId = archive.ArchiveID
+            });
         }
-
-        // Mark as destroyed
-        archive.RetentionDispositionStatus = "Destroyed";
-        archive.IsDeleted = true;
-        archive.DeletedAt = now;
-        archive.DeletedBy = userId;
-        archive.DestroyedAt = now;
-
-        // Remove related data
-        if (archive.Document?.Versions != null)
-            _context.DocumentVersions.RemoveRange(archive.Document.Versions);
-
-        var retentionRecords = await _context.DocumentRetentions
-            .Where(dr => dr.DocumentID == archive.DocumentID).ToListAsync();
-        _context.DocumentRetentions.RemoveRange(retentionRecords);
-
-        var reviews = await _context.DocumentReviews
-            .Where(r => r.DocumentId == archive.DocumentID).ToListAsync();
-        _context.DocumentReviews.RemoveRange(reviews);
-
-        // Keep document metadata marked as Destroyed
-        if (archive.Document != null)
+        catch (Exception ex)
         {
-            archive.Document.Status = "Destroyed";
-            archive.Document.WorkflowStage = "Destroyed";
-            archive.Document.UpdatedAt = now;
+            _logger.LogError(ex, "Error approving deletion for archive {ArchiveId}. Inner: {InnerMessage}", archiveId, ex.InnerException?.Message);
+            var errorMsg = ex.InnerException?.Message ?? ex.Message;
+            return StatusCode(500, new { success = false, message = $"Error destroying document: {errorMsg}" });
         }
-
-        await _context.SaveChangesAsync();
-
-        await _auditLogService.LogAsync(
-            "ManualDocumentDestruction",
-            "Document",
-            archive.DocumentID ?? 0,
-            $"Admin manually destroyed document: '{documentTitle}' (Type: {documentType}, Client: {clientName})",
-            null, null, "RetentionDestruction");
-
-        return Ok(new { success = true, message = "Document permanently destroyed. Destruction certificate available." });
     }
 
     /// <summary>
@@ -1019,6 +1102,8 @@ public class RetentionApiController : ControllerBase
             var now = DateTime.UtcNow;
             int archivedCount = 0;
             int destroyedCount = 0;
+            var docsToArchive = new List<int>();
+            var docsToDestroy = new List<int>();
 
             // Step 1: Archive expired retention documents
             var expiredRetentions = await _context.DocumentRetentions
@@ -1071,13 +1156,23 @@ public class RetentionApiController : ControllerBase
                 };
 
                 _context.Archives.Add(archive);
-                retention.Document.Status = "Archived";
-                retention.Document.WorkflowStage = "Archived";
-                retention.Document.UpdatedAt = now;
+                // Collect document ID for bulk update (avoid tracking UpdatedAt issue)
+                docsToArchive.Add(retention.DocumentID.Value);
+                _context.Entry(retention.Document).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
                 retention.IsArchived = true;
                 retention.ModifiedAt = now;
                 retention.ModificationReason = "Auto-archived due to retention expiry";
                 archivedCount++;
+            }
+
+            // Bulk update document statuses to Archived
+            if (docsToArchive.Any())
+            {
+                await _context.Documents
+                    .Where(d => docsToArchive.Contains(d.DocumentID))
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(d => d.Status, "Archived")
+                        .SetProperty(d => d.WorkflowStage, "Archived"));
             }
 
             await _context.SaveChangesAsync();
@@ -1099,6 +1194,27 @@ public class RetentionApiController : ControllerBase
             {
                 if (archive.Document == null) continue;
 
+                // Remove related records with FK constraints first
+                var signatures = await _context.DocumentSignatures
+                    .Where(s => s.DocumentId == archive.DocumentID).ToListAsync();
+                if (signatures.Any())
+                    _context.DocumentSignatures.RemoveRange(signatures);
+
+                var accesses = await _context.DocumentAccesses
+                    .Where(a => a.DocumentID == archive.DocumentID).ToListAsync();
+                if (accesses.Any())
+                    _context.DocumentAccesses.RemoveRange(accesses);
+
+                var notifications = await _context.Notifications
+                    .Where(n => n.DocumentId == archive.DocumentID).ToListAsync();
+                if (notifications.Any())
+                    _context.Notifications.RemoveRange(notifications);
+
+                var aiAnalyses = await _context.DocumentAIAnalyses
+                    .Where(a => a.DocumentId == archive.DocumentID).ToListAsync();
+                if (aiAnalyses.Any())
+                    _context.DocumentAIAnalyses.RemoveRange(aiAnalyses);
+
                 if (archive.Document.Versions != null)
                 {
                     foreach (var version in archive.Document.Versions)
@@ -1111,14 +1227,51 @@ public class RetentionApiController : ControllerBase
                     _context.DocumentVersions.RemoveRange(archive.Document.Versions);
                 }
 
+                var retentionRecords = await _context.DocumentRetentions
+                    .Where(dr => dr.DocumentID == archive.DocumentID).ToListAsync();
+                if (retentionRecords.Any())
+                    _context.DocumentRetentions.RemoveRange(retentionRecords);
+
+                // Delete checklist results BEFORE reviews (FK constraint: ChecklistResult -> Review)
+                var reviews = await _context.DocumentReviews
+                    .Where(r => r.DocumentId == archive.DocumentID).ToListAsync();
+                if (reviews.Any())
+                {
+                    var reviewIds = reviews.Select(r => r.ReviewId).ToList();
+                    var checklistResults = await _context.DocumentChecklistResults
+                        .Where(cr => reviewIds.Contains(cr.ReviewId)).ToListAsync();
+                    if (checklistResults.Any())
+                        _context.DocumentChecklistResults.RemoveRange(checklistResults);
+                    _context.DocumentReviews.RemoveRange(reviews);
+                }
+
+                // Delete second opinion requests referencing this document
+                var secondOpinions = await _context.SecondOpinionRequests
+                    .Where(s => s.DocumentId == archive.DocumentID).ToListAsync();
+                if (secondOpinions.Any())
+                    _context.SecondOpinionRequests.RemoveRange(secondOpinions);
+
                 archive.RetentionDispositionStatus = "Destroyed";
                 archive.IsDeleted = true;
                 archive.DeletedAt = now;
                 archive.DestroyedAt = now;
-                archive.Document.Status = "Destroyed";
-                archive.Document.WorkflowStage = "Destroyed";
-                archive.Document.UpdatedAt = now;
+                archive.HasDestructionCertificate = true;
+                // Collect document ID for bulk update (avoid tracking UpdatedAt issue)
+                if (archive.DocumentID.HasValue)
+                    docsToDestroy.Add(archive.DocumentID.Value);
+                if (archive.Document != null)
+                    _context.Entry(archive.Document).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
                 destroyedCount++;
+            }
+
+            // Bulk update document statuses to Destroyed
+            if (docsToDestroy.Any())
+            {
+                await _context.Documents
+                    .Where(d => docsToDestroy.Contains(d.DocumentID))
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(d => d.Status, "Destroyed")
+                        .SetProperty(d => d.WorkflowStage, "Destroyed"));
             }
 
             await _context.SaveChangesAsync();
@@ -1170,6 +1323,153 @@ public class RetentionApiController : ControllerBase
         };
 
         return Ok(new { success = true, stats });
+    }
+
+    /// <summary>
+    /// Retrieve (restore) a document from the disposition queue back to active retention
+    /// </summary>
+    [HttpPost("retrieve/{archiveId}")]
+    public async Task<IActionResult> RetrieveFromDisposition(int archiveId)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var firmId = GetFirmId();
+
+            var archive = await _context.Archives
+                .Include(a => a.Document)
+                .FirstOrDefaultAsync(a => a.ArchiveID == archiveId &&
+                                         a.Document != null &&
+                                         a.Document.FirmID == firmId &&
+                                         a.IsDeleted != true &&
+                                         a.IsRestored != true);
+
+            if (archive == null)
+                return NotFound(new { success = false, message = "Archive not found or already deleted" });
+
+            if (archive.RetentionDispositionStatus == "Destroyed")
+                return BadRequest(new { success = false, message = "Cannot retrieve a destroyed document" });
+
+            if (archive.Document == null)
+                return BadRequest(new { success = false, message = "Associated document not found" });
+
+            // Restore document to original status
+            var restoreStatus = archive.OriginalStatus ?? "Completed";
+            var restoreStage = archive.OriginalWorkflowStage ?? "Completed";
+            var restoreFolderId = archive.OriginalFolderId;
+            var documentId = archive.DocumentID!.Value;
+
+            // Mark archive as restored
+            archive.IsRestored = true;
+            archive.RestoredAt = DateTime.UtcNow;
+            archive.RestoredBy = userId;
+            archive.IsOnHold = false;
+            archive.RetentionDispositionStatus = "Retrieved";
+
+            // Reset retention - give the document a fresh retention period
+            DateTime? newExpiryDate = null;
+            var existingRetention = await _context.DocumentRetentions
+                .FirstOrDefaultAsync(dr => dr.DocumentID == archive.DocumentID);
+
+            if (existingRetention != null)
+            {
+                var startDate = DateTime.UtcNow;
+                existingRetention.RetentionStartDate = startDate;
+                existingRetention.ExpiryDate = startDate
+                    .AddYears(existingRetention.RetentionYears ?? 7)
+                    .AddMonths(existingRetention.RetentionMonths ?? 0)
+                    .AddDays(existingRetention.RetentionDays ?? 0);
+                existingRetention.IsArchived = false;
+                existingRetention.IsModified = true;
+                existingRetention.ModificationReason = "Retrieved from disposition queue by admin";
+                existingRetention.ModifiedBy = userId;
+                existingRetention.ModifiedAt = DateTime.UtcNow;
+
+                newExpiryDate = existingRetention.ExpiryDate;
+            }
+
+            // Detach the Document entity to prevent EF from trying to update it via tracking
+            _context.Entry(archive.Document).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+
+            await _context.SaveChangesAsync();
+
+            // Update document using ExecuteUpdateAsync to avoid UpdatedAt column issue
+            await _context.Documents
+                .Where(d => d.DocumentID == documentId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(d => d.Status, restoreStatus)
+                    .SetProperty(d => d.WorkflowStage, restoreStage)
+                    .SetProperty(d => d.FolderId, restoreFolderId)
+                    .SetProperty(d => d.RetentionExpiryDate, newExpiryDate));
+
+            await _auditLogService.LogAsync(
+                "RetentionRetrieve",
+                "Archive",
+                archiveId,
+                $"Admin retrieved document from disposition queue: '{archive.Document.Title}'. Document restored to active status with fresh retention period.",
+                null, null, "RetentionManagement");
+
+            return Ok(new { success = true, message = "Document retrieved successfully. Retention period has been reset." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving document from disposition for archive {ArchiveId}", archiveId);
+            return StatusCode(500, new { success = false, message = $"Error retrieving document: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
+    /// Get all destruction certificates for the firm
+    /// </summary>
+    [HttpGet("destruction-certificates")]
+    public async Task<IActionResult> GetDestructionCertificates()
+    {
+        try
+        {
+            var firmId = GetFirmId();
+
+            var certificates = await _context.Archives
+                .Include(a => a.Document)
+                    .ThenInclude(d => d!.Uploader)
+                .Include(a => a.Document)
+                    .ThenInclude(d => d!.Firm)
+                .Include(a => a.DeletedByUser)
+                .Where(a => a.Document != null &&
+                           a.Document.FirmID == firmId &&
+                           a.RetentionDispositionStatus == "Destroyed" &&
+                           (a.IsDeleted == true || a.DestroyedAt != null))
+                .OrderByDescending(a => a.DestroyedAt ?? a.DeletedAt)
+                .Select(a => new
+                {
+                    archiveId = a.ArchiveID,
+                    certificateNumber = "DOC-" + a.ArchiveID.ToString("D6") + "-" + (a.DestroyedAt != null ? a.DestroyedAt.Value.Year : DateTime.UtcNow.Year),
+                    documentId = a.DocumentID,
+                    documentTitle = a.Document != null ? a.Document.Title : "Unknown",
+                    documentType = a.Document != null ? a.Document.DocumentType : "Unknown",
+                    clientName = a.Document != null && a.Document.Uploader != null
+                        ? (a.Document.Uploader.FirstName ?? "") + " " + (a.Document.Uploader.LastName ?? "")
+                        : "Unknown",
+                    firmName = a.Document != null && a.Document.Firm != null ? a.Document.Firm.FirmName : "Unknown",
+                    destroyedDate = a.DestroyedAt ?? a.DeletedAt,
+                    destroyedBy = a.DeletedByUser != null 
+                        ? (a.DeletedByUser.FirstName ?? "") + " " + (a.DeletedByUser.LastName ?? "")
+                        : "System (Auto)",
+                    archivedDate = a.ArchivedDate,
+                    retentionExpiredDate = a.OriginalRetentionDate,
+                    gracePeriodEndDate = a.GracePeriodEndDate,
+                    wasOnHold = a.HoldPlacedAt != null,
+                    holdReason = a.HoldReason,
+                    hasDestructionCertificate = a.HasDestructionCertificate == true
+                })
+                .ToListAsync();
+
+            return Ok(new { success = true, certificates });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading destruction certificates");
+            return StatusCode(500, new { success = false, message = "Error loading destruction certificates" });
+        }
     }
 
     #endregion

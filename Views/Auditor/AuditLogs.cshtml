@@ -16,6 +16,67 @@
 @section Styles {
 <style>
     @@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+    .table td {
+        vertical-align: middle;
+        font-size: 0.875rem;
+    }
+
+    .table th {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .form-label {
+        font-weight: 500;
+        margin-bottom: 0.25rem;
+    }
+
+    .stat-card {
+        text-align: center;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    }
+
+    .stat-card .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #0d6efd;
+    }
+
+    .stat-card .stat-label {
+        font-size: 0.8rem;
+        color: #6c757d;
+        text-transform: uppercase;
+    }
+
+    .detail-row {
+        display: flex;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .detail-row:last-child {
+        border-bottom: none;
+    }
+
+    .detail-label {
+        font-weight: 600;
+        width: 150px;
+        color: #6c757d;
+    }
+
+    .detail-value {
+        flex: 1;
+    }
+
+    code {
+        background-color: #f8f9fa;
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
 </style>
 }
 
@@ -204,10 +265,10 @@
                     }
                     else
                     {
-                        <tr>
+                        <tr id="noLogsRow">
                             <td colspan="7" class="text-center py-4">
-                                <i class="bi bi-clipboard-x text-muted" style="font-size: 3rem;"></i>
-                                <p class="text-muted mt-2">No audit logs found for the selected filters.</p>
+                                <div class="spinner-border spinner-border-sm text-primary" id="logsSpinner"></div>
+                                <p class="text-muted mt-2" id="noLogsMessage">Loading audit logs...</p>
                             </td>
                         </tr>
                     }
@@ -303,71 +364,6 @@
         <div class="toast-body" id="toastMessage"></div>
     </div>
 </div>
-
-@section Styles {
-<style>
-    .table td {
-        vertical-align: middle;
-        font-size: 0.875rem;
-    }
-
-    .table th {
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-
-    .form-label {
-        font-weight: 500;
-        margin-bottom: 0.25rem;
-    }
-
-    .stat-card {
-        text-align: center;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    }
-
-    .stat-card .stat-value {
-        font-size: 2rem;
-        font-weight: 700;
-        color: #0d6efd;
-    }
-
-    .stat-card .stat-label {
-        font-size: 0.8rem;
-        color: #6c757d;
-        text-transform: uppercase;
-    }
-
-    .detail-row {
-        display: flex;
-        padding: 0.5rem 0;
-        border-bottom: 1px solid #f0f0f0;
-    }
-
-    .detail-row:last-child {
-        border-bottom: none;
-    }
-
-    .detail-label {
-        font-weight: 600;
-        width: 150px;
-        color: #6c757d;
-    }
-
-    .detail-value {
-        flex: 1;
-    }
-
-    code {
-        background-color: #f8f9fa;
-        padding: 2px 6px;
-        border-radius: 4px;
-    }
-</style>
-}
 
 @section Scripts {
 <script>
@@ -570,6 +566,12 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
+        // If server-side model was empty, try fetching via AJAX
+        const noLogsRow = document.getElementById('noLogsRow');
+        if (noLogsRow) {
+            loadAuditLogsViaAjax();
+        }
+
         // Show any server-side toast messages
         @if (TempData["ToastType"] != null)
         {
@@ -578,5 +580,110 @@
             </text>
         }
     });
+
+    // AJAX fallback to load audit logs when server-side model is empty
+    async function loadAuditLogsViaAjax() {
+        const tbody = document.getElementById('logsTable')?.querySelector('tbody');
+        if (!tbody) return;
+
+        try {
+            // Get current URL params for filters
+            const urlParams = new URLSearchParams(window.location.search);
+            const page = urlParams.get('page') || '1';
+            const pageSize = urlParams.get('pageSize') || '50';
+            const action = urlParams.get('action') || '';
+            const category = urlParams.get('category') || '';
+            const userId = urlParams.get('userId') || '';
+            const startDate = urlParams.get('startDate') || '';
+            const endDate = urlParams.get('endDate') || '';
+
+            // Try AuditorApi endpoint
+            let logs = [];
+            let totalCount = 0;
+            const apiUrl = `/api/AuditorApi/audit-logs?page=${page}&pageSize=${pageSize}&action=${action}&category=${category}&userId=${userId}&startDate=${startDate}&endDate=${endDate}`;
+            let res = await fetch(apiUrl);
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success && data.logs && data.logs.length > 0) {
+                    logs = data.logs;
+                    totalCount = data.totalCount || logs.length;
+                }
+            }
+
+            // Fallback to AuditController GetLogs 
+            if (logs.length === 0) {
+                try {
+                    const fallbackUrl = `/Audit/GetLogs?page=${page}&pageSize=${pageSize}&action=${action}&category=${category}&userId=${userId}&startDate=${startDate}&endDate=${endDate}`;
+                    const res2 = await fetch(fallbackUrl);
+                    if (res2.ok) {
+                        const data2 = await res2.json();
+                        if (data2.success && data2.logs && data2.logs.length > 0) {
+                            logs = data2.logs;
+                            totalCount = data2.totalCount || logs.length;
+                        }
+                    }
+                } catch (e2) { console.warn('Fallback GetLogs also failed:', e2); }
+            }
+
+            if (logs.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4">
+                    <i class="bi bi-clipboard-x text-muted" style="font-size: 3rem;"></i>
+                    <p class="text-muted mt-2">No audit logs found for the selected filters.</p>
+                </td></tr>`;
+                return;
+            }
+
+            // Update the results count
+            const countEl = document.querySelector('.text-muted');
+            if (countEl && totalCount > 0) {
+                const p = parseInt(page);
+                const ps = parseInt(pageSize);
+                countEl.textContent = `Showing ${(p-1)*ps + 1} to ${Math.min(p*ps, totalCount)} of ${totalCount} logs`;
+            }
+
+            const actionBadgeColors = {
+                'Login': 'bg-primary', 'Logout': 'bg-secondary',
+                'LoginFailed': 'bg-warning text-dark',
+                'Registration': 'bg-success', 'AccountCreated': 'bg-success',
+                'PasswordChanged': 'bg-info',
+                'DocumentCreated': 'bg-success', 'DocumentViewed': 'bg-info',
+                'DocumentUpdated': 'bg-warning text-dark', 'DocumentDeleted': 'bg-danger',
+                'DocumentDownloaded': 'bg-secondary', 'DocumentApproved': 'bg-success',
+                'DocumentRejected': 'bg-danger',
+                'Create': 'bg-success', 'Update': 'bg-warning text-dark',
+                'Delete': 'bg-danger', 'View': 'bg-info', 'Download': 'bg-secondary'
+            };
+
+            function esc(t) { if (!t) return ''; const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+            tbody.innerHTML = logs.map(l => {
+                const ts = l.timestamp ? new Date(l.timestamp) : null;
+                const dateStr = ts ? ts.toISOString().slice(0,10) : '-';
+                const timeStr = ts ? ts.toTimeString().slice(0,8) : '';
+                const badge = actionBadgeColors[l.action] || 'bg-secondary';
+                const user = esc((l.userName || '').trim() || 'System');
+                const desc = esc(l.description || '-');
+                const ip = esc(l.ipAddress || '-');
+                const entity = esc(l.entityType || '-');
+                return `<tr>
+                    <td><span class="text-nowrap">${dateStr}</span> <span class="text-muted">${timeStr}</span></td>
+                    <td>${user}</td>
+                    <td><span class="badge ${badge}">${esc(l.action || '-')}</span></td>
+                    <td>${entity}</td>
+                    <td class="text-truncate" style="max-width:300px;" title="${desc}">${desc}</td>
+                    <td><code class="small">${ip}</code></td>
+                    <td><button class="btn btn-sm btn-outline-primary" onclick="viewLogDetails(${l.auditId || l.id})" title="View Details"><i class="bi bi-eye"></i></button></td>
+                </tr>`;
+            }).join('');
+
+        } catch (err) {
+            console.error('AJAX audit logs error:', err);
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4">
+                <i class="bi bi-exclamation-triangle text-warning" style="font-size: 2rem;"></i>
+                <p class="text-muted mt-2">Error loading audit logs. Please refresh the page.</p>
+            </td></tr>`;
+        }
+    }
 </script>
 }

@@ -202,58 +202,73 @@ public class DocumentApiController : ControllerBase
                 _logger.LogWarning(aiEx, "AI processing failed for document {DocumentId}, upload will continue without AI analysis", document.DocumentID);
             }
 
-            // Route document based on risk level
+            // Route document based on risk level (wrapped in try-catch so upload succeeds even if assignment fails)
             User? assignedUser = null;
-            if (dto.IsHighRisk)
+            try
             {
-                // HIGH-RISK: Skip staff, assign directly to lawyer
-                assignedUser = await _workflowService.AssignToLawyerAsync(document.DocumentID, firmId);
-
-                // Notify the assigned lawyer about high-risk document
-                if (assignedUser != null)
+                if (dto.IsHighRisk)
                 {
+                    // HIGH-RISK: Skip staff, assign directly to lawyer
+                    assignedUser = await _workflowService.AssignToLawyerAsync(document.DocumentID, firmId);
+
+                    // Notify the assigned lawyer about high-risk document
+                    if (assignedUser != null)
+                    {
+                        await _notificationService.NotifyAsync(
+                            assignedUser.UserID,
+                        "âš ï¸ High-Risk Document for Review",
+                            $"A high-risk document '{document.Title}' has been uploaded and requires your immediate review.",
+                            "HighRiskDocument",
+                            document.DocumentID,
+                            $"/Lawyer/PendingReviews");
+                    }
+    
+                    // Also notify client about the high-risk routing
                     await _notificationService.NotifyAsync(
-                        assignedUser.UserID,
-                        "⚠️ High-Risk Document for Review",
-                        $"A high-risk document '{document.Title}' has been uploaded and requires your immediate review.",
+                        userId,
+                        "High-Risk Document Submitted",
+                        $"Your high-risk document '{document.Title}' has been sent directly to a lawyer for immediate review.",
                         "HighRiskDocument",
                         document.DocumentID,
-                        $"/Lawyer/PendingReviews");
+                        $"/Document/MyDocuments");
                 }
-
-                // Also notify client about the high-risk routing
-                await _notificationService.NotifyAsync(
-                    userId,
-                    "High-Risk Document Submitted",
-                    $"Your high-risk document '{document.Title}' has been sent directly to a lawyer for immediate review.",
-                    "HighRiskDocument",
-                    document.DocumentID,
-                    $"/Document/MyDocuments");
+                else
+                {
+                    // NORMAL FLOW: Assign to staff for review
+                    assignedUser = await _workflowService.AssignToStaffAsync(document.DocumentID, firmId);
+    
+                    // Notify all staff members
+                    await _notificationService.NotifyAllStaffAsync(
+                        firmId,
+                        "New Document Pending Review",
+                        $"Client uploaded a new document: {document.Title}",
+                        NotificationService.TYPE_DOCUMENT_PENDING_REVIEW,
+                        document.DocumentID,
+                        $"/Review/Review/{document.DocumentID}");
+                }
             }
-            else
+            catch (Exception assignEx)
             {
-                // NORMAL FLOW: Assign to staff for review
-                assignedUser = await _workflowService.AssignToStaffAsync(document.DocumentID, firmId);
-
-                // Notify all staff members
-                await _notificationService.NotifyAllStaffAsync(
-                    firmId,
-                    "New Document Pending Review",
-                    $"Client uploaded a new document: {document.Title}",
-                    NotificationService.TYPE_DOCUMENT_PENDING_REVIEW,
-                    document.DocumentID,
-                    $"/Review/Review/{document.DocumentID}");
+                _logger.LogWarning(assignEx, "Failed to assign/notify for document {DocumentId}. Document saved but assignment may need manual action.", document.DocumentID);
+                // Document is already saved — it will still appear in the staff review list as unassigned
             }
 
             // Audit log
-            await _auditLogService.LogAsync(
-                "DocumentUpload",
-                "Document",
-                document.DocumentID,
-                $"Client uploaded document: {document.Title}{(dto.IsHighRisk ? " [HIGH-RISK]" : "")}",
-                null,
-                dto.IsHighRisk ? "{\"isHighRisk\":true}" : null,
-                "DocumentUpload");
+            try
+            {
+                await _auditLogService.LogAsync(
+                    "DocumentUpload",
+                    "Document",
+                    document.DocumentID,
+                    $"Client uploaded document: {document.Title}{(dto.IsHighRisk ? " [HIGH-RISK]" : "")}",
+                    null,
+                    dto.IsHighRisk ? "{\"isHighRisk\":true}" : null,
+                    "DocumentUpload");
+            }
+            catch (Exception auditEx)
+            {
+                _logger.LogWarning(auditEx, "Failed to log audit for document upload {DocumentId}", document.DocumentID);
+            }
 
             return Ok(new
             {
@@ -471,8 +486,7 @@ public class DocumentApiController : ControllerBase
                 totalFileSize = d.TotalFileSize,
                 currentRemarks = d.CurrentRemarks,
                 folder = d.Folder != null ? new { id = d.Folder.FolderId, name = d.Folder.FolderName } : null,
-                createdAt = d.CreatedAt,
-                updatedAt = d.UpdatedAt
+                createdAt = d.CreatedAt
             })
             .ToListAsync();
 
@@ -638,10 +652,12 @@ public class DocumentApiController : ControllerBase
                 // since the archive record already exists
                 if (document.Status == "Rejected" && existingArchive.ArchiveType == "Rejected")
                 {
-                    document.WorkflowStage = "Archived";
-                    document.Status = "Archived";
-                    document.UpdatedAt = DateTime.UtcNow;
-                    await _context.SaveChangesAsync();
+                    // Use ExecuteUpdateAsync to avoid UpdatedAt column issue
+                    await _context.Documents
+                        .Where(d => d.DocumentID == id)
+                        .ExecuteUpdateAsync(setters => setters
+                            .SetProperty(d => d.Status, "Archived")
+                            .SetProperty(d => d.WorkflowStage, "Archived"));
                     
                     return Ok(new { success = true, message = "Document archived successfully", archiveId = existingArchive.ArchiveID });
                 }
@@ -698,9 +714,8 @@ public class DocumentApiController : ControllerBase
         if (dto.Tags != null)
             document.Tags = dto.Tags;
 
-        document.UpdatedAt = DateTime.UtcNow;
 
-        // ── Staff metadata edit → create a minor version snapshot ────────────────
+        // â”€â”€ Staff metadata edit â†’ create a minor version snapshot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // Whenever Staff (or Admin) edits while the document is in a review stage,
         // record a new DocumentVersion so the lawyer / admin can see what changed.
         bool isMetadataVersionCreated = false;
@@ -723,7 +738,7 @@ public class DocumentApiController : ControllerBase
                 var currentVer = existingVersions.First(v => v.IsCurrentVersion == true)
                                ?? existingVersions.First();
 
-                // Calculate next minor version label  (e.g. "1" → "1.1", "1.1" → "1.2")
+                // Calculate next minor version label  (e.g. "1" â†’ "1.1", "1.1" â†’ "1.2")
                 var newLabel = CalcMinorVersionLabel(
                     existingVersions.Select(v => v.VersionLabel).ToList());
 
@@ -868,8 +883,8 @@ public class DocumentApiController : ControllerBase
             var newVersionNumber = currentMaxVersion + 1;
 
             // Determine version label
-            // Staff uploads → minor version bump (1.1, 1.2, …)
-            // Lawyer / Admin file uploads → major version bump (2, 3, …)
+            // Staff uploads â†’ minor version bump (1.1, 1.2, â€¦)
+            // Lawyer / Admin file uploads â†’ major version bump (2, 3, â€¦)
             var existingLabels = document.Versions
                 .Select(v => v.VersionLabel)
                 .ToList();
@@ -923,7 +938,6 @@ public class DocumentApiController : ControllerBase
 
             _context.DocumentVersions.Add(newVersion);
             document.CurrentVersion = newVersionNumber;
-            document.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
 
@@ -970,7 +984,7 @@ public class DocumentApiController : ControllerBase
             if (document == null)
                 return NotFound(new { success = false, message = "Document not found" });
 
-            // ── 1. Try to load a previously stored (processed) AI analysis ─────────
+            // â”€â”€ 1. Try to load a previously stored (processed) AI analysis â”€â”€â”€â”€â”€â”€â”€â”€â”€
             DocumentAIAnalysis? storedAnalysis = null;
             try
             {
@@ -996,7 +1010,7 @@ public class DocumentApiController : ControllerBase
                     if (!string.IsNullOrEmpty(storedAnalysis.MissingItemsJson))
                         missingItems = System.Text.Json.JsonSerializer.Deserialize<List<AIMissingItem>>(storedAnalysis.MissingItemsJson);
                 }
-                catch { /* ignore JSON parse errors – handled by empty fallbacks */ }
+                catch { /* ignore JSON parse errors â€“ handled by empty fallbacks */ }
 
                 return Ok(new
                 {
@@ -1019,7 +1033,7 @@ public class DocumentApiController : ControllerBase
                 });
             }
 
-            // ── 2. No stored analysis — trigger real-time analysis from file content ─
+            // â”€â”€ 2. No stored analysis â€” trigger real-time analysis from file content â”€
             _logger.LogInformation("No stored AI analysis found for document {DocumentId}. Running real-time analysis.", id);
 
             var currentVersion = document.Versions
@@ -1111,7 +1125,7 @@ public class DocumentApiController : ControllerBase
                 });
             }
 
-            // ── 3. Keyword-based fallback (no OpenAI / file not found) ─────────────
+            // â”€â”€ 3. Keyword-based fallback (no OpenAI / file not found) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             var fallback = await _aiService.AnalyzeDocumentAsync(id);
             return Ok(new
             {
@@ -1341,7 +1355,6 @@ public class DocumentApiController : ControllerBase
             var result = await _aiService.VerifySignatureAsync(id, fileStream, expectedName);
 
             // Update document with signature verification status
-            document.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
             await _auditLogService.LogAsync(
@@ -1500,11 +1513,11 @@ public class DocumentApiController : ControllerBase
         }
     }
 
-    // ─── Version-label helpers ────────────────────────────────────────────────────
+    // â”€â”€â”€ Version-label helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Calculate the next MINOR version label for a staff-only metadata/file edit.
-    /// Examples: "1" → "1.1", "1.1" → "1.2", "2" → "2.1"
+    /// Examples: "1" â†’ "1.1", "1.1" â†’ "1.2", "2" â†’ "2.1"
     /// </summary>
     private static string CalcMinorVersionLabel(IEnumerable<string?> existingLabels)
     {
@@ -1529,7 +1542,7 @@ public class DocumentApiController : ControllerBase
 
     /// <summary>
     /// Calculate the next MAJOR version label for a lawyer or admin file upload.
-    /// Examples: "1" → "2", "1.1" → "2", "1.2" → "2", "2.1" → "3"
+    /// Examples: "1" â†’ "2", "1.1" â†’ "2", "1.2" â†’ "2", "2.1" â†’ "3"
     /// </summary>
     private static string CalcMajorVersionLabel(IEnumerable<string?> existingLabels)
     {
@@ -1546,7 +1559,7 @@ public class DocumentApiController : ControllerBase
         return $"{currentMajor + 1}";
     }
 
-    // ─── File path resolver ──────────────────────────────────────────────────────
+    // â”€â”€â”€ File path resolver â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Resolves a stored FilePath to an absolute path that currently exists on disk.
@@ -1557,7 +1570,7 @@ public class DocumentApiController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(storedPath)) return null;
 
-        // 1) Stored path exists as-is (happy path — most uploads)
+        // 1) Stored path exists as-is (happy path â€” most uploads)
         if (System.IO.File.Exists(storedPath)) return storedPath;
 
         // 2) Remap by extracting the "Uploads/..." segment and rebuilding from the current content root.
@@ -1588,7 +1601,7 @@ public class DocumentApiController : ControllerBase
         return null;
     }
 
-    // ─── Diff helper ────────────────────────────────────────────────────────────
+    // â”€â”€â”€ Diff helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private record DiffToken(string Text, string Type);
 
@@ -1598,7 +1611,7 @@ public class DocumentApiController : ControllerBase
         var oldLines = SplitLines(oldText);
         var newLines = SplitLines(newText);
 
-        // Cap to prevent O(n²) slow-down
+        // Cap to prevent O(nÂ²) slow-down
         const int MaxLines = 400;
         if (oldLines.Count > MaxLines) oldLines = oldLines.Take(MaxLines).ToList();
         if (newLines.Count > MaxLines) newLines = newLines.Take(MaxLines).ToList();
@@ -1645,7 +1658,7 @@ public class DocumentApiController : ControllerBase
                    .ToList();
     }
 
-    // ────────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Get client's signature info for comparison/display

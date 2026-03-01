@@ -1,4 +1,4 @@
-using CKNDocument.Data;
+﻿using CKNDocument.Data;
 using CKNDocument.Models.LawFirmDMS;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
@@ -581,7 +581,7 @@ Provide your analysis as JSON.";
             return new
             {
                 success = false,
-                note = "OpenAI API key not configured – AI analysis unavailable.",
+                note = "OpenAI API key not configured â€“ AI analysis unavailable.",
                 summary = "Manual review required.",
                 changes = Array.Empty<object>()
             };
@@ -751,7 +751,6 @@ Analyze all changes between these versions and return JSON.";
                 document.DocumentType = aiAnalysis.DocumentType;
                 document.IsDuplicate = result.IsDuplicate;
                 document.DuplicateOfDocumentId = result.DuplicateOfDocumentId;
-                document.UpdatedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
 
@@ -780,7 +779,6 @@ Analyze all changes between these versions and return JSON.";
                     document.DocumentType = aiAnalysis.DocumentType;
                     document.IsDuplicate = result.IsDuplicate;
                     document.DuplicateOfDocumentId = result.DuplicateOfDocumentId;
-                    document.UpdatedAt = DateTime.UtcNow;
                     await _context.SaveChangesAsync();
                 }
                 catch (Exception innerEx)

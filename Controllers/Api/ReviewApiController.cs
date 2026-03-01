@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CKNDocument.Data;
@@ -422,9 +422,12 @@ public class ReviewApiController : ControllerBase
             // Auto-assign to this staff if document is unassigned (handles new firms where staff was created after upload)
             if (document.AssignedStaffId == null)
             {
-                document.AssignedStaffId = userId;
-                document.WorkflowStage = DocumentWorkflowService.STAGE_STAFF_REVIEW;
-                await _context.SaveChangesAsync();
+                // Use ExecuteUpdateAsync to avoid UpdatedAt column issue
+                await _context.Documents
+                    .Where(d => d.DocumentID == documentId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(d => d.AssignedStaffId, userId)
+                        .SetProperty(d => d.WorkflowStage, DocumentWorkflowService.STAGE_STAFF_REVIEW));
                 _logger.LogInformation("Auto-assigned unassigned document {DocumentId} to staff {StaffId}", documentId, userId);
             }
             else if (document.AssignedStaffId != userId)
@@ -467,7 +470,6 @@ public class ReviewApiController : ControllerBase
                     document.Category = meta.Category;
                 if (meta.Tags != null && meta.Tags != document.Tags)
                     document.Tags = meta.Tags;
-                document.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
             }
 
@@ -520,9 +522,12 @@ public class ReviewApiController : ControllerBase
             // Auto-assign to this staff if document is unassigned
             if (document.AssignedStaffId == null)
             {
-                document.AssignedStaffId = userId;
-                document.WorkflowStage = DocumentWorkflowService.STAGE_STAFF_REVIEW;
-                await _context.SaveChangesAsync();
+                // Use ExecuteUpdateAsync to avoid UpdatedAt column issue
+                await _context.Documents
+                    .Where(d => d.DocumentID == documentId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(d => d.AssignedStaffId, userId)
+                        .SetProperty(d => d.WorkflowStage, DocumentWorkflowService.STAGE_STAFF_REVIEW));
                 _logger.LogInformation("Auto-assigned unassigned document {DocumentId} to staff {StaffId} (reject)", documentId, userId);
             }
             else if (document.AssignedStaffId != userId)
@@ -583,9 +588,12 @@ public class ReviewApiController : ControllerBase
             // Auto-assign to this staff if document is unassigned
             if (document.AssignedStaffId == null)
             {
-                document.AssignedStaffId = userId;
-                document.WorkflowStage = DocumentWorkflowService.STAGE_STAFF_REVIEW;
-                await _context.SaveChangesAsync();
+                // Use ExecuteUpdateAsync to avoid UpdatedAt column issue
+                await _context.Documents
+                    .Where(d => d.DocumentID == documentId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(d => d.AssignedStaffId, userId)
+                        .SetProperty(d => d.WorkflowStage, DocumentWorkflowService.STAGE_STAFF_REVIEW));
                 _logger.LogInformation("Auto-assigned unassigned document {DocumentId} to staff {StaffId} (edit)", documentId, userId);
             }
             else if (document.AssignedStaffId != userId)

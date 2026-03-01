@@ -266,27 +266,75 @@
             const res = await fetch(`/api/DocumentApi/${docId}`);
             const data = await res.json();
             const ext = (data.document?.fileExtension || '').toLowerCase();
+            const mime = (data.document?.mimeType || '').toLowerCase();
             if (ext === '.pdf') {
                 const iframe = document.getElementById('previewIframe');
                 iframe.src = `/api/DocumentApi/${docId}/view`;
                 iframe.onload = () => { document.getElementById('previewLoading').style.display='none'; iframe.style.display='block'; };
-            } else if (['.jpg','.jpeg','.png','.gif'].includes(ext)) {
+            } else if (['.jpg','.jpeg','.png','.gif','.bmp','.webp'].includes(ext)) {
                 const img = document.getElementById('previewImg');
                 img.src = `/api/DocumentApi/${docId}/view`;
                 img.onload = () => { document.getElementById('previewLoading').style.display='none'; document.getElementById('previewImageWrap').style.display='block'; };
-            } else {
+            } else if (['.doc','.docx','.xls','.xlsx','.ppt','.pptx'].includes(ext)) {
+                // For Office files, try to use the inline view (browser can render some office types)
+                // First try text extraction
                 const r2 = await fetch(`/api/DocumentApi/${docId}/text-content`);
                 const d2 = await r2.json();
                 const el = document.getElementById('previewText');
                 document.getElementById('previewLoading').style.display='none';
                 el.style.display = 'block';
-                el.innerHTML = d2.success && d2.content
-                    ? d2.content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').split('\n').filter(l=>l.trim()).map(l=>`<p class="mb-2">${l}</p>`).join('')
-                    : `<div class="text-center py-5"><i class="bi bi-file-earmark-x display-1 text-muted"></i><p class="mt-3 text-muted">Preview not available for this file type.</p></div>`;
+                if (d2.success && d2.content && d2.content.trim().length > 0) {
+                    el.innerHTML = `<div class="bg-light p-3 rounded mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="badge bg-info"><i class="bi bi-file-text me-1"></i>Text Preview</span>
+                            <small class="text-muted">Version ${d2.versionNumber || '-'}</small>
+                        </div>
+                    </div>` +
+                    d2.content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                        .split('\n').filter(l=>l.trim()).map(l=>`<p class="mb-2">${l}</p>`).join('');
+                } else {
+                    // Try inline view as fallback
+                    const iframe = document.getElementById('previewIframe');
+                    iframe.src = `/api/DocumentApi/${docId}/view`;
+                    el.style.display = 'none';
+                    iframe.onload = () => { document.getElementById('previewLoading').style.display='none'; iframe.style.display='block'; };
+                    iframe.onerror = () => {
+                        iframe.style.display = 'none';
+                        el.style.display = 'block';
+                        el.innerHTML = `<div class="text-center py-5">
+                            <i class="bi bi-file-earmark-richtext display-1 text-muted"></i>
+                            <p class="mt-3 text-muted">This document type (${ext}) requires download to view the full content.</p>
+                            <p class="text-muted small">Text extraction was not available for this file.</p>
+                        </div>`;
+                    };
+                }
+            } else if (['.txt','.csv','.json','.xml','.html','.htm','.css','.js'].includes(ext)) {
+                // Plain text files - try text content
+                const r2 = await fetch(`/api/DocumentApi/${docId}/text-content`);
+                const d2 = await r2.json();
+                const el = document.getElementById('previewText');
+                document.getElementById('previewLoading').style.display='none';
+                el.style.display = 'block';
+                if (d2.success && d2.content) {
+                    el.innerHTML = `<pre class="bg-light p-3 rounded" style="white-space:pre-wrap; word-wrap:break-word; max-height:70vh; overflow:auto;">${d2.content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>`;
+                } else {
+                    el.innerHTML = `<div class="text-center py-5"><i class="bi bi-file-earmark-x display-1 text-muted"></i><p class="mt-3 text-muted">Could not load file content.</p></div>`;
+                }
+            } else {
+                // Unsupported type
+                const el = document.getElementById('previewText');
+                document.getElementById('previewLoading').style.display='none';
+                el.style.display = 'block';
+                el.innerHTML = `<div class="text-center py-5">
+                    <i class="bi bi-file-earmark-x display-1 text-muted"></i>
+                    <p class="mt-3 text-muted">Preview not available for this file type (${ext || 'unknown'}).</p>
+                    <p class="text-muted small">This file type cannot be previewed in the browser.</p>
+                </div>`;
             }
-        } catch {
+        } catch (e) {
+            console.error('Preview error:', e);
             document.getElementById('previewLoading').style.display='none';
-            document.getElementById('previewText').innerHTML='<p class="text-danger text-center p-4">Error loading preview.</p>';
+            document.getElementById('previewText').innerHTML='<p class="text-danger text-center p-4"><i class="bi bi-exclamation-triangle me-2"></i>Error loading preview.</p>';
             document.getElementById('previewText').style.display='block';
         }
     }

@@ -55,6 +55,11 @@ public class RetentionController : Controller
         return View(GetRoleViewPath("ExpiringDocuments"));
     }
 
+    public IActionResult DestructionCertificates()
+    {
+        return View(GetRoleViewPath("DestructionCertificates"));
+    }
+
     public IActionResult ApplyPolicy(int documentId)
     {
         return View(GetRoleViewPath("ApplyRetentionPolicy"));

@@ -1,0 +1,438 @@
+@{
+    ViewData["Title"] = "Destruction Certificates";
+    Layout = "_AdminLayout";
+}
+
+@section Styles {
+<style>
+    .cert-card {
+        transition: all 0.2s ease;
+        border-left: 4px solid #6c757d;
+    }
+    .cert-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        transform: translateY(-1px);
+    }
+    .stat-icon-circle {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+    .cert-number {
+        font-family: 'Courier New', monospace;
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+</style>
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0"><i class="bi bi-file-earmark-lock me-2"></i>Destruction Certificates</h4>
+        <p class="text-muted mb-0 small">Records of all permanently destroyed documents with audit certificates</p>
+    </div>
+    <a href="/Admin/Retention" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Retention
+    </a>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4 g-3">
+    <div class="col-md-3">
+        <div class="card border">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Total Certificates</p>
+                        <h3 class="mb-0 fw-bold" id="totalCerts">-</h3>
+                    </div>
+                    <div class="stat-icon-circle bg-secondary bg-opacity-10">
+                        <i class="bi bi-file-earmark-lock text-secondary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">This Year</p>
+                        <h3 class="mb-0 fw-bold" id="thisYearCerts">-</h3>
+                    </div>
+                    <div class="stat-icon-circle bg-primary bg-opacity-10">
+                        <i class="bi bi-calendar-check text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">This Month</p>
+                        <h3 class="mb-0 fw-bold" id="thisMonthCerts">-</h3>
+                    </div>
+                    <div class="stat-icon-circle bg-info bg-opacity-10">
+                        <i class="bi bi-calendar3 text-info"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Had Legal Hold</p>
+                        <h3 class="mb-0 fw-bold" id="holdCerts">-</h3>
+                    </div>
+                    <div class="stat-icon-circle bg-warning bg-opacity-10">
+                        <i class="bi bi-shield-exclamation text-warning"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search and Filter -->
+<div class="card border mb-4">
+    <div class="card-body py-3">
+        <div class="row g-3 align-items-center">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" id="searchInput" placeholder="Search by document title, client, or certificate number..." oninput="filterCertificates()">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="filterType" onchange="filterCertificates()">
+                    <option value="">All Document Types</option>
+                    <option value="Contract">Contract</option>
+                    <option value="Agreement">Agreement</option>
+                    <option value="Legal Brief">Legal Brief</option>
+                    <option value="Court Filing">Court Filing</option>
+                    <option value="Correspondence">Correspondence</option>
+                    <option value="Evidence">Evidence</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="filterYear" onchange="filterCertificates()">
+                    <option value="">All Years</option>
+                </select>
+            </div>
+            <div class="col-md-2 text-end">
+                <button class="btn btn-outline-secondary" onclick="loadCertificates()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Certificates Table -->
+<div class="card border">
+    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-file-earmark-lock me-2"></i>Destruction Certificate Records</span>
+        <span class="badge bg-secondary" id="filteredCount">0</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Certificate #</th>
+                        <th>Document</th>
+                        <th>Client</th>
+                        <th>Document Type</th>
+                        <th>Destroyed Date</th>
+                        <th>Destroyed By</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="certificatesTableBody">
+                    <tr><td colspan="7" class="text-center py-4"><div class="spinner-border text-primary"></div></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+    let certificatesData = [];
+    let filteredData = [];
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadCertificates();
+    });
+
+    async function loadCertificates() {
+        try {
+            const response = await fetch('/api/RetentionApi/destruction-certificates');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    certificatesData = data.certificates || [];
+                    filteredData = [...certificatesData];
+                    updateStats();
+                    populateYearFilter();
+                    renderTable();
+                }
+            }
+        } catch (e) {
+            console.error('Error loading certificates:', e);
+            document.getElementById('certificatesTableBody').innerHTML = 
+                '<tr><td colspan="7" class="text-center py-4 text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Error loading certificates</td></tr>';
+        }
+    }
+
+    function updateStats() {
+        const now = new Date();
+        const thisYear = now.getFullYear();
+        const thisMonth = now.getMonth();
+
+        document.getElementById('totalCerts').textContent = certificatesData.length;
+        document.getElementById('thisYearCerts').textContent = certificatesData.filter(c => {
+            const d = new Date(c.destroyedDate);
+            return d.getFullYear() === thisYear;
+        }).length;
+        document.getElementById('thisMonthCerts').textContent = certificatesData.filter(c => {
+            const d = new Date(c.destroyedDate);
+            return d.getFullYear() === thisYear && d.getMonth() === thisMonth;
+        }).length;
+        document.getElementById('holdCerts').textContent = certificatesData.filter(c => c.wasOnHold).length;
+    }
+
+    function populateYearFilter() {
+        const years = new Set();
+        certificatesData.forEach(c => {
+            if (c.destroyedDate) years.add(new Date(c.destroyedDate).getFullYear());
+        });
+        const select = document.getElementById('filterYear');
+        const currentVal = select.value;
+        select.innerHTML = '<option value="">All Years</option>';
+        [...years].sort((a, b) => b - a).forEach(y => {
+            select.innerHTML += `<option value="${y}">${y}</option>`;
+        });
+        select.value = currentVal;
+    }
+
+    function filterCertificates() {
+        const search = document.getElementById('searchInput').value.toLowerCase();
+        const type = document.getElementById('filterType').value;
+        const year = document.getElementById('filterYear').value;
+
+        filteredData = certificatesData.filter(c => {
+            const matchSearch = !search || 
+                (c.documentTitle || '').toLowerCase().includes(search) ||
+                (c.clientName || '').toLowerCase().includes(search) ||
+                (c.certificateNumber || '').toLowerCase().includes(search);
+            
+            const matchType = !type || c.documentType === type;
+            
+            const matchYear = !year || (c.destroyedDate && new Date(c.destroyedDate).getFullYear().toString() === year);
+
+            return matchSearch && matchType && matchYear;
+        });
+
+        renderTable();
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('certificatesTableBody');
+        document.getElementById('filteredCount').textContent = filteredData.length;
+
+        if (filteredData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted"><i class="bi bi-archive me-2"></i>No destruction certificates found</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = filteredData.map(c => `
+            <tr>
+                <td>
+                    <span class="cert-number">${escapeHtml(c.certificateNumber)}</span>
+                </td>
+                <td>
+                    <strong>${escapeHtml(c.documentTitle)}</strong>
+                    <br><small class="text-muted">ID: ${c.documentId}</small>
+                </td>
+                <td>${escapeHtml(c.clientName || '-')}</td>
+                <td><span class="badge bg-secondary">${escapeHtml(c.documentType || 'Unknown')}</span></td>
+                <td>${formatDate(c.destroyedDate)}</td>
+                <td>
+                    ${escapeHtml(c.destroyedBy)}
+                    ${c.wasOnHold ? '<br><span class="badge bg-warning text-dark" style="font-size:0.65rem;"><i class="bi bi-shield-lock me-1"></i>Had Legal Hold</span>' : ''}
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-dark" onclick="downloadCertificate(${c.archiveId})" title="Download Certificate PDF">
+                        <i class="bi bi-download me-1"></i>PDF
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" onclick="viewCertificateDetails(${c.archiveId})" title="View Details">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    async function downloadCertificate(archiveId) {
+        try {
+            const response = await fetch(`/api/RetentionApi/destruction-certificate/${archiveId}`);
+            const data = await response.json();
+            if (!data.success) { alert(data.message || 'Error loading certificate'); return; }
+
+            const cert = data.certificate;
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            // Header
+            doc.setFontSize(20);
+            doc.setFont('helvetica', 'bold');
+            doc.text('CERTIFICATE OF DESTRUCTION', 105, 25, { align: 'center' });
+            
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Certificate No: ${cert.certificateNumber}`, 105, 33, { align: 'center' });
+            
+            doc.setDrawColor(0, 100, 200);
+            doc.setLineWidth(0.5);
+            doc.line(20, 38, 190, 38);
+
+            // Firm info
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.text(cert.firmName, 20, 48);
+
+            // Document details
+            let y = 58;
+            const addRow = (label, value) => {
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(10);
+                doc.text(label + ':', 20, y);
+                doc.setFont('helvetica', 'normal');
+                doc.text(String(value || 'N/A'), 75, y);
+                y += 7;
+            };
+
+            addRow('Document Title', cert.documentTitle);
+            addRow('Document ID', cert.documentId);
+            addRow('Document Type', cert.documentType);
+            addRow('Client Name', cert.clientName);
+            addRow('Original Upload', cert.originalUploadDate ? new Date(cert.originalUploadDate).toLocaleDateString() : 'N/A');
+            addRow('Approved Date', cert.approvedDate ? new Date(cert.approvedDate).toLocaleDateString() : 'N/A');
+            addRow('Retention Expiry', cert.retentionExpiryDate ? new Date(cert.retentionExpiryDate).toLocaleDateString() : 'N/A');
+            addRow('Grace Period End', cert.gracePeriodEndDate ? new Date(cert.gracePeriodEndDate).toLocaleDateString() : 'N/A');
+            addRow('Destroyed Date', cert.destroyedDate ? new Date(cert.destroyedDate).toLocaleDateString() : 'N/A');
+            addRow('Destroyed By', cert.destroyedBy);
+            addRow('Destruction Method', cert.destructionMethod);
+            
+            if (cert.wasOnHold) {
+                addRow('Was On Legal Hold', 'Yes');
+                addRow('Hold Reason', cert.holdReason || 'N/A');
+            }
+
+            // Certification statement
+            y += 10;
+            doc.setDrawColor(0, 100, 200);
+            doc.line(20, y, 190, y);
+            y += 10;
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11);
+            doc.text('CERTIFICATION STATEMENT', 20, y);
+            y += 8;
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+            const lines = doc.splitTextToSize(cert.certificationStatement, 170);
+            doc.text(lines, 20, y);
+            y += lines.length * 5 + 15;
+
+            // Signature line
+            doc.line(20, y, 80, y);
+            y += 5;
+            doc.setFontSize(8);
+            doc.text('Authorized Signature', 20, y);
+            y += 5;
+            doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, y);
+
+            // Footer
+            doc.setFontSize(7);
+            doc.setTextColor(128);
+            doc.text('This certificate was electronically generated and is valid without signature.', 105, 285, { align: 'center' });
+
+            doc.save(`Destruction_Certificate_${cert.certificateNumber}.pdf`);
+        } catch (e) {
+            console.error('Error generating certificate:', e);
+            alert('Error generating destruction certificate');
+        }
+    }
+
+    async function viewCertificateDetails(archiveId) {
+        try {
+            const response = await fetch(`/api/RetentionApi/destruction-certificate/${archiveId}`);
+            const data = await response.json();
+            if (!data.success) { alert(data.message || 'Error loading certificate'); return; }
+
+            const cert = data.certificate;
+            const details = `
+DESTRUCTION CERTIFICATE DETAILS
+================================
+Certificate #: ${cert.certificateNumber}
+Firm: ${cert.firmName}
+
+DOCUMENT INFORMATION
+--------------------
+Title: ${cert.documentTitle}
+Document ID: ${cert.documentId}
+Type: ${cert.documentType}
+Client: ${cert.clientName}
+
+TIMELINE
+--------
+Original Upload: ${cert.originalUploadDate ? new Date(cert.originalUploadDate).toLocaleDateString() : 'N/A'}
+Approved Date: ${cert.approvedDate ? new Date(cert.approvedDate).toLocaleDateString() : 'N/A'}
+Retention Expiry: ${cert.retentionExpiryDate ? new Date(cert.retentionExpiryDate).toLocaleDateString() : 'N/A'}
+Archived Date: ${cert.archivedDate ? new Date(cert.archivedDate).toLocaleDateString() : 'N/A'}
+Grace Period End: ${cert.gracePeriodEndDate ? new Date(cert.gracePeriodEndDate).toLocaleDateString() : 'N/A'}
+Destroyed Date: ${cert.destroyedDate ? new Date(cert.destroyedDate).toLocaleDateString() : 'N/A'}
+Destroyed By: ${cert.destroyedBy}
+
+${cert.wasOnHold ? `LEGAL HOLD\n----------\nWas On Hold: Yes\nHold Reason: ${cert.holdReason || 'N/A'}\n` : ''}
+CERTIFICATION
+-------------
+${cert.certificationStatement}
+            `.trim();
+
+            alert(details);
+        } catch (e) {
+            console.error('Error loading certificate details:', e);
+            alert('Error loading certificate details');
+        }
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+}
