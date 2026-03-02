@@ -1,10 +1,10 @@
 /* ===========================================
-   CKN Document - Modern Design System
-   WCAG 2.1 AA Compliant | Blue Theme
+   CKN Document - Refined Design System
+   Restraint over decoration
    =========================================== */
 
 :root {
-    /* Primary Colors - Professional Blue Theme */
+    /* Primary Colors */
     --primary: #1a73e8;
     --primary-hover: #1557b0;
     --primary-dark: #0d47a1;
@@ -16,7 +16,26 @@
     --secondary: #4285f4;
     --secondary-light: #d2e3fc;
     
-    /* Sidebar Gradient */
+    /* Design System Tokens */
+    --background: hsl(0 0% 98.5%);
+    --foreground: hsl(220 15% 18%);
+    --card: hsl(0 0% 100%);
+    --card-foreground: hsl(220 15% 18%);
+    --muted: hsl(220 8% 96%);
+    --muted-foreground: hsl(220 8% 52%);
+    --accent: hsl(220 10% 94%);
+    --accent-foreground: hsl(220 15% 18%);
+    --border: hsl(220 10% 90%);
+    --input: hsl(220 10% 90%);
+    --ring: hsl(220 70% 50%);
+    
+    /* Status Colors — text-only tokens */
+    --status-pending: hsl(38 92% 50%);
+    --status-success: hsl(152 60% 38%);
+    --status-rejected: hsl(0 72% 51%);
+    --status-info: hsl(215 16% 47%);
+    
+    /* Sidebar */
     --sidebar-gradient-start: #1a237e;
     --sidebar-gradient-end: #0d47a1;
     --sidebar-text: #ffffff;
@@ -24,7 +43,7 @@
     --sidebar-hover: rgba(255, 255, 255, 0.1);
     --sidebar-active: rgba(255, 255, 255, 0.2);
     
-    /* Neutral Colors - Soft Background */
+    /* Neutral Colors */
     --white: #ffffff;
     --gray-50: #f8fafc;
     --gray-100: #f1f5f9;
@@ -37,7 +56,7 @@
     --gray-800: #1e293b;
     --gray-900: #0f172a;
     
-    /* Semantic Colors - Modern & Bold */
+    /* Semantic Colors */
     --success: #059669;
     --success-light: #d1fae5;
     --success-text: #065f46;
@@ -51,8 +70,8 @@
     --info-light: #e0f2fe;
     --info-text: #075985;
     
-    /* Typography */
-    --font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    /* Typography — DM Sans */
+    --font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     --line-height: 1.6;
     
     /* Spacing */
@@ -68,12 +87,12 @@
     --radius-lg: 12px;
     --radius-xl: 16px;
     
-    /* Shadows */
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    /* Shadows — restrained */
+    --shadow-sm: none;
+    --shadow-md: none;
+    --shadow-lg: none;
     
-    /* Focus Ring - Visible for accessibility */
+    /* Focus Ring */
     --focus-ring: 0 0 0 3px var(--primary-focus), 0 0 0 1px var(--primary);
     
     /* Transitions */
@@ -105,12 +124,15 @@ html {
 
 body {
     font-family: var(--font-family);
-    font-size: 1rem;
+    font-size: 0.875rem;
+    font-weight: 400;
     line-height: var(--line-height);
-    color: var(--gray-900);
-    background-color: var(--gray-100);
+    color: var(--foreground);
+    background-color: var(--background);
     margin: 0;
     padding: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 /* Skip Link for Accessibility */
@@ -136,15 +158,16 @@ body {
 h1, h2, h3, h4, h5, h6 {
     margin-top: 0;
     margin-bottom: var(--space-md);
-    font-weight: 600;
+    font-weight: 500;
     line-height: 1.3;
-    color: var(--gray-900);
+    letter-spacing: -0.025em;
+    color: var(--foreground);
 }
 
-h1 { font-size: 2rem; }
-h2 { font-size: 1.5rem; }
-h3 { font-size: 1.25rem; }
-h4 { font-size: 1.125rem; }
+h1 { font-size: 1.5rem; }
+h2 { font-size: 1.25rem; }
+h3 { font-size: 1.125rem; }
+h4 { font-size: 1rem; }
 
 p {
     margin-top: 0;
@@ -176,11 +199,11 @@ a:focus {
     justify-content: center;
     gap: var(--space-sm);
     padding: 0.625rem 1.25rem;
-    font-size: 1rem;
+    font-size: 0.875rem;
     font-weight: 500;
     line-height: 1.5;
     text-decoration: none;
-    border: 2px solid transparent;
+    border: 1px solid transparent;
     border-radius: 6px;
     cursor: pointer;
     transition: all var(--transition);
@@ -210,15 +233,15 @@ a:focus {
 }
 
 .btn-secondary {
-    background-color: var(--white);
-    border-color: var(--gray-300);
-    color: var(--gray-700);
+    background-color: var(--card);
+    border-color: var(--border);
+    color: var(--foreground);
 }
 
 .btn-secondary:hover:not(:disabled) {
-    background-color: var(--gray-50);
+    background-color: var(--accent);
     border-color: var(--gray-400);
-    color: var(--gray-800);
+    color: var(--foreground);
 }
 
 .btn-success {
@@ -235,14 +258,92 @@ a:focus {
 
 .btn-sm {
     padding: 0.375rem 0.75rem;
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     min-height: 36px;
 }
 
 .btn-lg {
     padding: 0.75rem 1.5rem;
-    font-size: 1.125rem;
+    font-size: 1rem;
     min-height: 52px;
+}
+
+/* ==================
+   Action Buttons — Icon-only, muted, tooltip-driven
+   ================== */
+.btn-action,
+td .btn.btn-sm,
+td .btn-sm.btn-outline-primary,
+td .btn-sm.btn-outline-secondary,
+td .btn-sm.btn-outline-success,
+td .btn-sm.btn-outline-danger,
+td .btn-sm.btn-outline-info,
+td .btn-sm.btn-outline-warning {
+    background: transparent !important;
+    border: none !important;
+    color: var(--muted-foreground) !important;
+    padding: 0.375rem !important;
+    min-height: auto;
+    box-shadow: none !important;
+    border-radius: var(--radius-md);
+}
+
+.btn-action:hover,
+td .btn.btn-sm:hover,
+td .btn-sm.btn-outline-primary:hover,
+td .btn-sm.btn-outline-secondary:hover,
+td .btn-sm.btn-outline-success:hover,
+td .btn-sm.btn-outline-info:hover,
+td .btn-sm.btn-outline-warning:hover {
+    background: var(--accent) !important;
+    color: var(--foreground) !important;
+}
+
+/* Danger action hover gets status-rejected color */
+td .btn-sm.btn-outline-danger:hover,
+td .btn-sm.btn-danger:hover {
+    background: var(--accent) !important;
+    color: var(--status-rejected) !important;
+}
+
+/* Approve/reject inline buttons in rows */
+td .btn-sm.btn-success,
+td .btn-sm.btn-danger {
+    background: transparent !important;
+    border: none !important;
+    color: var(--muted-foreground) !important;
+    padding: 0.375rem !important;
+    min-height: auto;
+}
+
+td .btn-sm.btn-success:hover {
+    background: var(--accent) !important;
+    color: var(--status-success) !important;
+}
+
+td .btn-sm.btn-danger:hover {
+    background: var(--accent) !important;
+    color: var(--status-rejected) !important;
+}
+
+/* Primary row buttons (Review etc.) — icon-only muted */
+td .btn-sm.btn-primary {
+    background: transparent !important;
+    border: none !important;
+    color: var(--muted-foreground) !important;
+    padding: 0.375rem !important;
+    font-size: 0 !important;  /* hide text labels */
+    min-height: auto;
+}
+
+td .btn-sm.btn-primary i {
+    font-size: 0.875rem !important;
+}
+
+td .btn-sm.btn-primary:hover {
+    background: var(--accent) !important;
+    color: var(--foreground) !important;
+    font-size: 0 !important;
 }
 
 /* ==================
@@ -252,8 +353,8 @@ a:focus {
     display: block;
     margin-bottom: var(--space-xs);
     font-weight: 500;
-    color: var(--gray-800);
-    font-size: 0.9375rem;
+    color: var(--foreground);
+    font-size: 0.875rem;
 }
 
 .form-control,
@@ -261,15 +362,16 @@ a:focus {
     display: block;
     width: 100%;
     padding: 0.625rem 0.875rem;
-    font-size: 1rem;
+    font-size: 0.875rem;
     font-family: inherit;
     line-height: 1.5;
-    color: var(--gray-900);
-    background-color: var(--white);
-    border: 2px solid var(--gray-300);
+    color: var(--foreground);
+    background-color: var(--card);
+    border: 1px solid var(--input);
     border-radius: 6px;
     transition: border-color var(--transition), box-shadow var(--transition);
-    min-height: 44px; /* WCAG touch target */
+    min-height: 44px;
+    box-shadow: none;
 }
 
 .form-control:hover:not(:disabled):not(:focus) {
@@ -366,18 +468,18 @@ a:focus {
    Cards
    ================== */
 .card {
-    background: var(--white);
-    border: 1px solid var(--gray-200);
+    background: var(--card);
+    border: 1px solid var(--border);
     border-radius: 8px;
     overflow: hidden;
 }
 
 .card-header {
     padding: var(--space-md) var(--space-lg);
-    background: var(--white);
-    border-bottom: 1px solid var(--gray-200);
-    font-weight: 600;
-    color: var(--gray-800);
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    font-weight: 500;
+    color: var(--foreground);
 }
 
 .card-body {
@@ -386,8 +488,8 @@ a:focus {
 
 .card-footer {
     padding: var(--space-md) var(--space-lg);
-    background: var(--gray-50);
-    border-top: 1px solid var(--gray-200);
+    background: var(--card);
+    border-top: 1px solid var(--border);
 }
 
 /* ==================
@@ -396,24 +498,28 @@ a:focus {
 .table {
     width: 100%;
     border-collapse: collapse;
-    background: var(--white);
+    background: var(--card);
+    font-size: 0.875rem;
 }
 
 .table th,
 .table td {
     padding: var(--space-md);
     text-align: left;
-    border-bottom: 1px solid var(--gray-200);
+    border-bottom: 1px solid var(--border);
 }
 
 .table th {
-    background: var(--gray-50);
-    font-weight: 600;
-    color: var(--gray-700);
+    background: transparent;
+    font-weight: 400;
+    font-size: 0.75rem;
+    text-transform: none;
+    color: var(--muted-foreground);
+    border-bottom: 1px solid var(--border);
 }
 
 .table tbody tr:hover {
-    background: var(--gray-50);
+    background: hsl(220 10% 94% / 0.4);
 }
 
 .table tbody tr:focus-within {
@@ -456,13 +562,13 @@ a:focus {
 }
 
 /* ==================
-   Status Labels - Plain Bold Text (Not Pills/Buttons)
+   Status Labels — Plain Colored Text Only (No Pills/Badges)
    ================== */
 .badge, .status-label {
     display: inline;
     padding: 0;
     font-size: inherit;
-    font-weight: 700;
+    font-weight: 500;
     border-radius: 0;
     border: none !important;
     background: transparent !important;
@@ -480,7 +586,7 @@ a:focus {
     justify-content: center;
     padding: 0.25em 0.5em !important;
     font-size: 0.75rem !important;
-    font-weight: 600 !important;
+    font-weight: 500 !important;
     border-radius: 50rem !important;
     min-width: 1.25rem;
     height: 1.25rem;
@@ -490,32 +596,33 @@ a:focus {
 #notificationBadge.bg-danger,
 .notification-badge.bg-danger,
 .position-absolute.badge.bg-danger {
-    background: var(--danger) !important;
+    background: var(--status-rejected) !important;
     color: white !important;
 }
 
-/* Status colors - just bold text */
+/* Status colors — plain colored text, no backgrounds */
 .badge.bg-success, .badge-success, .status-success {
     background: transparent !important;
-    color: var(--success) !important;
+    color: var(--status-success) !important;
     border: none !important;
 }
 
-.badge.bg-warning, .badge-warning, .status-warning {
+.badge.bg-warning, .badge-warning, .status-warning,
+.badge.bg-warning.text-dark {
     background: transparent !important;
-    color: var(--warning) !important;
+    color: var(--status-pending) !important;
     border: none !important;
 }
 
 .badge.bg-danger, .badge-danger, .status-danger {
     background: transparent !important;
-    color: var(--danger) !important;
+    color: var(--status-rejected) !important;
     border: none !important;
 }
 
 .badge.bg-info, .badge-info, .status-info {
     background: transparent !important;
-    color: var(--info) !important;
+    color: var(--status-info) !important;
     border: none !important;
 }
 
@@ -527,12 +634,90 @@ a:focus {
 
 .badge.bg-secondary, .status-secondary {
     background: transparent !important;
-    color: var(--gray-600) !important;
+    color: var(--muted-foreground) !important;
+    border: none !important;
+}
+
+.badge.bg-light, .badge.bg-light.text-dark {
+    background: transparent !important;
+    color: var(--muted-foreground) !important;
     border: none !important;
 }
 
 .badge.text-dark {
-    color: var(--gray-800) !important;
+    color: var(--foreground) !important;
+}
+
+/* Status pill overrides — convert to plain text */
+.status-pill {
+    display: inline !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    font-size: inherit !important;
+    font-weight: 500 !important;
+}
+
+.status-pill.bg-success { color: var(--status-success) !important; background: transparent !important; }
+.status-pill.bg-warning { color: var(--status-pending) !important; background: transparent !important; }
+.status-pill.bg-danger { color: var(--status-rejected) !important; background: transparent !important; }
+.status-pill.bg-info { color: var(--status-info) !important; background: transparent !important; }
+.status-pill.bg-secondary { color: var(--muted-foreground) !important; background: transparent !important; }
+.status-pill.text-white { color: inherit !important; }
+.status-pill.text-dark { color: inherit !important; }
+
+/* Status badge (custom) overrides */
+.status-badge {
+    display: inline !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    font-size: inherit !important;
+    font-weight: 500 !important;
+}
+
+.status-badge.approved, .status-badge.restored, .status-badge.active { color: var(--status-success) !important; background: transparent !important; }
+.status-badge.rejected { color: var(--status-rejected) !important; background: transparent !important; }
+.status-badge.archived { color: var(--status-rejected) !important; background: transparent !important; }
+.status-badge.retention { color: var(--status-pending) !important; background: transparent !important; }
+.status-badge.expired { color: var(--status-pending) !important; background: transparent !important; }
+
+/* Tax badge override */
+.tax-badge {
+    display: inline !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    font-size: inherit !important;
+    font-weight: 500 !important;
+}
+
+.tax-badge.bg-danger-subtle { color: var(--status-rejected) !important; background: transparent !important; }
+
+/* Subtle variant badges — convert to plain text */
+.badge.bg-primary-subtle, .badge.bg-primary-subtle.text-primary {
+    background: transparent !important;
+    color: var(--primary) !important;
+}
+.badge.bg-secondary-subtle, .badge.bg-secondary-subtle.text-secondary {
+    background: transparent !important;
+    color: var(--muted-foreground) !important;
+}
+.badge.bg-danger-subtle, .badge.bg-danger-subtle.text-danger {
+    background: transparent !important;
+    color: var(--status-rejected) !important;
+}
+.badge.bg-success-subtle, .badge.bg-success-subtle.text-success {
+    background: transparent !important;
+    color: var(--status-success) !important;
+}
+.badge.bg-warning-subtle, .badge.bg-warning-subtle.text-warning {
+    background: transparent !important;
+    color: var(--status-pending) !important;
+}
+.badge.bg-info-subtle, .badge.bg-info-subtle.text-info {
+    background: transparent !important;
+    color: var(--status-info) !important;
 }
 
 /* ==================
@@ -547,7 +732,7 @@ a:focus {
 
 /* Sidebar - Modern Gradient Design */
 .sidebar {
-    width: 260px;
+    width: 224px;
     background: linear-gradient(180deg, var(--sidebar-gradient-start) 0%, var(--sidebar-gradient-end) 100%);
     display: flex;
     flex-direction: column;
@@ -570,8 +755,9 @@ a:focus {
     gap: var(--space-sm);
     text-decoration: none;
     color: var(--sidebar-text);
-    font-weight: 700;
-    font-size: 1.125rem;
+    font-weight: 500;
+    font-size: 1rem;
+    letter-spacing: -0.025em;
 }
 
 .sidebar-brand:hover {
@@ -618,10 +804,10 @@ a:focus {
 }
 
 .nav-section-title {
-    font-size: 0.7rem;
-    font-weight: 600;
+    font-size: 0.6875rem;
+    font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
     color: var(--sidebar-text-muted);
     padding: var(--space-sm) var(--space-md);
     margin-bottom: var(--space-xs);
@@ -641,7 +827,8 @@ a:focus {
     border-radius: var(--radius-md);
     transition: all var(--transition);
     min-height: 44px; /* Touch target */
-    font-weight: 500;
+    font-weight: 400;
+    font-size: 0.875rem;
 }
 
 .sidebar .nav-link:hover {
@@ -658,7 +845,7 @@ a:focus {
 .sidebar .nav-link.active {
     background: var(--sidebar-active);
     color: var(--sidebar-text);
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .sidebar .nav-link.active::before {
@@ -701,7 +888,7 @@ a:focus {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .user-details {
@@ -710,9 +897,9 @@ a:focus {
 }
 
 .user-name {
-    font-weight: 600;
+    font-weight: 500;
     color: var(--sidebar-text);
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -726,17 +913,17 @@ a:focus {
 /* Main Content */
 .main-content {
     flex: 1;
-    margin-left: 260px;
+    margin-left: 224px;
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    background: var(--gray-100);
+    background: var(--background);
 }
 
 /* Header */
 .header {
-    background: var(--white);
-    border-bottom: 1px solid var(--gray-200);
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
     padding: var(--space-md) var(--space-xl);
     display: flex;
     align-items: center;
@@ -744,14 +931,15 @@ a:focus {
     position: sticky;
     top: 0;
     z-index: 50;
-    box-shadow: var(--shadow-sm);
+    box-shadow: none;
 }
 
 .header-title {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: var(--gray-900);
+    font-size: 1.125rem;
+    font-weight: 500;
+    color: var(--foreground);
     margin: 0;
+    letter-spacing: -0.025em;
 }
 
 .header-actions {
@@ -763,7 +951,7 @@ a:focus {
 /* Page Content */
 .page-content {
     flex: 1;
-    padding: var(--space-xl);
+    padding: 1.5rem 2rem;
 }
 
 /* ==================
@@ -780,8 +968,8 @@ a:focus {
     align-items: center;
     justify-content: center;
     padding: 1rem 1.5rem;
-    background: linear-gradient(135deg, var(--primary-light) 0%, var(--secondary-light) 100%);
-    border-bottom: 1px solid var(--gray-200);
+    background: var(--muted);
+    border-bottom: 1px solid var(--border);
     gap: 0;
 }
 
@@ -852,7 +1040,7 @@ a:focus {
 
 .wizard-step.active .wizard-step-label {
     color: var(--primary-dark);
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .wizard-step.completed .wizard-step-label {
@@ -904,7 +1092,7 @@ a:focus {
     background: var(--white);
     color: var(--primary);
     padding: 0.875rem 1.25rem;
-    font-weight: 700;
+    font-weight: 500;
     border-bottom: 2px solid var(--primary-light);
 }
 
@@ -985,8 +1173,8 @@ a:focus {
 }
 
 .metadata-check-label {
-    font-weight: 600;
-    color: var(--gray-800);
+    font-weight: 500;
+    color: var(--foreground);
     margin-bottom: 0.25rem;
 }
 
@@ -999,8 +1187,8 @@ a:focus {
    Staff Review Summary (for Lawyer/Admin views)
    ================== */
 .staff-review-summary {
-    background: linear-gradient(135deg, var(--info-light) 0%, #f0f7ff 100%);
-    border: 1px solid var(--info);
+    background: var(--muted);
+    border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     padding: 1.25rem;
     margin-bottom: 1rem;
@@ -1022,13 +1210,13 @@ a:focus {
 
 .staff-review-summary .summary-header h6 {
     margin: 0;
-    font-weight: 700;
+    font-weight: 500;
     color: var(--info-text);
 }
 
 .lawyer-review-summary {
-    background: linear-gradient(135deg, var(--secondary-light) 0%, #e8f0fe 100%);
-    border: 1px solid var(--secondary);
+    background: var(--muted);
+    border: 1px solid var(--border);
 }
 
 .lawyer-review-summary .summary-header i,
@@ -1059,8 +1247,8 @@ a:focus {
 }
 
 .checklist-category-header span {
-    font-weight: 600;
-    color: var(--gray-700);
+    font-weight: 500;
+    color: var(--foreground);
 }
 
 .checklist-category-items {
@@ -1080,20 +1268,19 @@ a:focus {
 }
 
 .stat-card {
-    background: var(--white);
-    border: 1px solid var(--gray-200);
+    background: var(--card);
+    border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     padding: var(--space-lg);
     display: flex;
     align-items: flex-start;
     gap: var(--space-md);
-    box-shadow: var(--shadow-sm);
+    box-shadow: none;
     transition: all var(--transition);
 }
 
 .stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
+    box-shadow: none;
 }
 
 /* Override all colored backgrounds on stat-cards - make white */
@@ -1108,13 +1295,13 @@ a:focus {
 .stat-card.bg-danger-subtle,
 .stat-card.bg-info-subtle,
 .stat-card.bg-primary-subtle {
-    background: var(--white) !important;
-    color: var(--gray-800) !important;
-    border: 1px solid var(--gray-200) !important;
+    background: var(--card) !important;
+    color: var(--foreground) !important;
+    border: 1px solid var(--border) !important;
 }
 
 .stat-card.text-white {
-    color: var(--gray-800) !important;
+    color: var(--foreground) !important;
 }
 
 .stat-icon {
@@ -1171,41 +1358,42 @@ a:focus {
 
 .stat-value {
     font-size: 1.75rem;
-    font-weight: 700;
-    color: var(--gray-900);
+    font-weight: 500;
+    color: var(--foreground);
     line-height: 1.2;
 }
 
 /* Colored stat values */
 .stat-value.text-primary { color: var(--primary) !important; }
-.stat-value.text-success { color: var(--success) !important; }
-.stat-value.text-warning { color: var(--warning) !important; }
-.stat-value.text-danger { color: var(--danger) !important; }
-.stat-value.text-info { color: var(--info) !important; }
+.stat-value.text-success { color: var(--status-success) !important; }
+.stat-value.text-warning { color: var(--status-pending) !important; }
+.stat-value.text-danger { color: var(--status-rejected) !important; }
+.stat-value.text-info { color: var(--status-info) !important; }
 
 .stat-label {
-    font-size: 0.875rem;
-    color: var(--gray-600);
+    font-size: 0.8125rem;
+    color: var(--muted-foreground);
     margin-top: var(--space-xs);
+    font-weight: 400;
 }
 
 /* ==================
    Cards - Enhanced (All White)
    ================== */
 .card {
-    background: var(--white) !important;
-    border: 1px solid var(--gray-200);
+    background: var(--card) !important;
+    border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     overflow: hidden;
-    box-shadow: var(--shadow-sm);
+    box-shadow: none;
 }
 
 .card-header {
     padding: var(--space-md) var(--space-lg);
-    background: var(--white);
-    border-bottom: 1px solid var(--gray-200);
-    font-weight: 600;
-    color: var(--gray-800);
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    font-weight: 500;
+    color: var(--foreground);
 }
 
 /* ==================
@@ -1359,7 +1547,7 @@ a:focus {
 }
 
 .sidebar.collapsed {
-    transform: translateX(-260px);
+    transform: translateX(-224px);
 }
 
 .main-content {
@@ -1492,10 +1680,10 @@ a:focus {
 
 .text-center { text-align: center; }
 .text-right { text-align: right; }
-.text-muted { color: var(--gray-500); }
-.text-success { color: var(--success) !important; }
-.text-danger { color: var(--danger) !important; }
-.text-warning { color: var(--warning) !important; }
+.text-muted { color: var(--muted-foreground); }
+.text-success { color: var(--status-success) !important; }
+.text-danger { color: var(--status-rejected) !important; }
+.text-warning { color: var(--status-pending) !important; }
 .text-primary { color: var(--primary) !important; }
 
 .mb-0 { margin-bottom: 0; }
@@ -1592,8 +1780,8 @@ a:focus {
 }
 
 .version-author {
-    font-weight: 600;
-    color: var(--gray-700);
+    font-weight: 500;
+    color: var(--foreground);
 }
 
 .version-desc {

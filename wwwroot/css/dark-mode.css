@@ -8,6 +8,21 @@
     --bs-body-bg: #0f1419;
     --bs-body-color: #e7e9ea;
     --bs-border-color: #38444d;
+    --background: #0f1419;
+    --foreground: #e7e9ea;
+    --card: #192734;
+    --card-foreground: #e7e9ea;
+    --muted: #22303c;
+    --muted-foreground: #8899a6;
+    --accent: #22303c;
+    --accent-foreground: #e7e9ea;
+    --border: #38444d;
+    --input: #38444d;
+    --ring: #1d9bf0;
+    --status-pending: #ffad1f;
+    --status-success: #00ba7c;
+    --status-rejected: #f4212e;
+    --status-info: #8899a6;
     --dark-bg-primary: #15202b;
     --dark-bg-secondary: #192734;
     --dark-bg-tertiary: #22303c;
@@ -36,9 +51,9 @@ body.dark-mode {
    ========================================== */
 body.dark-mode .header,
 body.dark-mode .main-content > header {
-    background: linear-gradient(135deg, #15202b 0%, #192734 100%) !important;
+    background: #15202b !important;
     border-bottom: 1px solid #38444d !important;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+    box-shadow: none !important;
 }
 
 body.dark-mode .header-title,
@@ -78,7 +93,7 @@ body.dark-mode .notification-dropdown {
 body.dark-mode .card {
     background-color: #192734 !important;
     border: 1px solid #38444d !important;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2) !important;
+    box-shadow: none !important;
 }
 
 body.dark-mode .card-header {
@@ -103,39 +118,39 @@ body.dark-mode .card-footer {
 
 /* Stat Cards with Colored Backgrounds */
 body.dark-mode .card.bg-primary {
-    background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%) !important;
-    border: none !important;
+    background: #192734 !important;
+    border: 1px solid #38444d !important;
 }
 
 body.dark-mode .card.bg-secondary {
-    background: linear-gradient(135deg, #475569 0%, #334155 100%) !important;
-    border: none !important;
+    background: #192734 !important;
+    border: 1px solid #38444d !important;
 }
 
 body.dark-mode .card.bg-success {
-    background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
-    border: none !important;
+    background: #192734 !important;
+    border: 1px solid #38444d !important;
 }
 
 body.dark-mode .card.bg-danger {
-    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
-    border: none !important;
+    background: #192734 !important;
+    border: 1px solid #38444d !important;
 }
 
 body.dark-mode .card.bg-warning {
-    background: linear-gradient(135deg, #d97706 0%, #b45309 100%) !important;
-    border: none !important;
+    background: #192734 !important;
+    border: 1px solid #38444d !important;
 }
 
 body.dark-mode .card.bg-info {
-    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
-    border: none !important;
+    background: #192734 !important;
+    border: 1px solid #38444d !important;
 }
 
-/* Dashboard Stat Cards - Special Styling */
+/* Dashboard Stat Cards */
 body.dark-mode .dashboard-stat,
 body.dark-mode [class*="stat-card"] {
-    background: linear-gradient(135deg, #22303c 0%, #192734 100%) !important;
+    background: #192734 !important;
     border: 1px solid #38444d !important;
 }
 
@@ -144,7 +159,7 @@ body.dark-mode [class*="stat-card"] {
    ========================================== */
 body.dark-mode .sidebar,
 body.dark-mode .app-sidebar {
-    background: linear-gradient(180deg, #0d1117 0%, #161b22 100%) !important;
+    background: #0d1117 !important;
     border-right: 1px solid #21262d !important;
 }
 
@@ -169,8 +184,9 @@ body.dark-mode .app-sidebar .nav-link:hover {
 
 body.dark-mode .sidebar .nav-link.active,
 body.dark-mode .app-sidebar .nav-link.active {
-    background: linear-gradient(135deg, #1d9bf0 0%, #1a8cd8 100%) !important;
+    background-color: rgba(56, 68, 77, 0.6) !important;
     color: #ffffff !important;
+    font-weight: 500;
     border-radius: 6px;
 }
 
@@ -235,7 +251,8 @@ body.dark-mode .table-light th {
     background-color: #15202b !important;
     border-color: #38444d !important;
     color: #8b949e !important;
-    font-weight: 600;
+    font-weight: 400;
+    font-size: 0.75rem;
 }
 
 body.dark-mode .table-striped > tbody > tr:nth-of-type(odd) > * {
@@ -308,13 +325,13 @@ body.dark-mode .input-group-text {
    Buttons - Clean Dark Style
    ========================================== */
 body.dark-mode .btn-primary {
-    background: linear-gradient(135deg, #1d9bf0 0%, #1a8cd8 100%) !important;
+    background: #1d9bf0 !important;
     border: none !important;
     color: #ffffff !important;
 }
 
 body.dark-mode .btn-primary:hover {
-    background: linear-gradient(135deg, #1a8cd8 0%, #1574b5 100%) !important;
+    background: #1a8cd8 !important;
 }
 
 body.dark-mode .btn-secondary {
@@ -453,15 +470,101 @@ body.dark-mode .alert-danger {
 }
 
 /* ==========================================
-   Badges
+   Badges — Dark mode: plain colored text, no backgrounds
    ========================================== */
 body.dark-mode .badge.bg-light {
-    background-color: #22303c !important;
-    color: #e7e9ea !important;
+    background-color: transparent !important;
+    color: #8899a6 !important;
 }
 
 body.dark-mode .badge.bg-secondary {
-    background-color: #38444d !important;
+    background-color: transparent !important;
+    color: #8899a6 !important;
+}
+
+body.dark-mode .badge.bg-success {
+    background-color: transparent !important;
+    color: #00ba7c !important;
+}
+
+body.dark-mode .badge.bg-warning {
+    background-color: transparent !important;
+    color: #ffad1f !important;
+}
+
+body.dark-mode .badge.bg-danger {
+    background-color: transparent !important;
+    color: #f4212e !important;
+}
+
+body.dark-mode .badge.bg-info {
+    background-color: transparent !important;
+    color: #8899a6 !important;
+}
+
+body.dark-mode .badge.bg-primary {
+    background-color: transparent !important;
+    color: #1d9bf0 !important;
+}
+
+/* Dark mode action buttons in table rows */
+body.dark-mode td .btn.btn-sm,
+body.dark-mode td .btn-sm.btn-outline-primary,
+body.dark-mode td .btn-sm.btn-outline-secondary,
+body.dark-mode td .btn-sm.btn-outline-success,
+body.dark-mode td .btn-sm.btn-outline-danger,
+body.dark-mode td .btn-sm.btn-outline-info,
+body.dark-mode td .btn-sm.btn-outline-warning,
+body.dark-mode td .btn-sm.btn-primary,
+body.dark-mode td .btn-sm.btn-success,
+body.dark-mode td .btn-sm.btn-danger {
+    background: transparent !important;
+    border: none !important;
+    color: #8899a6 !important;
+}
+
+body.dark-mode td .btn.btn-sm:hover,
+body.dark-mode td .btn-sm.btn-outline-primary:hover,
+body.dark-mode td .btn-sm.btn-outline-secondary:hover,
+body.dark-mode td .btn-sm.btn-outline-success:hover,
+body.dark-mode td .btn-sm.btn-outline-info:hover,
+body.dark-mode td .btn-sm.btn-outline-warning:hover,
+body.dark-mode td .btn-sm.btn-primary:hover,
+body.dark-mode td .btn-sm.btn-success:hover {
+    background: #22303c !important;
+    color: #e7e9ea !important;
+}
+
+body.dark-mode td .btn-sm.btn-outline-danger:hover,
+body.dark-mode td .btn-sm.btn-danger:hover {
+    background: #22303c !important;
+    color: #f4212e !important;
+}
+
+/* Dark mode status-pill / status-badge overrides */
+body.dark-mode .status-pill,
+body.dark-mode .status-badge,
+body.dark-mode .tax-badge {
+    background: transparent !important;
+}
+
+body.dark-mode .status-pill.bg-success,
+body.dark-mode .status-badge.approved,
+body.dark-mode .status-badge.restored,
+body.dark-mode .status-badge.active {
+    color: #00ba7c !important;
+}
+
+body.dark-mode .status-pill.bg-warning,
+body.dark-mode .status-badge.retention,
+body.dark-mode .status-badge.expired {
+    color: #ffad1f !important;
+}
+
+body.dark-mode .status-pill.bg-danger,
+body.dark-mode .status-badge.rejected,
+body.dark-mode .status-badge.archived {
+    color: #f4212e !important;
 }
 
 /* ==========================================
@@ -519,8 +622,8 @@ body.dark-mode .nav-pills .nav-link:hover {
 }
 
 body.dark-mode .nav-pills .nav-link.active {
-    background: linear-gradient(135deg, #1d9bf0 0%, #1a8cd8 100%) !important;
-    color: #ffffff !important;
+    background: #22303c !important;
+    color: #e7e9ea !important;
 }
 
 /* ==========================================
@@ -553,7 +656,7 @@ body.dark-mode .page-link:hover {
 }
 
 body.dark-mode .page-item.active .page-link {
-    background: linear-gradient(135deg, #1d9bf0 0%, #1a8cd8 100%) !important;
+    background: #1d9bf0 !important;
     border-color: #1d9bf0 !important;
 }
 
@@ -782,7 +885,7 @@ body.dark-mode .theme-card:hover {
 
 /* Stats Cards */
 body.dark-mode .stat-card .stat-icon {
-    background: linear-gradient(135deg, #22303c 0%, #38444d 100%) !important;
+    background: #22303c !important;
 }
 
 /* Document cards */
@@ -836,7 +939,7 @@ body.dark-mode .dataTables_paginate .paginate_button:hover {
 }
 
 body.dark-mode .dataTables_paginate .paginate_button.current {
-    background: linear-gradient(135deg, #1d9bf0 0%, #1a8cd8 100%) !important;
+    background: #1d9bf0 !important;
     border-color: #1d9bf0 !important;
     color: #ffffff !important;
 }
