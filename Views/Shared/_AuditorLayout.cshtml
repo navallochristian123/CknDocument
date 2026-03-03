@@ -121,10 +121,33 @@
             <header class="header">
                 <h1 class="header-title">@ViewData["Title"]</h1>
                 <div class="header-actions">
-                    <a asp-controller="Notification" asp-action="Index" class="btn btn-secondary" aria-label="View notifications">
-                        <i class="bi bi-bell" aria-hidden="true"></i>
-                        <span class="sr-only">Notifications</span>
-                    </a>
+                    <!-- Notification Dropdown -->
+                    <div class="dropdown">
+                        <button class="btn btn-secondary position-relative" type="button" id="notificationDropdown" 
+                                data-bs-toggle="dropdown" aria-expanded="false" aria-label="View notifications">
+                            <i class="bi bi-bell" aria-hidden="true"></i>
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" id="notificationBadge">
+                                0
+                            </span>
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end notification-dropdown" aria-labelledby="notificationDropdown" style="width: 350px; max-height: 400px; overflow-y: auto;">
+                            <div class="dropdown-header d-flex justify-content-between align-items-center">
+                                <span class="fw-bold">Notifications</span>
+                                <button class="btn btn-sm btn-link text-decoration-none p-0" onclick="markAllAsRead()">Mark all as read</button>
+                            </div>
+                            <div class="dropdown-divider"></div>
+                            <div id="notificationList">
+                                <div class="text-center text-muted p-3">
+                                    <i class="bi bi-bell-slash fs-4"></i>
+                                    <p class="mb-0 small">No notifications</p>
+                                </div>
+                            </div>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item text-center text-primary" asp-controller="Notification" asp-action="Index">
+                                <i class="bi bi-arrow-right-circle"></i> See all notifications
+                            </a>
+                        </div>
+                    </div>
                     <form asp-controller="Auth" asp-action="Logout" method="post">
                         <button type="submit" class="btn btn-secondary">
                             <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
@@ -143,6 +166,7 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/notifications.js" asp-append-version="true"></script>
     <script>
         // Apply dark mode from localStorage on page load
         (function() {
