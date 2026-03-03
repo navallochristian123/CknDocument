@@ -4,6 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using CKNDocument.Data;
 using CKNDocument.Services;
+using CKNDocument.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -123,6 +124,12 @@ builder.Services.AddScoped<ReCaptchaService>();
 builder.Services.AddHttpClient<PayMongoService>();
 builder.Services.AddScoped<PayMongoService>();
 
+// Chat Service
+builder.Services.AddScoped<ChatService>();
+
+// SignalR for real-time chat
+builder.Services.AddSignalR();
+
 // Background Services
 builder.Services.AddHostedService<RetentionArchiveBackgroundService>();
 builder.Services.AddHostedService<SubscriptionExpiryBackgroundService>();
@@ -207,7 +214,8 @@ app.Use(async (context, next) =>
 
             var isAllowed = allowedPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase))
                             || path.StartsWith("/css") || path.StartsWith("/js") || path.StartsWith("/lib")
-                            || path.StartsWith("/images") || path.StartsWith("/_");
+                            || path.StartsWith("/images") || path.StartsWith("/_")
+                            || path.StartsWith("/chathub"); // Allow SignalR chat hub
 
             if (!isAllowed)
             {
@@ -258,5 +266,8 @@ app.MapControllerRoute(
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
 app.MapRazorPages();
+
+// SignalR Hub for real-time chat
+app.MapHub<ChatHub>("/chatHub");
 
 app.Run();

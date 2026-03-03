@@ -144,6 +144,13 @@
                                 <span>Settings</span>
                             </a>
                         </li>
+                        <li class="nav-item" role="none">
+                            <a class="nav-link" asp-controller="Chat" asp-action="Index" role="menuitem">
+                                <i class="bi bi-chat-dots" aria-hidden="true"></i>
+                                <span>Live Chat</span>
+                                <span class="badge bg-danger rounded-pill ms-auto d-none" id="chatNavBadge">0</span>
+                            </a>
+                        </li>
                     </ul>
                 </div>
             </div>
@@ -219,9 +226,32 @@
         document.addEventListener('DOMContentLoaded', function() {
             loadNotificationBadge();
             loadNotifications();
+            loadChatBadge();
             // Refresh badge every 30 seconds
             setInterval(loadNotificationBadge, 30000);
+            setInterval(loadChatBadge, 15000);
         });
+
+        // Chat badge for sidebar
+        async function loadChatBadge() {
+            try {
+                const response = await fetch('/api/ChatApi/waiting-count');
+                if (response.ok) {
+                    const data = await response.json();
+                    const badge = document.getElementById('chatNavBadge');
+                    if (badge) {
+                        if (data.count > 0) {
+                            badge.textContent = data.count;
+                            badge.classList.remove('d-none');
+                        } else {
+                            badge.classList.add('d-none');
+                        }
+                    }
+                }
+            } catch (error) {
+                // Chat badge load error - non-critical
+            }
+        }
 
         async function loadNotificationBadge() {
             try {

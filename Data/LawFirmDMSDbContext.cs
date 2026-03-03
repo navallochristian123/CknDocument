@@ -49,6 +49,12 @@ public class LawFirmDMSDbContext : DbContext
   public DbSet<DocumentAIAnalysis> DocumentAIAnalyses { get; set; } = null!;
   public DbSet<SecondOpinionRequest> SecondOpinionRequests { get; set; } = null!;
 
+  // ==========================================
+  // Chat/LiveChat DbSets
+  // ==========================================
+  public DbSet<ChatConversation> ChatConversations { get; set; } = null!;
+  public DbSet<ChatMessage> ChatMessages { get; set; } = null!;
+
   protected override void OnModelCreating(ModelBuilder modelBuilder)
   {
     base.OnModelCreating(modelBuilder);
@@ -463,6 +469,58 @@ public class LawFirmDMSDbContext : DbContext
       entity.HasOne(r => r.AssignedToLawyer)
                 .WithMany()
                 .HasForeignKey(r => r.AssignedToLawyerId)
+                .OnDelete(DeleteBehavior.Restrict);
+    });
+
+    // ==========================================
+    // Chat/LiveChat Configuration
+    // ==========================================
+
+    // ChatConversation configuration
+    modelBuilder.Entity<ChatConversation>(entity =>
+    {
+      entity.HasIndex(e => e.FirmID);
+      entity.HasIndex(e => e.ClientUserID);
+      entity.HasIndex(e => e.AdminUserID);
+      entity.HasIndex(e => e.Status);
+      entity.Property(e => e.Status).HasDefaultValue("Active");
+      entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETDATE()");
+
+      entity.HasOne(c => c.Firm)
+                .WithMany()
+                .HasForeignKey(c => c.FirmID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+      entity.HasOne(c => c.ClientUser)
+                .WithMany()
+                .HasForeignKey(c => c.ClientUserID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+      entity.HasOne(c => c.AdminUser)
+                .WithMany()
+                .HasForeignKey(c => c.AdminUserID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+      entity.HasMany(c => c.Messages)
+                .WithOne(m => m.Conversation)
+                .HasForeignKey(m => m.ConversationID)
+                .OnDelete(DeleteBehavior.Cascade);
+    });
+
+    // ChatMessage configuration
+    modelBuilder.Entity<ChatMessage>(entity =>
+    {
+      entity.HasIndex(e => e.ConversationID);
+      entity.HasIndex(e => e.SenderUserID);
+      entity.HasIndex(e => e.CreatedAt);
+      entity.Property(e => e.SenderType).HasDefaultValue("Client");
+      entity.Property(e => e.MessageType).HasDefaultValue("Text");
+      entity.Property(e => e.IsRead).HasDefaultValue(false);
+      entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETDATE()");
+
+      entity.HasOne(m => m.SenderUser)
+                .WithMany()
+                .HasForeignKey(m => m.SenderUserID)
                 .OnDelete(DeleteBehavior.Restrict);
     });
   }

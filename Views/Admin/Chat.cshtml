@@ -1,0 +1,496 @@
+@{
+    ViewData["Title"] = "Live Chat Management";
+    Layout = "_AdminLayout";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/chat.css" asp-append-version="true" />
+}
+
+<div class="chat-admin-container" id="chatAdminContainer">
+    <!-- Left: Conversations List -->
+    <div class="chat-conversations-list">
+        <div class="list-header">
+            <span><i class="bi bi-chat-dots me-2"></i>Conversations</span>
+            <span class="badge bg-warning" id="waitingBadge" style="display:none;">0 waiting</span>
+        </div>
+        <div class="list-filters">
+            <button class="filter-btn active" data-filter="" onclick="filterConversations(this, '')">All</button>
+            <button class="filter-btn" data-filter="WaitingForAdmin" onclick="filterConversations(this, 'WaitingForAdmin')">Waiting</button>
+            <button class="filter-btn" data-filter="WithAdmin" onclick="filterConversations(this, 'WithAdmin')">Active</button>
+            <button class="filter-btn" data-filter="Closed" onclick="filterConversations(this, 'Closed')">Closed</button>
+        </div>
+        <div class="conversations-scroll" id="conversationsList">
+            <!-- Dynamically populated -->
+            <div class="text-center text-muted py-4" id="noConversations">
+                <i class="bi bi-chat-square-text" style="font-size: 32px; opacity: 0.4;"></i>
+                <p class="mt-2 mb-0 small">No conversations yet</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: Chat Area -->
+    <div class="chat-main-area">
+        <!-- No selection state -->
+        <div class="chat-no-selection" id="noChatSelected">
+            <i class="bi bi-chat-left-text"></i>
+            <h5>Select a conversation</h5>
+            <p class="text-muted small">Choose a conversation from the list to start chatting</p>
+        </div>
+
+        <!-- Chat header (hidden initially) -->
+        <div class="chat-area-header" id="chatAreaHeader" style="display: none;">
+            <div class="client-info">
+                <div class="client-avatar" id="clientAvatar">C</div>
+                <div>
+                    <div class="fw-semibold" id="clientName">Client Name</div>
+                    <div class="small text-muted" id="chatCategory">General Inquiry</div>
+                </div>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <span class="badge" id="chatStatusBadge">Active</span>
+                <button class="btn btn-sm btn-success" id="joinBtn" onclick="joinConversation()" style="display:none;">
+                    <i class="bi bi-telephone-fill me-1"></i>Join Chat
+                </button>
+                <button class="btn btn-sm btn-outline-danger" id="closeConvBtn" onclick="adminCloseConversation()" style="display:none;">
+                    <i class="bi bi-x-circle me-1"></i>Close
+                </button>
+            </div>
+        </div>
+
+        <!-- Messages area (hidden initially) -->
+        <div class="admin-messages" id="adminMessages" style="display: none;">
+            <!-- Messages rendered here -->
+        </div>
+
+        <!-- Typing indicator -->
+        <div class="typing-indicator" id="adminTypingIndicator">
+            Client is typing...
+        </div>
+
+        <!-- Input area (hidden initially) -->
+        <div class="admin-input-area" id="adminInputArea" style="display: none;">
+            <textarea id="adminChatInput" placeholder="Type your reply..." rows="1"
+                      onkeydown="handleAdminKeydown(event)" oninput="autoResizeAdminTextarea(this)"></textarea>
+            <button class="btn btn-primary" onclick="sendAdminMessage()">
+                <i class="bi bi-send-fill me-1"></i>Send
+            </button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <script>
+        // ==========================================
+        // Admin Chat Management
+        // ==========================================
+        let adminConnection = null;
+        let selectedConversationId = null;
+        let currentFilter = '';
+        let conversations = [];
+        let isAdminConnected = false;
+
+        // Initialize SignalR
+        function initAdminChat() {
+            adminConnection = new signalR.HubConnectionBuilder()
+                .withUrl("/chatHub")
+                .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+                .configureLogging(signalR.LogLevel.Warning)
+                .build();
+
+            // New chat request from client
+            adminConnection.on("NewChatRequest", function (data) {
+                showToast(`New chat request from ${data.clientName}`, 'info');
+                loadConversations();
+            });
+
+            // New message from client
+            adminConnection.on("NewClientMessage", function (data) {
+                loadConversations();
+                if (data.conversationId === selectedConversationId) {
+                    // Already in this conversation
+                }
+            });
+
+            // Received message (in active conversation)
+            adminConnection.on("ReceiveMessage", function (msg) {
+                if (selectedConversationId) {
+                    appendAdminMessage(msg);
+                    scrollAdminToBottom();
+                    // Mark as read
+                    adminConnection.invoke("MarkAsRead", selectedConversationId).catch(function () { });
+                }
+            });
+
+            // Conversation joined (admin receives history)
+            adminConnection.on("ConversationJoined", function (data) {
+                const msgArea = document.getElementById('adminMessages');
+                msgArea.innerHTML = '';
+                data.messages.forEach(function (msg) {
+                    appendAdminMessage(msg);
+                });
+                scrollAdminToBottom();
+                updateAdminChatUI('WithAdmin');
+            });
+
+            // Status changed
+            adminConnection.on("StatusChanged", function (status) {
+                updateAdminChatUI(status);
+                loadConversations();
+            });
+
+            // Conversation updated
+            adminConnection.on("ConversationUpdated", function (convId) {
+                loadConversations();
+            });
+
+            // Typing
+            adminConnection.on("UserTyping", function (data) {
+                const indicator = document.getElementById('adminTypingIndicator');
+                if (data.isTyping && data.role === 'Client') {
+                    indicator.textContent = data.name + ' is typing...';
+                    indicator.classList.add('visible');
+                } else {
+                    indicator.classList.remove('visible');
+                }
+            });
+
+            adminConnection.onreconnected(function () {
+                isAdminConnected = true;
+                loadConversations();
+            });
+
+            adminConnection.onclose(function () {
+                isAdminConnected = false;
+            });
+
+            adminConnection.start()
+                .then(function () {
+                    isAdminConnected = true;
+                    loadConversations();
+                })
+                .catch(function (err) {
+                    console.error('Admin chat connection failed:', err);
+                });
+        }
+
+        // Load conversations via API
+        function loadConversations() {
+            let url = '/api/ChatApi/conversations';
+            if (currentFilter) url += `?status=${currentFilter}`;
+
+            fetch(url)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        conversations = data.data;
+                        renderConversationsList();
+                        updateWaitingBadge();
+                    }
+                })
+                .catch(console.error);
+        }
+
+        // Render conversations list
+        function renderConversationsList() {
+            const container = document.getElementById('conversationsList');
+            const noConv = document.getElementById('noConversations');
+
+            if (conversations.length === 0) {
+                container.innerHTML = '';
+                container.appendChild(noConv);
+                noConv.style.display = 'block';
+                return;
+            }
+
+            noConv.style.display = 'none';
+            container.innerHTML = conversations.map(function (c) {
+                const initials = getInitials(c.clientName);
+                const statusClass = c.status === 'WaitingForAdmin' ? 'status-waiting'
+                    : c.status === 'WithAdmin' ? 'status-active'
+                    : 'status-closed';
+                const statusLabel = c.status === 'WaitingForAdmin' ? 'Waiting'
+                    : c.status === 'WithAdmin' ? 'Active'
+                    : c.status === 'Active' ? 'Bot'
+                    : 'Closed';
+                const isActive = c.conversationId === selectedConversationId ? 'active' : '';
+                const time = c.updatedAt ? formatTimeShort(c.updatedAt) : formatTimeShort(c.createdAt);
+                const preview = c.lastMessage ? (c.lastMessage.length > 40 ? c.lastMessage.substring(0, 40) + '...' : c.lastMessage) : 'No messages yet';
+
+                return `
+                    <div class="conversation-item ${isActive}" onclick="selectConversation(${c.conversationId})">
+                        <div class="conv-avatar">${initials}</div>
+                        <div class="conv-info">
+                            <div class="conv-name">${escapeHtml(c.clientName)}</div>
+                            <div class="conv-preview">${escapeHtml(preview)}</div>
+                        </div>
+                        <div class="conv-meta">
+                            <span class="conv-time">${time}</span>
+                            <span class="conv-status ${statusClass}">${statusLabel}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Select a conversation
+        function selectConversation(convId) {
+            selectedConversationId = convId;
+            const conv = conversations.find(c => c.conversationId === convId);
+            if (!conv) return;
+
+            // Update UI
+            document.getElementById('noChatSelected').style.display = 'none';
+            document.getElementById('chatAreaHeader').style.display = 'flex';
+            document.getElementById('adminMessages').style.display = 'flex';
+
+            // Set header info
+            document.getElementById('clientName').textContent = conv.clientName;
+            document.getElementById('clientAvatar').textContent = getInitials(conv.clientName);
+            document.getElementById('chatCategory').textContent = conv.category || conv.subject || 'General Inquiry';
+
+            updateAdminChatUI(conv.status);
+
+            // Highlight in list
+            document.querySelectorAll('.conversation-item').forEach(el => el.classList.remove('active'));
+            event.currentTarget?.classList.add('active');
+
+            // Load messages
+            loadMessages(convId);
+        }
+
+        // Load messages for a conversation
+        function loadMessages(convId) {
+            fetch(`/api/ChatApi/conversations/${convId}/messages`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        const msgArea = document.getElementById('adminMessages');
+                        msgArea.innerHTML = '';
+                        data.data.forEach(function (msg) {
+                            appendAdminMessage(msg);
+                        });
+                        scrollAdminToBottom();
+                        // Mark as read
+                        if (isAdminConnected) {
+                            adminConnection.invoke("MarkAsRead", convId).catch(function () { });
+                        }
+                    }
+                })
+                .catch(console.error);
+        }
+
+        // Join conversation (admin takes over from chatbot)
+        function joinConversation() {
+            if (!selectedConversationId || !isAdminConnected) return;
+            adminConnection.invoke("AdminJoinConversation", selectedConversationId)
+                .then(function () {
+                    loadConversations();
+                })
+                .catch(function (err) {
+                    console.error('Failed to join:', err);
+                    showToast('Failed to join conversation', 'danger');
+                });
+        }
+
+        // Send admin message
+        function sendAdminMessage() {
+            const input = document.getElementById('adminChatInput');
+            const message = input.value.trim();
+            if (!message || !selectedConversationId || !isAdminConnected) return;
+
+            adminConnection.invoke("SendMessage", selectedConversationId, message)
+                .catch(function (err) {
+                    console.error('Send failed:', err);
+                    showToast('Failed to send message', 'danger');
+                });
+
+            input.value = '';
+            input.style.height = 'auto';
+            adminConnection.invoke("Typing", selectedConversationId, false).catch(function () { });
+        }
+
+        // Close conversation
+        function adminCloseConversation() {
+            if (!selectedConversationId || !isAdminConnected) return;
+            if (!confirm('Are you sure you want to close this conversation?')) return;
+
+            adminConnection.invoke("CloseConversation", selectedConversationId, null, null)
+                .then(function () {
+                    loadConversations();
+                })
+                .catch(console.error);
+        }
+
+        // Update admin chat UI based on status
+        function updateAdminChatUI(status) {
+            const joinBtn = document.getElementById('joinBtn');
+            const closeBtn = document.getElementById('closeConvBtn');
+            const inputArea = document.getElementById('adminInputArea');
+            const badge = document.getElementById('chatStatusBadge');
+
+            switch (status) {
+                case 'Active':
+                    badge.className = 'badge bg-secondary';
+                    badge.textContent = 'Chatbot Only';
+                    joinBtn.style.display = 'none';
+                    closeBtn.style.display = 'none';
+                    inputArea.style.display = 'none';
+                    break;
+                case 'WaitingForAdmin':
+                    badge.className = 'badge bg-warning text-dark';
+                    badge.textContent = 'Waiting for Admin';
+                    joinBtn.style.display = 'inline-flex';
+                    closeBtn.style.display = 'inline-flex';
+                    inputArea.style.display = 'none';
+                    break;
+                case 'WithAdmin':
+                    badge.className = 'badge bg-success';
+                    badge.textContent = 'Live Chat';
+                    joinBtn.style.display = 'none';
+                    closeBtn.style.display = 'inline-flex';
+                    inputArea.style.display = 'flex';
+                    break;
+                case 'Closed':
+                    badge.className = 'badge bg-secondary';
+                    badge.textContent = 'Closed';
+                    joinBtn.style.display = 'none';
+                    closeBtn.style.display = 'none';
+                    inputArea.style.display = 'none';
+                    break;
+            }
+        }
+
+        // Append message to admin chat area
+        function appendAdminMessage(msg) {
+            const container = document.getElementById('adminMessages');
+            const div = document.createElement('div');
+
+            let msgClass = 'msg-chatbot';
+            if (msg.senderType === 'Client') msgClass = 'msg-client';
+            else if (msg.senderType === 'Admin') msgClass = 'msg-admin';
+            else if (msg.messageType === 'SystemNotice') msgClass = 'msg-system';
+
+            // In admin view, flip client/admin sides
+            if (msg.senderType === 'Admin') msgClass = 'msg-client'; // Admin's messages on the right
+            else if (msg.senderType === 'Client') msgClass = 'msg-admin'; // Client's messages on the left
+
+            div.className = `chat-msg ${msgClass}`;
+
+            let senderLabel = '';
+            if (msg.senderType === 'Client') senderLabel = `<div class="msg-sender"><i class="bi bi-person"></i> ${escapeHtml(msg.senderName)}</div>`;
+            else if (msg.senderType === 'Chatbot' && msg.messageType !== 'SystemNotice') senderLabel = `<div class="msg-sender"><i class="bi bi-robot"></i> CKN Assistant</div>`;
+            else if (msg.senderType === 'Admin') senderLabel = `<div class="msg-sender"><i class="bi bi-person-badge"></i> You</div>`;
+
+            const time = msg.createdAt ? formatTime(msg.createdAt) : '';
+
+            let content = escapeHtml(msg.content);
+            content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            content = content.replace(/\n/g, '<br>');
+
+            div.innerHTML = `
+                ${senderLabel}
+                <div class="msg-bubble">${content}</div>
+                ${time ? `<div class="msg-time">${time}</div>` : ''}
+            `;
+
+            container.appendChild(div);
+        }
+
+        // Filter conversations
+        function filterConversations(btn, filter) {
+            currentFilter = filter;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            loadConversations();
+        }
+
+        // Update waiting badge
+        function updateWaitingBadge() {
+            const waitingCount = conversations.filter(c => c.status === 'WaitingForAdmin').length;
+            const badge = document.getElementById('waitingBadge');
+            if (waitingCount > 0) {
+                badge.textContent = waitingCount + ' waiting';
+                badge.style.display = 'inline';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+
+        // Utility functions
+        function scrollAdminToBottom() {
+            const el = document.getElementById('adminMessages');
+            setTimeout(() => el.scrollTop = el.scrollHeight, 50);
+        }
+
+        function getInitials(name) {
+            if (!name) return '?';
+            return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatTime(dateStr) {
+            try {
+                const d = new Date(dateStr);
+                return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } catch (e) { return ''; }
+        }
+
+        function formatTimeShort(dateStr) {
+            try {
+                const d = new Date(dateStr);
+                const now = new Date();
+                const diff = now - d;
+                if (diff < 60000) return 'Just now';
+                if (diff < 3600000) return Math.floor(diff / 60000) + 'm';
+                if (diff < 86400000) return Math.floor(diff / 3600000) + 'h';
+                return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+            } catch (e) { return ''; }
+        }
+
+        function showToast(message, type) {
+            // Use existing toast system if available
+            const toast = document.createElement('div');
+            toast.className = `alert alert-${type || 'info'} position-fixed shadow`;
+            toast.style.cssText = 'top:20px;right:20px;z-index:10000;max-width:350px;animation:fadeIn 0.3s;';
+            toast.innerHTML = `<i class="bi bi-${type === 'danger' ? 'exclamation-circle' : 'info-circle'} me-2"></i>${message}`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+
+        function handleAdminKeydown(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendAdminMessage();
+            }
+            if (selectedConversationId && isAdminConnected) {
+                adminConnection.invoke("Typing", selectedConversationId, true).catch(function () { });
+                clearTimeout(window._adminTypingTimeout);
+                window._adminTypingTimeout = setTimeout(function () {
+                    if (selectedConversationId && isAdminConnected) {
+                        adminConnection.invoke("Typing", selectedConversationId, false).catch(function () { });
+                    }
+                }, 2000);
+            }
+        }
+
+        function autoResizeAdminTextarea(el) {
+            el.style.height = 'auto';
+            el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function () {
+            initAdminChat();
+            // Refresh conversations periodically
+            setInterval(loadConversations, 15000);
+        });
+    </script>
+}

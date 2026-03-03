@@ -11,6 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/dark-mode.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/chat.css" asp-append-version="true" />
     <script>
         // Initialize theme before page renders to prevent flash
         (function() {
@@ -106,6 +107,12 @@
                             <a class="nav-link" asp-controller="Settings" asp-action="Index" role="menuitem">
                                 <i class="bi bi-gear" aria-hidden="true"></i>
                                 <span>Settings</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" role="none">
+                            <a class="nav-link" asp-controller="Chat" asp-action="History" role="menuitem">
+                                <i class="bi bi-chat-dots" aria-hidden="true"></i>
+                                <span>Chat History</span>
                             </a>
                         </li>
                     </ul>
@@ -362,5 +369,6 @@
         })();
     </script>
     @await RenderSectionAsync("Scripts", required: false)
+    @await Html.PartialAsync("_ChatWidget")
 </body>
 </html>

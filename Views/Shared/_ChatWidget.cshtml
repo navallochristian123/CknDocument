@@ -1,0 +1,394 @@
+@* Chat Widget Partial - Floating bubble + chat panel for Clients *@
+@if (User.IsInRole("Client"))
+{
+    <!-- Floating Chat Bubble -->
+    <button class="chat-bubble-btn" id="chatBubbleBtn" title="Chat Support">
+        <i class="bi bi-chat-dots-fill"></i>
+        <span class="chat-badge" id="chatBadge" style="display:none;">0</span>
+    </button>
+
+    <!-- Chat Panel -->
+    <div class="chat-panel" id="chatPanel">
+        <!-- Header -->
+        <div class="chat-panel-header">
+            <div class="chat-header-info">
+                <div class="chat-avatar">
+                    <i class="bi bi-robot"></i>
+                </div>
+                <div>
+                    <div class="chat-header-title">CKN Support</div>
+                    <div class="chat-header-status" id="chatStatusText">Online</div>
+                </div>
+            </div>
+            <div class="chat-header-actions">
+                <button onclick="closeChat()" title="Close conversation" id="closeChatBtn" style="display:none;">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+                <button onclick="toggleChatPanel()" title="Minimize">
+                    <i class="bi bi-dash-lg"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Messages -->
+        <div class="chat-messages" id="chatMessages">
+            <!-- Messages will be rendered here -->
+        </div>
+
+        <!-- Typing indicator -->
+        <div class="typing-indicator" id="typingIndicator">
+            Admin is typing...
+        </div>
+
+        <!-- Input Area -->
+        <div class="chat-input-area" id="chatInputArea">
+            <textarea id="chatInput" placeholder="Type your message..." rows="1"
+                      onkeydown="handleChatKeydown(event)" oninput="autoResizeTextarea(this)"></textarea>
+            <button class="chat-send-btn" id="chatSendBtn" onclick="sendChatMessage()" title="Send">
+                <i class="bi bi-send-fill"></i>
+            </button>
+        </div>
+
+        <!-- Closed overlay -->
+        <div class="chat-closed-overlay" id="chatClosedOverlay">
+            <p class="mb-1"><i class="bi bi-check-circle text-success"></i> Conversation closed</p>
+            <button class="btn btn-sm btn-primary btn-new-chat" onclick="startNewChat()">
+                <i class="bi bi-plus-lg"></i> Start New Chat
+            </button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <script>
+        // ==========================================
+        // Chat Widget - Client Side
+        // ==========================================
+        let chatConnection = null;
+        let currentConversationId = null;
+        let chatPanelOpen = false;
+        let isConnected = false;
+
+        // Initialize SignalR connection
+        function initChatConnection() {
+            chatConnection = new signalR.HubConnectionBuilder()
+                .withUrl("/chatHub")
+                .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+                .configureLogging(signalR.LogLevel.Warning)
+                .build();
+
+            // Handle received messages
+            chatConnection.on("ReceiveMessage", function (msg) {
+                appendMessage(msg);
+                scrollToBottom();
+            });
+
+            // Conversation started
+            chatConnection.on("ConversationStarted", function (data) {
+                currentConversationId = data.conversationId;
+                updateChatStatus(data.status);
+            });
+
+            // Conversation resumed (existing active conversation)
+            chatConnection.on("ConversationResumed", function (data) {
+                currentConversationId = data.conversationId;
+                updateChatStatus(data.status);
+                document.getElementById('chatMessages').innerHTML = '';
+                data.messages.forEach(function (msg) {
+                    appendMessage(msg);
+                });
+                scrollToBottom();
+            });
+
+            // Status changed
+            chatConnection.on("StatusChanged", function (status) {
+                updateChatStatus(status);
+            });
+
+            // Typing indicator
+            chatConnection.on("UserTyping", function (data) {
+                const indicator = document.getElementById('typingIndicator');
+                if (data.isTyping) {
+                    indicator.textContent = data.name + ' is typing...';
+                    indicator.classList.add('visible');
+                } else {
+                    indicator.classList.remove('visible');
+                }
+            });
+
+            // Messages read
+            chatConnection.on("MessagesRead", function (data) {
+                // Could show read receipts
+            });
+
+            // Connection state changes
+            chatConnection.onreconnecting(function () {
+                document.getElementById('chatStatusText').textContent = 'Reconnecting...';
+            });
+
+            chatConnection.onreconnected(function () {
+                isConnected = true;
+                document.getElementById('chatStatusText').textContent = 'Online';
+                if (currentConversationId) {
+                    chatConnection.invoke("StartConversation").catch(console.error);
+                }
+            });
+
+            chatConnection.onclose(function () {
+                isConnected = false;
+                document.getElementById('chatStatusText').textContent = 'Disconnected';
+            });
+
+            // Start connection
+            chatConnection.start()
+                .then(function () {
+                    isConnected = true;
+                    console.log('Chat connected');
+                })
+                .catch(function (err) {
+                    console.error('Chat connection failed:', err);
+                });
+        }
+
+        // Toggle chat panel visibility
+        function toggleChatPanel() {
+            chatPanelOpen = !chatPanelOpen;
+            const panel = document.getElementById('chatPanel');
+
+            if (chatPanelOpen) {
+                panel.classList.add('open');
+                if (!currentConversationId && isConnected) {
+                    chatConnection.invoke("StartConversation").catch(console.error);
+                }
+                document.getElementById('chatInput').focus();
+                // Clear badge
+                document.getElementById('chatBadge').style.display = 'none';
+            } else {
+                panel.classList.remove('open');
+            }
+        }
+
+        // Send message
+        function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message || !currentConversationId || !isConnected) return;
+
+            chatConnection.invoke("SendMessage", currentConversationId, message)
+                .catch(function (err) {
+                    console.error('Send failed:', err);
+                    appendSystemMessage('Failed to send message. Please try again.');
+                });
+
+            input.value = '';
+            input.style.height = 'auto';
+            chatConnection.invoke("Typing", currentConversationId, false).catch(function () { });
+        }
+
+        // Handle option button clicks
+        function handleOptionClick(option) {
+            if (!currentConversationId || !isConnected) return;
+            chatConnection.invoke("SendMessage", currentConversationId, option)
+                .catch(console.error);
+        }
+
+        // Escalate to live admin
+        function escalateToAdmin() {
+            if (!currentConversationId || !isConnected) return;
+            chatConnection.invoke("EscalateToAdmin", currentConversationId)
+                .catch(console.error);
+        }
+
+        // Close conversation
+        function closeChat() {
+            if (!currentConversationId || !isConnected) return;
+            if (confirm('Are you sure you want to close this conversation?')) {
+                chatConnection.invoke("CloseConversation", currentConversationId, null, null)
+                    .catch(console.error);
+            }
+        }
+
+        // Start new chat
+        function startNewChat() {
+            currentConversationId = null;
+            document.getElementById('chatMessages').innerHTML = '';
+            document.getElementById('chatClosedOverlay').classList.remove('visible');
+            document.getElementById('chatInputArea').style.display = 'flex';
+            document.getElementById('closeChatBtn').style.display = 'none';
+            if (isConnected) {
+                chatConnection.invoke("StartConversation").catch(console.error);
+            }
+        }
+
+        // Append a message to the chat
+        function appendMessage(msg) {
+            const container = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+
+            let msgClass = 'msg-chatbot';
+            if (msg.senderType === 'Client') msgClass = 'msg-client';
+            else if (msg.senderType === 'Admin') msgClass = 'msg-admin';
+            else if (msg.messageType === 'SystemNotice') msgClass = 'msg-system';
+
+            div.className = `chat-msg ${msgClass}`;
+
+            let senderLabel = '';
+            if (msg.senderType === 'Admin') senderLabel = `<div class="msg-sender"><i class="bi bi-person-badge"></i> ${escapeHtml(msg.senderName)}</div>`;
+            else if (msg.senderType === 'Chatbot' && msg.messageType !== 'SystemNotice') senderLabel = `<div class="msg-sender"><i class="bi bi-robot"></i> CKN Assistant</div>`;
+
+            const time = msg.createdAt ? formatTime(msg.createdAt) : '';
+
+            // Format message content (support markdown-like bold)
+            let content = escapeHtml(msg.content);
+            content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            content = content.replace(/\n/g, '<br>');
+
+            div.innerHTML = `
+                ${senderLabel}
+                <div class="msg-bubble">${content}</div>
+                ${time ? `<div class="msg-time">${time}</div>` : ''}
+            `;
+
+            container.appendChild(div);
+
+            // Add option buttons if present
+            if (msg.options && msg.options.length > 0) {
+                const optionsDiv = document.createElement('div');
+                optionsDiv.className = 'chat-options';
+                msg.options.forEach(function (opt) {
+                    const btn = document.createElement('button');
+                    btn.className = 'chat-option-btn';
+                    btn.textContent = opt;
+                    btn.onclick = function () {
+                        // Remove all option buttons after click
+                        document.querySelectorAll('.chat-options').forEach(el => el.remove());
+                        handleOptionClick(opt);
+                    };
+                    optionsDiv.appendChild(btn);
+                });
+                container.appendChild(optionsDiv);
+            }
+
+            // If not panel open, increment badge
+            if (!chatPanelOpen && msg.senderType !== 'Client') {
+                const badge = document.getElementById('chatBadge');
+                let count = parseInt(badge.textContent) || 0;
+                badge.textContent = count + 1;
+                badge.style.display = 'flex';
+            }
+        }
+
+        function appendSystemMessage(text) {
+            const container = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            div.className = 'chat-msg msg-system';
+            div.innerHTML = `<div class="msg-bubble">${escapeHtml(text)}</div>`;
+            container.appendChild(div);
+            scrollToBottom();
+        }
+
+        // Update status display
+        function updateChatStatus(status) {
+            const statusEl = document.getElementById('chatStatusText');
+            const headerAvatar = document.querySelector('.chat-panel-header .chat-avatar i');
+            const closeBtn = document.getElementById('closeChatBtn');
+            const inputArea = document.getElementById('chatInputArea');
+            const closedOverlay = document.getElementById('chatClosedOverlay');
+
+            switch (status) {
+                case 'Active':
+                    statusEl.textContent = 'Chatbot Assistant';
+                    headerAvatar.className = 'bi bi-robot';
+                    closeBtn.style.display = 'none';
+                    inputArea.style.display = 'flex';
+                    closedOverlay.classList.remove('visible');
+                    break;
+                case 'WaitingForAdmin':
+                    statusEl.textContent = 'Waiting for admin...';
+                    headerAvatar.className = 'bi bi-hourglass-split';
+                    closeBtn.style.display = 'flex';
+                    inputArea.style.display = 'flex';
+                    closedOverlay.classList.remove('visible');
+                    break;
+                case 'WithAdmin':
+                    statusEl.textContent = 'Connected with Admin';
+                    headerAvatar.className = 'bi bi-person-badge-fill';
+                    closeBtn.style.display = 'flex';
+                    inputArea.style.display = 'flex';
+                    closedOverlay.classList.remove('visible');
+                    break;
+                case 'Closed':
+                    statusEl.textContent = 'Conversation Closed';
+                    closeBtn.style.display = 'none';
+                    inputArea.style.display = 'none';
+                    closedOverlay.classList.add('visible');
+                    break;
+            }
+        }
+
+        // Utility functions
+        function scrollToBottom() {
+            const el = document.getElementById('chatMessages');
+            setTimeout(() => el.scrollTop = el.scrollHeight, 50);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatTime(dateStr) {
+            try {
+                const d = new Date(dateStr);
+                return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } catch (e) {
+                return '';
+            }
+        }
+
+        function handleChatKeydown(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendChatMessage();
+            }
+            // Send typing indicator
+            if (currentConversationId && isConnected) {
+                chatConnection.invoke("Typing", currentConversationId, true).catch(function () { });
+                clearTimeout(window._typingTimeout);
+                window._typingTimeout = setTimeout(function () {
+                    if (currentConversationId && isConnected) {
+                        chatConnection.invoke("Typing", currentConversationId, false).catch(function () { });
+                    }
+                }, 2000);
+            }
+        }
+
+        function autoResizeTextarea(el) {
+            el.style.height = 'auto';
+            el.style.height = Math.min(el.scrollHeight, 80) + 'px';
+        }
+
+        // Poll unread count (every 30s)
+        function pollUnreadCount() {
+            if (chatPanelOpen) return;
+            fetch('/api/ChatApi/unread-count')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.count > 0) {
+                        const badge = document.getElementById('chatBadge');
+                        badge.textContent = data.count;
+                        badge.style.display = 'flex';
+                    }
+                })
+                .catch(() => { });
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function () {
+            document.getElementById('chatBubbleBtn').addEventListener('click', toggleChatPanel);
+            initChatConnection();
+            pollUnreadCount();
+            setInterval(pollUnreadCount, 30000);
+        });
+    </script>
+}
