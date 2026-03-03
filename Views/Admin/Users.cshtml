@@ -496,6 +496,15 @@
         font-size: 14px;
     }
 
+    .avatar-circle-lg {
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+    }
+
     .role-card {
         margin: 0;
     }
@@ -671,23 +680,274 @@
         }
     });
 
-    // View user
+    // View user — populate modal with details
     function viewUser(userId) {
         fetch(`/User/Details/${userId}`)
-            .then(response => response.text())
-            .then(html => {
-                // Parse the response and extract user data
-                // For now, redirect to details page
-                window.location.href = `/User/Details/${userId}`;
+            .then(response => response.json())
+            .then(result => {
+                if (!result.success) {
+                    showToast('error', result.message || 'Failed to load user details');
+                    return;
+                }
+                const d = result.data;
+                const statusClass = d.status === 'Active' ? 'bg-success' : d.status === 'Pending' ? 'bg-warning text-dark' : d.status === 'Locked' ? 'bg-danger' : 'bg-secondary';
+                const roleClass = d.roleName === 'Admin' ? 'bg-danger' : d.roleName === 'Lawyer' ? 'bg-primary' : d.roleName === 'Staff' ? 'bg-success' : d.roleName === 'Client' ? 'bg-purple' : d.roleName === 'Auditor' ? 'bg-info' : 'bg-secondary';
+                const roleStyle = d.roleName === 'Client' ? 'background-color: #a855f7 !important;' : '';
+
+                let html = `
+                    <div class="text-center mb-4">
+                        <div class="avatar-circle-lg mx-auto mb-3" style="width:80px;height:80px;font-size:1.75rem;background-color:${d.roleName === 'Lawyer' ? '#0d6efd' : d.roleName === 'Staff' ? '#198754' : d.roleName === 'Client' ? '#a855f7' : d.roleName === 'Auditor' ? '#0dcaf0' : '#6c757d'};">
+                            ${(d.firstName?.charAt(0) || '').toUpperCase()}${(d.lastName?.charAt(0) || '').toUpperCase()}
+                        </div>
+                        <h5 class="mb-1">${esc(d.fullName)}</h5>
+                        <span class="badge ${roleClass} me-1" style="${roleStyle}">${esc(d.roleName)}</span>
+                        <span class="badge ${statusClass}">${esc(d.status)}</span>
+                    </div>`;
+
+                // Firm info section for Admin users
+                if (d.roleName === 'Admin' && (d.firmName || d.firmCode)) {
+                    html += `
+                    <div class="card border-primary mb-3">
+                        <div class="card-header bg-primary text-white py-2">
+                            <i class="bi bi-building me-1"></i>Firm Information
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <div class="text-muted small">Firm Name</div>
+                                    <div class="fw-medium">${esc(d.firmName) || '<span class="text-muted">—</span>'}</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="text-muted small">Firm Code</div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <code class="fs-6" id="viewFirmCode">${esc(d.firmCode) || '—'}</code>
+                                        <button class="btn btn-sm btn-outline-primary py-0 px-1" onclick="editFirmCode('${escAttr(d.firmCode || '')}')" title="Edit Firm Code">
+                                            <i class="bi bi-pencil-fill" style="font-size:.75rem;"></i>
+                                        </button>
+                                        ${d.firmCode ? `<button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="copyFirmCode('${escAttr(d.firmCode)}')" title="Copy"><i class="bi bi-clipboard" style="font-size:.75rem;"></i></button>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                }
+
+                html += `
+                    <div class="row g-3">
+                        <div class="col-12"><h6 class="border-bottom pb-2 text-secondary"><i class="bi bi-person me-1"></i>Account Information</h6></div>
+                        ${detailRow('Username', d.username)}
+                        ${detailRow('Email', d.email)}
+                        ${detailRow('Phone', d.phoneNumber)}
+                        ${detailRow('Date of Birth', d.dateOfBirth)}
+                        ${detailRow('Email Confirmed', d.emailConfirmed ? '<span class="badge bg-success">Yes</span>' : '<span class="badge bg-warning text-dark">No</span>', true)}
+                    </div>`;
+
+                // Work info (only show if any field has data)
+                if (d.department || d.position || d.barNumber || d.licenseNumber) {
+                    html += `
+                    <div class="row g-3 mt-1">
+                        <div class="col-12"><h6 class="border-bottom pb-2 text-secondary"><i class="bi bi-briefcase me-1"></i>Work Information</h6></div>
+                        ${detailRow('Department', d.department)}
+                        ${detailRow('Position', d.position)}
+                        ${detailRow('Bar Number', d.barNumber)}
+                        ${detailRow('License Number', d.licenseNumber)}
+                    </div>`;
+                }
+
+                // Address info (only show if any field has data)
+                if (d.street || d.city || d.province || d.zipCode) {
+                    html += `
+                    <div class="row g-3 mt-1">
+                        <div class="col-12"><h6 class="border-bottom pb-2 text-secondary"><i class="bi bi-geo-alt me-1"></i>Address</h6></div>
+                        ${detailRow('Street', d.street)}
+                        ${detailRow('City', d.city)}
+                        ${detailRow('Province', d.province)}
+                        ${detailRow('Zip Code', d.zipCode)}
+                    </div>`;
+                }
+
+                html += `
+                    <div class="row g-3 mt-1">
+                        <div class="col-12"><h6 class="border-bottom pb-2 text-secondary"><i class="bi bi-clock-history me-1"></i>Activity</h6></div>
+                        ${detailRow('Created', d.createdAt)}
+                        ${detailRow('Last Login', d.lastLoginAt || '<span class="text-muted fst-italic">Never</span>', true)}
+                    </div>`;
+
+                document.getElementById('viewUserContent').innerHTML = html;
+                // Wire up Edit button in View modal footer
+                document.getElementById('editFromViewBtn').onclick = function() {
+                    bootstrap.Modal.getInstance(document.getElementById('viewUserModal')).hide();
+                    editUser(d.userID);
+                };
+                new bootstrap.Modal(document.getElementById('viewUserModal')).show();
             })
             .catch(error => {
+                console.error(error);
                 showToast('error', 'Failed to load user details');
             });
     }
 
-    // Edit user
+    // Helper: detail row
+    function detailRow(label, value, isHtml) {
+        const display = (value !== null && value !== undefined && value !== '') ? (isHtml ? value : esc(value)) : '<span class="text-muted">—</span>';
+        return `<div class="col-md-6"><div class="text-muted small">${label}</div><div class="fw-medium">${display}</div></div>`;
+    }
+
+    // Edit user — fetch data and populate edit modal
     function editUser(userId) {
-        window.location.href = `/User/Edit/${userId}`;
+        fetch(`/User/Edit/${userId}`)
+            .then(response => response.json())
+            .then(result => {
+                if (!result.success) {
+                    showToast('error', result.message || 'Failed to load user data');
+                    return;
+                }
+                const d = result.data;
+                const roles = result.roles || [];
+                document.getElementById('editUserId').value = d.userID;
+                document.getElementById('editUserForm').action = `/User/Edit/${d.userID}`;
+
+                let roleOptions = roles.map(r =>
+                    `<option value="${r.roleID}" ${r.roleID === d.roleId ? 'selected' : ''}>${esc(r.roleName)}</option>`
+                ).join('');
+
+                const statusOptions = ['Active', 'Inactive', 'Pending', 'Locked'].map(s =>
+                    `<option value="${s}" ${s === d.status ? 'selected' : ''}>${s}</option>`
+                ).join('');
+
+                const html = `
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">First Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="FirstName" value="${escAttr(d.firstName)}" required maxlength="100">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Middle Name</label>
+                            <input type="text" class="form-control" name="MiddleName" value="${escAttr(d.middleName || '')}" maxlength="100">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Last Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="LastName" value="${escAttr(d.lastName)}" required maxlength="100">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Email <span class="text-danger">*</span></label>
+                            <input type="email" class="form-control" name="Email" value="${escAttr(d.email)}" required maxlength="100">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Phone Number</label>
+                            <input type="text" class="form-control" name="PhoneNumber" value="${escAttr(d.phoneNumber || '')}" maxlength="11">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Date of Birth</label>
+                            <input type="date" class="form-control" name="DateOfBirth" value="${escAttr(d.dateOfBirth || '')}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Role</label>
+                            <select class="form-select" name="RoleId">${roleOptions}</select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Status</label>
+                            <select class="form-select" name="Status">${statusOptions}</select>
+                        </div>
+                        <div class="col-12 mt-2"><h6 class="border-bottom pb-2 text-secondary"><i class="bi bi-briefcase me-1"></i>Work Information</h6></div>
+                        <div class="col-md-6">
+                            <label class="form-label">Department</label>
+                            <input type="text" class="form-control" name="Department" value="${escAttr(d.department || '')}" maxlength="100">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Position</label>
+                            <input type="text" class="form-control" name="Position" value="${escAttr(d.position || '')}" maxlength="100">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Bar Number</label>
+                            <input type="text" class="form-control" name="BarNumber" value="${escAttr(d.barNumber || '')}" maxlength="50">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">License Number</label>
+                            <input type="text" class="form-control" name="LicenseNumber" value="${escAttr(d.licenseNumber || '')}" maxlength="50">
+                        </div>
+                        <div class="col-12 mt-2"><h6 class="border-bottom pb-2 text-secondary"><i class="bi bi-geo-alt me-1"></i>Address</h6></div>
+                        <div class="col-12">
+                            <label class="form-label">Street</label>
+                            <input type="text" class="form-control" name="Street" value="${escAttr(d.street || '')}" maxlength="255">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">City</label>
+                            <input type="text" class="form-control" name="City" value="${escAttr(d.city || '')}" maxlength="100">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Province</label>
+                            <input type="text" class="form-control" name="Province" value="${escAttr(d.province || '')}" maxlength="100">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Zip Code</label>
+                            <input type="text" class="form-control" name="ZipCode" value="${escAttr(d.zipCode || '')}" maxlength="10">
+                        </div>
+                        <div class="col-12 mt-2"><h6 class="border-bottom pb-2 text-secondary"><i class="bi bi-key me-1"></i>Change Password (optional)</h6></div>
+                        <div class="col-md-6">
+                            <label class="form-label">New Password</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" name="NewPassword" id="editNewPassword" minlength="12" placeholder="Leave blank to keep current">
+                                <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('editNewPassword')"><i class="bi bi-eye"></i></button>
+                            </div>
+                            <div class="form-text">Min 12 chars with upper, lower, number & special.</div>
+                        </div>
+                    </div>
+                `;
+
+                document.getElementById('editUserContent').innerHTML = html;
+                new bootstrap.Modal(document.getElementById('editUserModal')).show();
+            })
+            .catch(error => {
+                console.error(error);
+                showToast('error', 'Failed to load user data');
+            });
+    }
+
+    // Edit firm code (mini-modal via prompt approach using a dedicated modal)
+    function editFirmCode(currentCode) {
+        const newCode = prompt('Enter new firm code (4-20 characters):', currentCode);
+        if (newCode === null) return; // cancelled
+        if (newCode.trim().length < 4 || newCode.trim().length > 20) {
+            showToast('error', 'Firm code must be 4-20 characters.');
+            return;
+        }
+        fetch('/User/UpdateFirmCode', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || ''
+            },
+            body: JSON.stringify({ firmCode: newCode.trim() })
+        })
+        .then(r => r.json())
+        .then(result => {
+            if (result.success) {
+                showToast('success', result.message);
+                const el = document.getElementById('viewFirmCode');
+                if (el) el.textContent = result.firmCode;
+            } else {
+                showToast('error', result.message);
+            }
+        })
+        .catch(() => showToast('error', 'Failed to update firm code'));
+    }
+
+    // Copy firm code
+    function copyFirmCode(code) {
+        navigator.clipboard.writeText(code).then(() => showToast('success', 'Firm code copied!'));
+    }
+
+    // Escape helpers
+    function esc(text) {
+        if (!text) return '';
+        const d = document.createElement('div');
+        d.textContent = text;
+        return d.innerHTML;
+    }
+    function escAttr(text) {
+        if (!text) return '';
+        return text.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
 
     // Confirm deactivate

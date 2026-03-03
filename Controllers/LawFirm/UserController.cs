@@ -186,6 +186,7 @@ public class UserController : Controller
         var user = await _context.Users
             .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
+            .Include(u => u.Firm)
             .FirstOrDefaultAsync(u => u.UserID == id && u.FirmID == firmId);
 
         if (user == null)
@@ -193,35 +194,85 @@ public class UserController : Controller
             return Json(new { success = false, message = "User not found." });
         }
 
-        return Json(new
+        var roleName = user.UserRoles.FirstOrDefault()?.Role?.RoleName ?? "No Role";
+
+        // Build base response
+        var data = new Dictionary<string, object?>
         {
-            success = true,
-            data = new
-            {
-                user.UserID,
-                user.FirstName,
-                user.MiddleName,
-                user.LastName,
-                FullName = user.FullName,
-                user.Email,
-                user.Username,
-                user.PhoneNumber,
-                DateOfBirth = user.DateOfBirth?.ToString("MMM dd, yyyy"),
-                user.Street,
-                user.City,
-                user.Province,
-                user.ZipCode,
-                user.Department,
-                user.Position,
-                user.BarNumber,
-                user.LicenseNumber,
-                user.Status,
-                user.EmailConfirmed,
-                CreatedAt = user.CreatedAt?.ToString("MMM dd, yyyy HH:mm"),
-                LastLoginAt = user.LastLoginAt?.ToString("MMM dd, yyyy HH:mm"),
-                RoleName = user.UserRoles.FirstOrDefault()?.Role?.RoleName ?? "No Role"
-            }
-        });
+            ["userID"] = user.UserID,
+            ["firstName"] = user.FirstName,
+            ["middleName"] = user.MiddleName,
+            ["lastName"] = user.LastName,
+            ["fullName"] = user.FullName,
+            ["email"] = user.Email,
+            ["username"] = user.Username,
+            ["phoneNumber"] = user.PhoneNumber,
+            ["dateOfBirth"] = user.DateOfBirth?.ToString("MMM dd, yyyy"),
+            ["street"] = user.Street,
+            ["city"] = user.City,
+            ["province"] = user.Province,
+            ["zipCode"] = user.ZipCode,
+            ["department"] = user.Department,
+            ["position"] = user.Position,
+            ["barNumber"] = user.BarNumber,
+            ["licenseNumber"] = user.LicenseNumber,
+            ["status"] = user.Status,
+            ["emailConfirmed"] = user.EmailConfirmed,
+            ["createdAt"] = user.CreatedAt?.ToString("MMM dd, yyyy HH:mm"),
+            ["lastLoginAt"] = user.LastLoginAt?.ToString("MMM dd, yyyy HH:mm"),
+            ["roleName"] = roleName
+        };
+
+        // Include firm info if the user is an Admin
+        if (string.Equals(roleName, "Admin", StringComparison.OrdinalIgnoreCase) && user.Firm != null)
+        {
+            data["firmName"] = user.Firm.FirmName;
+            data["firmCode"] = user.Firm.FirmCode;
+        }
+
+        return Json(new { success = true, data });
+    }
+
+    /// <summary>
+    /// Update firm code (Admin only)
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateFirmCode([FromBody] UpdateFirmCodeDto request)
+    {
+        try
+        {
+            var firmId = GetCurrentFirmId();
+            var currentUserId = GetCurrentUserId();
+
+            var firm = await _context.Firms.FindAsync(firmId);
+            if (firm == null)
+                return Json(new { success = false, message = "Firm not found." });
+
+            var newCode = request.FirmCode?.Trim();
+            if (string.IsNullOrWhiteSpace(newCode) || newCode.Length < 4 || newCode.Length > 20)
+                return Json(new { success = false, message = "Firm code must be 4-20 characters." });
+
+            // Check uniqueness
+            var codeExists = await _context.Firms.AnyAsync(f => f.FirmID != firmId && f.FirmCode == newCode);
+            if (codeExists)
+                return Json(new { success = false, message = "This firm code is already in use." });
+
+            var oldCode = firm.FirmCode;
+            firm.FirmCode = newCode;
+            firm.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Firm code updated from '{OldCode}' to '{NewCode}' by admin {AdminId} for firm {FirmId}",
+                oldCode, newCode, currentUserId, firmId);
+
+            return Json(new { success = true, message = "Firm code updated successfully.", firmCode = newCode });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating firm code");
+            return Json(new { success = false, message = "An error occurred while updating the firm code." });
+        }
     }
 
     #endregion
@@ -764,6 +815,14 @@ public class CreateUserDto
 
     [MaxLength(50)]
     public string? LicenseNumber { get; set; }
+}
+
+public class UpdateFirmCodeDto
+{
+    [Required]
+    [MinLength(4)]
+    [MaxLength(20)]
+    public string FirmCode { get; set; } = string.Empty;
 }
 
 public class UpdateUserDto
