@@ -3,6 +3,10 @@
     var isLoginPage = ViewData["Title"]?.ToString()?.Contains("Login") == true || 
                       ViewData["Title"]?.ToString()?.Contains("Sign In") == true ||
                       ViewContext.RouteData.Values["action"]?.ToString() == "Login";
+    var isRegisterPage = ViewData["Title"]?.ToString()?.Contains("Registration") == true ||
+                         ViewData["Title"]?.ToString()?.Contains("Register") == true ||
+                         ViewContext.RouteData.Values["action"]?.ToString() == "Register" ||
+                         ViewContext.RouteData.Values["action"]?.ToString() == "RegisterFirm";
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -403,6 +407,114 @@
             color: #EF4444;
         }
 
+        /* reCAPTCHA Custom Checkbox Box */
+        .recaptcha-box {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            background: #F9FAFB;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 16px;
+            position: relative;
+            user-select: none;
+        }
+
+        .recaptcha-box:hover {
+            border-color: #CBD5E1;
+            background: #F1F5F9;
+        }
+
+        .recaptcha-box.verified {
+            border-color: #43A047;
+            background: #F0FDF4;
+        }
+
+        .recaptcha-box.error {
+            border-color: #EF4444;
+            background: #FEF2F2;
+        }
+
+        .recaptcha-checkbox {
+            width: 28px;
+            height: 28px;
+            border: 2px solid #C4C4C4;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            background: white;
+            transition: all 0.2s ease;
+        }
+
+        .recaptcha-checkbox.checked {
+            background: #43A047;
+            border-color: #43A047;
+        }
+
+        .recaptcha-checkmark {
+            display: none;
+            color: white;
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        .recaptcha-label {
+            font-size: 0.9rem;
+            color: var(--dark-text);
+            font-weight: 500;
+            flex: 1;
+        }
+
+        .recaptcha-branding {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            margin-left: auto;
+        }
+
+        .recaptcha-branding img {
+            opacity: 0.7;
+        }
+
+        .recaptcha-terms {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .recaptcha-terms span {
+            font-size: 0.6rem;
+            color: #9CA3AF;
+            line-height: 1.2;
+        }
+
+        .recaptcha-spinner {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Registration form - wider container & scrollable */
+        .auth-form-panel.register-panel .form-container,
+        .auth-container .auth-form-panel .form-container.register-form-container {
+            max-width: 640px;
+        }
+
+        .auth-form-panel.register-panel {
+            padding: 40px 60px;
+        }
+
+        /* Hide the default reCAPTCHA v3 badge since we have a custom box */
+        .grecaptcha-badge {
+            visibility: hidden !important;
+        }
+
         /* Responsive */
         @@media (max-width: 992px) {
             .auth-container {
@@ -481,8 +593,8 @@
         </div>
 
         <!-- Right Panel - White Form Area -->
-        <div class="auth-form-panel">
-            <div class="form-container">
+        <div class="auth-form-panel @(isRegisterPage ? "register-panel" : "")">
+            <div class="form-container @(isRegisterPage ? "register-form-container" : "")">
                 <div class="form-header">
                     @if (isLoginPage)
                     {

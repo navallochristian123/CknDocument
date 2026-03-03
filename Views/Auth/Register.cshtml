@@ -4,7 +4,10 @@
     ViewData["Title"] = "Client Registration";
     Layout = "_AuthLayout";
     var firms = ViewData["Firms"] as List<FirmDropdownDto> ?? new List<FirmDropdownDto>();
+    var recaptchaSiteKey = ViewData["ReCaptchaSiteKey"]?.ToString();
 }
+
+<script src="https://www.google.com/recaptcha/api.js?render=@recaptchaSiteKey"></script>
 
 @await Html.PartialAsync("_Toast")
 
@@ -181,6 +184,29 @@
         </div>
     </div>
     
+    <!-- reCAPTCHA v3 visible verification box -->
+    <div class="recaptcha-box" id="recaptchaBox" onclick="verifyCaptcha()">
+        <div class="recaptcha-checkbox" id="recaptchaCheckbox">
+            <i class="bi bi-check-lg recaptcha-checkmark" id="recaptchaCheckmark"></i>
+        </div>
+        <span class="recaptcha-label" id="recaptchaLabel">I'm not a robot</span>
+        <div class="recaptcha-branding">
+            <img src="https://www.gstatic.com/recaptcha/api2/logo_48.png" alt="reCAPTCHA" width="24" height="24" />
+            <div class="recaptcha-terms">
+                <span>reCAPTCHA</span>
+                <span>Privacy - Terms</span>
+            </div>
+        </div>
+        <div class="recaptcha-spinner" id="recaptchaSpinner" style="display:none;">
+            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+        </div>
+    </div>
+    <div id="recaptchaError" class="field-validation-error" style="display:none; margin-bottom: 12px;">
+        Please verify that you are not a robot.
+    </div>
+
+    <input type="hidden" name="g-recaptcha-response" id="recaptchaToken" />
+
     <!-- Submit -->
     <button type="submit" class="btn-submit" id="submitBtn">
         Create Account
@@ -525,5 +551,60 @@
 
         // Load provinces on page load
         document.addEventListener('DOMContentLoaded', loadProvinces);
+
+        // reCAPTCHA v3 visible checkbox verification
+        var captchaVerified = false;
+
+        function verifyCaptcha() {
+            if (captchaVerified) return;
+
+            var checkbox = document.getElementById('recaptchaCheckbox');
+            var checkmark = document.getElementById('recaptchaCheckmark');
+            var label = document.getElementById('recaptchaLabel');
+            var spinner = document.getElementById('recaptchaSpinner');
+            var box = document.getElementById('recaptchaBox');
+            var errorDiv = document.getElementById('recaptchaError');
+
+            // Show loading state
+            checkbox.style.display = 'none';
+            spinner.style.display = 'flex';
+            label.textContent = 'Verifying...';
+            errorDiv.style.display = 'none';
+            box.classList.remove('error');
+
+            grecaptcha.ready(function() {
+                grecaptcha.execute('@recaptchaSiteKey', { action: 'register' }).then(function(token) {
+                    document.getElementById('recaptchaToken').value = token;
+                    captchaVerified = true;
+
+                    // Show success state
+                    spinner.style.display = 'none';
+                    checkbox.style.display = 'flex';
+                    checkbox.classList.add('checked');
+                    checkmark.style.display = 'block';
+                    label.textContent = 'Verified';
+                    label.style.color = '#43A047';
+                    box.classList.add('verified');
+                    box.style.cursor = 'default';
+                }).catch(function(err) {
+                    spinner.style.display = 'none';
+                    checkbox.style.display = 'flex';
+                    label.textContent = 'I\'m not a robot';
+                    errorDiv.style.display = 'block';
+                    errorDiv.textContent = 'Verification failed. Please try again.';
+                    console.error('reCAPTCHA error:', err);
+                });
+            });
+        }
+
+        // Form submit validation
+        document.getElementById('registerForm').addEventListener('submit', function(e) {
+            if (!captchaVerified) {
+                e.preventDefault();
+                document.getElementById('recaptchaError').style.display = 'block';
+                document.getElementById('recaptchaBox').classList.add('error');
+                return false;
+            }
+        });
     </script>
 }

@@ -21,17 +21,23 @@ public class AuthController : Controller
     private readonly AuditLogService _auditLogService;
     private readonly ILogger<AuthController> _logger;
     private readonly PayMongoService _payMongoService;
+    private readonly ReCaptchaService _reCaptchaService;
+    private readonly IConfiguration _configuration;
 
     public AuthController(
         LawFirmDMSDbContext context,
         AuditLogService auditLogService,
         ILogger<AuthController> logger,
-        PayMongoService payMongoService)
+        PayMongoService payMongoService,
+        ReCaptchaService reCaptchaService,
+        IConfiguration configuration)
     {
         _context = context;
         _auditLogService = auditLogService;
         _logger = logger;
         _payMongoService = payMongoService;
+        _reCaptchaService = reCaptchaService;
+        _configuration = configuration;
     }
 
     #region Views
@@ -49,6 +55,7 @@ public class AuthController : Controller
         }
         ViewData["ReturnUrl"] = returnUrl;
         ViewData["Firms"] = await GetFirmsForDropdown();
+        ViewData["ReCaptchaSiteKey"] = _configuration["GoogleReCaptcha:SiteKey"];
         return View("~/Views/Auth/Login.cshtml");
     }
 
@@ -64,6 +71,7 @@ public class AuthController : Controller
             return RedirectBasedOnRole();
         }
         ViewData["Firms"] = await GetFirmsForDropdown();
+        ViewData["ReCaptchaSiteKey"] = _configuration["GoogleReCaptcha:SiteKey"];
         return View("~/Views/Auth/Register.cshtml");
     }
 
@@ -100,10 +108,24 @@ public class AuthController : Controller
     {
         try
         {
+            // Always pass the reCAPTCHA site key to the view
+            ViewData["ReCaptchaSiteKey"] = _configuration["GoogleReCaptcha:SiteKey"];
+
             if (!ModelState.IsValid)
             {
                 TempData["ToastType"] = "error";
                 TempData["ToastMessage"] = "Please fill in all required fields correctly.";
+                ViewData["Firms"] = await GetFirmsForDropdown();
+                return View("~/Views/Auth/Login.cshtml", request);
+            }
+
+            // --- Google reCAPTCHA v3 verification ---
+            var recaptchaToken = Request.Form["g-recaptcha-response"].ToString();
+            var isCaptchaValid = await _reCaptchaService.VerifyAsync(recaptchaToken, "login");
+            if (!isCaptchaValid)
+            {
+                TempData["ToastType"] = "error";
+                TempData["ToastMessage"] = "Please complete the reCAPTCHA verification to confirm you are not a robot.";
                 ViewData["Firms"] = await GetFirmsForDropdown();
                 return View("~/Views/Auth/Login.cshtml", request);
             }
@@ -317,10 +339,24 @@ public class AuthController : Controller
     {
         try
         {
+            // Always pass the reCAPTCHA site key to the view
+            ViewData["ReCaptchaSiteKey"] = _configuration["GoogleReCaptcha:SiteKey"];
+
             if (!ModelState.IsValid)
             {
                 TempData["ToastType"] = "error";
                 TempData["ToastMessage"] = "Please fill in all required fields correctly.";
+                ViewData["Firms"] = await GetFirmsForDropdown();
+                return View("~/Views/Auth/Register.cshtml", request);
+            }
+
+            // --- Google reCAPTCHA v3 verification ---
+            var recaptchaToken = Request.Form["g-recaptcha-response"].ToString();
+            var isCaptchaValid = await _reCaptchaService.VerifyAsync(recaptchaToken, "register");
+            if (!isCaptchaValid)
+            {
+                TempData["ToastType"] = "error";
+                TempData["ToastMessage"] = "reCAPTCHA verification failed. Please try again.";
                 ViewData["Firms"] = await GetFirmsForDropdown();
                 return View("~/Views/Auth/Register.cshtml", request);
             }

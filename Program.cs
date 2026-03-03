@@ -115,6 +115,10 @@ builder.Services.AddScoped<DocumentAIService>();
 // HttpClient for OpenAI API
 builder.Services.AddHttpClient("OpenAI");
 
+// Google reCAPTCHA verification service
+builder.Services.AddHttpClient<ReCaptchaService>();
+builder.Services.AddScoped<ReCaptchaService>();
+
 // PayMongo Payment Service (API key from environment variable)
 builder.Services.AddHttpClient<PayMongoService>();
 builder.Services.AddScoped<PayMongoService>();
