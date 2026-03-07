@@ -106,6 +106,11 @@
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="pill" href="#firmTab">
+                                <i class="bi bi-building me-2"></i>Firm Info
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link" data-bs-toggle="pill" href="#securityTab">
                                 <i class="bi bi-shield-lock me-2"></i>Security
                             </a>
@@ -185,6 +190,41 @@
                                 <div class="mt-4">
                                     <button type="submit" class="btn btn-primary btn-save">
                                         <i class="bi bi-check-lg me-2"></i>Save Changes
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Firm Info Tab -->
+                <div class="tab-pane fade" id="firmTab">
+                    <div class="card settings-card">
+                        <div class="card-header bg-white border-bottom">
+                            <h5 class="mb-0"><i class="bi bi-building me-2 text-primary"></i>Firm Information</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted mb-4">Update your law firm's name. This name will be displayed in the sidebar for all members of your firm.</p>
+                            <form id="firmNameForm">
+                                <div class="row g-3">
+                                    <div class="col-md-8">
+                                        <label class="form-label">Firm Name <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control" id="firmNameInput" required maxlength="150" placeholder="Enter your law firm name">
+                                        <small class="text-muted">Max 150 characters. This replaces the default sidebar title.</small>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="d-flex align-items-center gap-3">
+                                            <div class="p-3 rounded" style="background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);">
+                                                <img src="/images/document_logo.png" alt="Logo" style="width: 32px; height: 32px; object-fit: contain;" />
+                                                <span class="text-white fw-bold ms-2" id="firmNamePreview">Law Firm DMS</span>
+                                            </div>
+                                            <span class="text-muted small"><i class="bi bi-arrow-left me-1"></i>Sidebar preview</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-4">
+                                    <button type="submit" class="btn btn-primary btn-save">
+                                        <i class="bi bi-check-lg me-2"></i>Save Firm Name
                                     </button>
                                 </div>
                             </form>
@@ -355,11 +395,68 @@
         initTheme();
         
         document.getElementById('profileForm').addEventListener('submit', saveProfile);
+        document.getElementById('firmNameForm').addEventListener('submit', saveFirmName);
+        document.getElementById('firmNameInput').addEventListener('input', function() {
+            document.getElementById('firmNamePreview').textContent = this.value || 'Law Firm DMS';
+        });
         document.getElementById('passwordForm').addEventListener('submit', changePassword);
         document.getElementById('profilePictureInput').addEventListener('change', uploadProfilePicture);
         document.getElementById('newPassword').addEventListener('input', checkPasswordStrength);
         document.getElementById('confirmPassword').addEventListener('input', checkPasswordMatch);
+
+        loadFirmName();
     });
+
+    async function loadFirmName() {
+        try {
+            const response = await fetch('/api/SettingsApi/firm-name');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('firmNameInput').value = data.firmName || '';
+                    document.getElementById('firmNamePreview').textContent = data.firmName || 'Law Firm DMS';
+                }
+            }
+        } catch (e) {
+            console.error('Error loading firm name:', e);
+        }
+    }
+
+    async function saveFirmName(e) {
+        e.preventDefault();
+
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+
+        try {
+            const response = await fetch('/api/SettingsApi/firm-name', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    firmName: document.getElementById('firmNameInput').value
+                })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                alert('Firm name updated successfully!');
+                // Update the sidebar brand text immediately
+                const sidebarBrand = document.querySelector('.sidebar-brand span');
+                if (sidebarBrand) {
+                    sidebarBrand.textContent = data.firmName;
+                }
+            } else {
+                alert('Error: ' + data.message);
+            }
+        } catch (e) {
+            console.error('Error saving firm name:', e);
+            alert('Error saving firm name');
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check-lg me-2"></i>Save Firm Name';
+    }
 
     async function loadProfile() {
         try {

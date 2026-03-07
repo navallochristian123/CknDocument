@@ -40,7 +40,7 @@
             <div class="sidebar-header">
                 <a asp-controller="Dashboard" asp-action="Index" class="sidebar-brand">
                     <img src="/images/document_logo.png" alt="Logo" style="width: 32px; height: 32px; object-fit: contain;" />
-                    <span>Lawyer Portal</span>
+                    <span id="sidebarFirmName">Lawyer Portal</span>
                 </a>
             </div>
             
@@ -277,6 +277,20 @@
         })();
     </script>
     
+    <script>
+        // Load firm name for sidebar
+        (function() {
+            fetch('/api/SettingsApi/firm-name')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.firmName) {
+                        const el = document.getElementById('sidebarFirmName');
+                        if (el) el.textContent = data.firmName;
+                    }
+                })
+                .catch(() => {});
+        })();
+    </script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

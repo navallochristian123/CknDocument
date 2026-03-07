@@ -444,6 +444,75 @@ public class SettingsApiController : ControllerBase
 
         return Ok(new { success = true, message = "Signature deleted" });
     }
+
+    // ===== FIRM NAME MANAGEMENT =====
+
+    /// <summary>
+    /// Get the current firm name (available to all firm members)
+    /// </summary>
+    [HttpGet("firm-name")]
+    public async Task<IActionResult> GetFirmName()
+    {
+        var firmId = GetFirmId();
+        if (firmId == 0)
+            return BadRequest(new { success = false, message = "No firm associated" });
+
+        var firm = await _context.Firms.FindAsync(firmId);
+        if (firm == null)
+            return NotFound(new { success = false, message = "Firm not found" });
+
+        return Ok(new
+        {
+            success = true,
+            firmName = firm.FirmName,
+            firmId = firm.FirmID
+        });
+    }
+
+    /// <summary>
+    /// Update the firm name (Admin only)
+    /// </summary>
+    [HttpPut("firm-name")]
+    public async Task<IActionResult> UpdateFirmName([FromBody] UpdateFirmNameDto dto)
+    {
+        var role = GetUserRole();
+        if (role != "Admin")
+            return Forbid();
+
+        var firmId = GetFirmId();
+        if (firmId == 0)
+            return BadRequest(new { success = false, message = "No firm associated" });
+
+        if (string.IsNullOrWhiteSpace(dto.FirmName))
+            return BadRequest(new { success = false, message = "Firm name is required" });
+
+        if (dto.FirmName.Trim().Length > 150)
+            return BadRequest(new { success = false, message = "Firm name must be 150 characters or less" });
+
+        var firm = await _context.Firms.FindAsync(firmId);
+        if (firm == null)
+            return NotFound(new { success = false, message = "Firm not found" });
+
+        var oldName = firm.FirmName;
+        firm.FirmName = dto.FirmName.Trim();
+        firm.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        var userId = GetCurrentUserId();
+        await _auditLogService.LogAsync(
+            "FirmNameUpdate",
+            "Firm",
+            firmId,
+            $"Firm name changed from '{oldName}' to '{firm.FirmName}'",
+            null,
+            null,
+            "FirmManagement");
+
+        _logger.LogInformation("Firm {FirmId} name updated from '{OldName}' to '{NewName}' by user {UserId}",
+            firmId, oldName, firm.FirmName, userId);
+
+        return Ok(new { success = true, message = "Firm name updated successfully", firmName = firm.FirmName });
+    }
 }
 
 // DTOs
@@ -472,4 +541,9 @@ public class ChangePasswordDto
 public class SignatureNameDto
 {
     public string Name { get; set; } = string.Empty;
+}
+
+public class UpdateFirmNameDto
+{
+    public string FirmName { get; set; } = string.Empty;
 }
