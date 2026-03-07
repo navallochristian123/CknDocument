@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CKNDocument.Data;
 using CKNDocument.Models.LawFirmDMS;
+using System.Security.Claims;
 
 namespace CKNDocument.Controllers.SuperAdmin;
 
@@ -27,7 +28,7 @@ public class PaymentController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetPayments(string? status = null, string? sortBy = "date")
+    public async Task<IActionResult> GetPayments(string? status = null, string? sortBy = "date", string? period = null)
     {
         var query = _context.Payments
             .Include(p => p.Subscription).ThenInclude(s => s!.Firm)
@@ -36,6 +37,19 @@ public class PaymentController : Controller
 
         if (!string.IsNullOrEmpty(status) && status != "all")
             query = query.Where(p => p.Status == status);
+
+        // Period filtering
+        if (!string.IsNullOrEmpty(period) && period != "all")
+        {
+            var now = DateTime.Now;
+            query = period switch
+            {
+                "week" => query.Where(p => p.PaymentDate >= now.AddDays(-7) || p.CreatedAt >= now.AddDays(-7)),
+                "month" => query.Where(p => p.PaymentDate >= new DateTime(now.Year, now.Month, 1) || p.CreatedAt >= new DateTime(now.Year, now.Month, 1)),
+                "year" => query.Where(p => p.PaymentDate >= new DateTime(now.Year, 1, 1) || p.CreatedAt >= new DateTime(now.Year, 1, 1)),
+                _ => query
+            };
+        }
 
         query = sortBy switch
         {
@@ -176,6 +190,18 @@ public class PaymentController : Controller
 
             await _context.SaveChangesAsync();
 
+            // Create notification for SuperAdmin
+            var adminIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (int.TryParse(adminIdClaim, out int saId))
+            {
+                await SuperAdminNotificationController.CreateNotification(_context, saId,
+                    "Payment Approved",
+                    $"Payment for {firm?.FirmName} ({formatCurrency(payment.Amount ?? 0)}) approved. Subscription extended by {months} month(s).",
+                    "PaymentApproved",
+                    "/Payment",
+                    "bi-check-circle-fill");
+            }
+
             return Json(new
             {
                 success = true,
@@ -217,6 +243,20 @@ public class PaymentController : Controller
 
         await _context.SaveChangesAsync();
 
+        // Create notification for SuperAdmin
+        var adminIdClaim2 = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (int.TryParse(adminIdClaim2, out int saId2))
+        {
+            await SuperAdminNotificationController.CreateNotification(_context, saId2,
+                "Payment Rejected",
+                $"Payment #{paymentId} was rejected. Reason: {reason ?? "No reason provided"}",
+                "PaymentRejected",
+                "/Payment",
+                "bi-x-circle-fill");
+        }
+
         return Json(new { success = true, message = "Payment rejected." });
     }
+
+    private static string formatCurrency(decimal amount) => $"₱{amount:N2}";
 }

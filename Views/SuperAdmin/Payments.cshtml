@@ -61,6 +61,12 @@
                     <button class="btn btn-outline-warning" onclick="filterPayments('Pending', this)">Pending</button>
                     <button class="btn btn-outline-danger" onclick="filterPayments('Failed', this)">Failed</button>
                 </div>
+                <select class="form-select form-select-sm d-inline-block me-2" style="width:auto;" id="periodFilter" onchange="loadPayments()">
+                    <option value="all">All Time</option>
+                    <option value="week">This Week</option>
+                    <option value="month">This Month</option>
+                    <option value="year">This Year</option>
+                </select>
                 <select class="form-select form-select-sm d-inline-block" style="width:auto;" id="sortBy" onchange="loadPayments()">
                     <option value="date">Sort by Date</option>
                     <option value="amount">Sort by Amount</option>
@@ -129,7 +135,8 @@
     async function loadPayments() {
         try {
             const sortBy = document.getElementById('sortBy').value;
-            const res = await fetch(`/Payment/GetPayments?status=${currentFilter}&sortBy=${sortBy}`);
+            const period = document.getElementById('periodFilter').value;
+            const res = await fetch(`/Payment/GetPayments?status=${currentFilter}&sortBy=${sortBy}&period=${period}`);
             const data = await res.json();
 
             if (data.length === 0) {

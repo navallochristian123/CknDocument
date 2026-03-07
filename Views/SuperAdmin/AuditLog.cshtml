@@ -1,0 +1,324 @@
+@{
+    ViewData["Title"] = "Audit Log";
+    Layout = "_SuperAdminLayout";
+}
+
+@section Styles {
+<style>
+    .audit-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; }
+    .audit-icon.auth { background: rgba(13,110,253,0.1); color: #0d6efd; }
+    .audit-icon.user { background: rgba(25,135,84,0.1); color: #198754; }
+    .audit-icon.doc { background: rgba(255,193,7,0.1); color: #ffc107; }
+    .audit-icon.general { background: rgba(108,117,125,0.1); color: #6c757d; }
+    .audit-icon.finance { background: rgba(13,202,240,0.1); color: #0dcaf0; }
+    .detail-row { display: none; }
+    .detail-row.show { display: table-row; }
+    .detail-cell { background: var(--bs-tertiary-bg, #f8f9fa); }
+    .clickable-row { cursor: pointer; }
+    .clickable-row:hover { background: var(--bs-tertiary-bg, #f8f9fa); }
+</style>
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0">Audit Log</h4>
+        <p class="text-muted mb-0">Track all SuperAdmin activities and system events</p>
+    </div>
+    <button class="btn btn-outline-secondary btn-sm" onclick="downloadAuditPDF()">
+        <i class="bi bi-file-earmark-pdf"></i> Download PDF
+    </button>
+</div>
+
+<!-- Stats Row -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small">Total Logs</div>
+                <h3 class="mb-0" id="statTotal">-</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small">Today</div>
+                <h3 class="mb-0 text-primary" id="statToday">-</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small">This Week</div>
+                <h3 class="mb-0 text-info" id="statWeek">-</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small">Categories</div>
+                <h3 class="mb-0 text-success" id="statCategories">-</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-body py-3">
+        <div class="row align-items-center g-2">
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" id="filterCategory" onchange="loadAuditLogs()">
+                    <option value="all">All Categories</option>
+                    <option value="Authentication">Authentication</option>
+                    <option value="UserManagement">User Management</option>
+                    <option value="DocumentManagement">Document Management</option>
+                    <option value="General">General</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" id="filterAction" onchange="loadAuditLogs()">
+                    <option value="all">All Actions</option>
+                    <option value="Login">Login</option>
+                    <option value="Logout">Logout</option>
+                    <option value="LoginFailed">Login Failed</option>
+                    <option value="AccountCreated">Account Created</option>
+                    <option value="AccountStatusChanged">Status Changed</option>
+                    <option value="PasswordChanged">Password Changed</option>
+                    <option value="FirmCreated">Firm Created</option>
+                    <option value="FirmUpdated">Firm Updated</option>
+                    <option value="FirmDeactivated">Firm Deactivated</option>
+                    <option value="PaymentApproved">Payment Approved</option>
+                    <option value="PaymentRejected">Payment Rejected</option>
+                    <option value="ExpenseCreated">Expense Created</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" id="filterPeriod" onchange="loadAuditLogs()">
+                    <option value="all">All Time</option>
+                    <option value="today">Today</option>
+                    <option value="week" selected>This Week</option>
+                    <option value="month">This Month</option>
+                    <option value="year">This Year</option>
+                </select>
+            </div>
+            <div class="col-md-3 text-end">
+                <span class="text-muted small" id="resultInfo">Loading...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Audit Log Table -->
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:40px;"></th>
+                        <th>Action</th>
+                        <th>Description</th>
+                        <th>Admin</th>
+                        <th>Category</th>
+                        <th>IP Address</th>
+                        <th>Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody id="auditTableBody">
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">
+                            <div class="spinner-border spinner-border-sm me-2"></div> Loading audit logs...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Pagination -->
+<div class="d-flex justify-content-between align-items-center mt-3">
+    <div class="text-muted small" id="paginationInfo"></div>
+    <nav>
+        <ul class="pagination pagination-sm mb-0" id="paginationControls"></ul>
+    </nav>
+</div>
+
+@section Scripts {
+<script>
+    let currentPage = 1;
+    let allLogs = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadAuditStats();
+        loadAuditLogs();
+    });
+
+    async function loadAuditStats() {
+        try {
+            const res = await fetch('/SuperAdminAuditLog/GetAuditStats');
+            const d = await res.json();
+            document.getElementById('statTotal').textContent = d.totalLogs;
+            document.getElementById('statToday').textContent = d.todayCount;
+            document.getElementById('statWeek').textContent = d.weekCount;
+            document.getElementById('statCategories').textContent = d.categoryBreakdown?.length || 0;
+        } catch (e) { console.error(e); }
+    }
+
+    async function loadAuditLogs(page) {
+        if (page) currentPage = page;
+        else currentPage = 1;
+
+        const category = document.getElementById('filterCategory').value;
+        const action = document.getElementById('filterAction').value;
+        const period = document.getElementById('filterPeriod').value;
+
+        const params = new URLSearchParams({
+            category, action, period,
+            page: currentPage, pageSize: 25
+        });
+
+        try {
+            const res = await fetch(`/SuperAdminAuditLog/GetAuditLogs?${params}`);
+            const data = await res.json();
+            allLogs = data.logs;
+            renderAuditTable(data);
+            renderPagination(data);
+            document.getElementById('resultInfo').textContent = `${data.totalCount} record(s) found`;
+        } catch (e) {
+            document.getElementById('auditTableBody').innerHTML =
+                '<tr><td colspan="7" class="text-center py-4 text-danger">Failed to load audit logs</td></tr>';
+        }
+    }
+
+    function renderAuditTable(data) {
+        const tbody = document.getElementById('auditTableBody');
+        if (!data.logs.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted"><i class="bi bi-journal-x fs-3 d-block mb-2"></i>No audit logs found</td></tr>';
+            return;
+        }
+
+        let html = '';
+        data.logs.forEach(log => {
+            const iconClass = getCategoryIconClass(log.actionCategory);
+            const icon = getActionIcon(log.action);
+            const timeAgo = getTimeAgo(log.timestamp);
+            const hasDetails = log.oldValues || log.newValues;
+
+            html += `<tr class="clickable-row" onclick="toggleDetail(${log.auditID})">
+                <td><div class="audit-icon ${iconClass}"><i class="bi ${icon}"></i></div></td>
+                <td><strong class="small">${esc(log.action)}</strong></td>
+                <td class="small">${esc(log.description || '-')}</td>
+                <td class="small">${esc(log.adminName)}</td>
+                <td><span class="badge bg-secondary-subtle text-secondary">${esc(log.actionCategory || 'General')}</span></td>
+                <td class="small text-muted">${esc(log.ipAddress || '-')}</td>
+                <td class="small" title="${new Date(log.timestamp).toLocaleString()}">${timeAgo}</td>
+            </tr>`;
+
+            if (hasDetails) {
+                html += `<tr class="detail-row" id="detail-${log.auditID}">
+                    <td colspan="7" class="detail-cell px-4 py-3">
+                        <div class="row">
+                            ${log.oldValues ? `<div class="col-md-6"><strong class="small text-muted">Old Values:</strong><pre class="small mb-0 mt-1">${esc(log.oldValues)}</pre></div>` : ''}
+                            ${log.newValues ? `<div class="col-md-6"><strong class="small text-muted">New Values:</strong><pre class="small mb-0 mt-1">${esc(log.newValues)}</pre></div>` : ''}
+                        </div>
+                    </td>
+                </tr>`;
+            }
+        });
+        tbody.innerHTML = html;
+    }
+
+    function toggleDetail(id) {
+        const row = document.getElementById('detail-' + id);
+        if (row) row.classList.toggle('show');
+    }
+
+    function renderPagination(data) {
+        const info = document.getElementById('paginationInfo');
+        const controls = document.getElementById('paginationControls');
+        const start = (data.page - 1) * data.pageSize + 1;
+        const end = Math.min(data.page * data.pageSize, data.totalCount);
+        info.textContent = `Showing ${start}-${end} of ${data.totalCount}`;
+
+        let html = '';
+        html += `<li class="page-item ${data.page <= 1 ? 'disabled' : ''}"><a class="page-link" href="#" onclick="loadAuditLogs(${data.page - 1}); return false;">Prev</a></li>`;
+        for (let i = 1; i <= data.totalPages && i <= 10; i++) {
+            html += `<li class="page-item ${i === data.page ? 'active' : ''}"><a class="page-link" href="#" onclick="loadAuditLogs(${i}); return false;">${i}</a></li>`;
+        }
+        html += `<li class="page-item ${data.page >= data.totalPages ? 'disabled' : ''}"><a class="page-link" href="#" onclick="loadAuditLogs(${data.page + 1}); return false;">Next</a></li>`;
+        controls.innerHTML = html;
+    }
+
+    function getCategoryIconClass(cat) {
+        switch (cat) {
+            case 'Authentication': return 'auth';
+            case 'UserManagement': return 'user';
+            case 'DocumentManagement': return 'doc';
+            default: return 'general';
+        }
+    }
+
+    function getActionIcon(action) {
+        const icons = {
+            'Login': 'bi-box-arrow-in-right', 'Logout': 'bi-box-arrow-right',
+            'LoginFailed': 'bi-shield-exclamation', 'AccountCreated': 'bi-person-plus',
+            'AccountStatusChanged': 'bi-person-gear', 'PasswordChanged': 'bi-key',
+            'FirmCreated': 'bi-buildings', 'FirmUpdated': 'bi-pencil-square',
+            'FirmDeactivated': 'bi-building-slash', 'PaymentApproved': 'bi-check-circle',
+            'PaymentRejected': 'bi-x-circle', 'ExpenseCreated': 'bi-cash'
+        };
+        return icons[action] || 'bi-journal-text';
+    }
+
+    function getTimeAgo(timestamp) {
+        const now = new Date();
+        const dt = new Date(timestamp);
+        const diff = Math.floor((now - dt) / 1000);
+        if (diff < 60) return 'Just now';
+        if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+        if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+        if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+        return dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    function downloadAuditPDF() {
+        if (!allLogs.length) return;
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('landscape');
+        let y = 20;
+
+        doc.setFontSize(18);
+        doc.setTextColor(13, 110, 253);
+        doc.text('CKN Admin - Audit Log Report', 14, y);
+        y += 10;
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(`Generated: ${new Date().toLocaleString()} | Total Records: ${allLogs.length}`, 14, y);
+        y += 10;
+
+        doc.autoTable({
+            startY: y,
+            head: [['Action', 'Description', 'Admin', 'Category', 'IP Address', 'Timestamp']],
+            body: allLogs.map(l => [
+                l.action,
+                l.description || '-',
+                l.adminName,
+                l.actionCategory || 'General',
+                l.ipAddress || '-',
+                new Date(l.timestamp).toLocaleString()
+            ]),
+            styles: { fontSize: 7, cellPadding: 2 },
+            headStyles: { fillColor: [13, 110, 253] },
+            theme: 'grid'
+        });
+
+        doc.save(`audit_log_${new Date().toISOString().split('T')[0]}.pdf`);
+    }
+</script>
+}

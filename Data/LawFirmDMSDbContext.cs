@@ -18,6 +18,7 @@ public class LawFirmDMSDbContext : DbContext
   // Platform/SuperAdmin DbSets (Merged from OwnerERP)
   // ==========================================
   public DbSet<SuperAdmin> SuperAdmins { get; set; } = null!;
+  public DbSet<SuperAdminNotification> SuperAdminNotifications { get; set; } = null!;
   public DbSet<FirmSubscription> FirmSubscriptions { get; set; } = null!;
   public DbSet<Invoice> Invoices { get; set; } = null!;
   public DbSet<InvoiceItem> InvoiceItems { get; set; } = null!;
@@ -70,6 +71,17 @@ public class LawFirmDMSDbContext : DbContext
       entity.HasIndex(e => e.Email).IsUnique();
       entity.Property(e => e.Status).HasDefaultValue("Active");
       entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETDATE()");
+    });
+
+    // SuperAdminNotification configuration
+    modelBuilder.Entity<SuperAdminNotification>(entity =>
+    {
+      entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETDATE()");
+      entity.Property(e => e.IsRead).HasDefaultValue(false);
+      entity.HasOne(n => n.SuperAdmin)
+                .WithMany()
+                .HasForeignKey(n => n.SuperAdminId)
+                .OnDelete(DeleteBehavior.Cascade);
     });
 
     // FirmSubscription configuration

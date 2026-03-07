@@ -1,0 +1,163 @@
+@{
+    ViewData["Title"] = "Notifications";
+    Layout = "_SuperAdminLayout";
+}
+
+@section Styles {
+<style>
+    .notif-item { border-left: 3px solid transparent; transition: all 0.2s; cursor: pointer; }
+    .notif-item:hover { background: var(--bs-tertiary-bg, #f8f9fa); }
+    .notif-item.unread { border-left-color: #0d6efd; background: rgba(13,110,253,0.03); }
+    .notif-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+    .notif-icon.payment { background: rgba(25,135,84,0.1); color: #198754; }
+    .notif-icon.firm { background: rgba(13,110,253,0.1); color: #0d6efd; }
+    .notif-icon.expense { background: rgba(255,193,7,0.1); color: #ffc107; }
+    .notif-icon.alert { background: rgba(220,53,69,0.1); color: #dc3545; }
+    .notif-icon.default { background: rgba(108,117,125,0.1); color: #6c757d; }
+</style>
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0">Notifications</h4>
+        <p class="text-muted mb-0">All SuperAdmin activity notifications</p>
+    </div>
+    <div>
+        <button class="btn btn-outline-primary btn-sm me-2" onclick="markAllRead()">
+            <i class="bi bi-check-all"></i> Mark All Read
+        </button>
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small">Total</div>
+                <h3 class="mb-0" id="statTotal">-</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small">Unread</div>
+                <h3 class="mb-0 text-primary" id="statUnread">-</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small">Read</div>
+                <h3 class="mb-0 text-success" id="statRead">-</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Notification List -->
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div id="notificationsContainer">
+            <div class="text-center py-5 text-muted">
+                <div class="spinner-border spinner-border-sm me-2"></div> Loading notifications...
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let notifications = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadAllNotifications();
+    });
+
+    async function loadAllNotifications() {
+        try {
+            const res = await fetch('/SuperAdminNotification/GetNotifications?take=100');
+            notifications = await res.json();
+            renderNotifications(notifications);
+
+            const countRes = await fetch('/SuperAdminNotification/GetUnreadCount');
+            const countData = await countRes.json();
+
+            document.getElementById('statTotal').textContent = notifications.length;
+            document.getElementById('statUnread').textContent = countData.count;
+            document.getElementById('statRead').textContent = notifications.length - countData.count;
+        } catch(e) {
+            document.getElementById('notificationsContainer').innerHTML =
+                '<div class="text-center py-5 text-danger">Failed to load notifications</div>';
+        }
+    }
+
+    function renderNotifications(notifs) {
+        const container = document.getElementById('notificationsContainer');
+        if (!notifs.length) {
+            container.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-bell-slash fs-1 d-block mb-3"></i>No notifications yet</div>';
+            return;
+        }
+
+        container.innerHTML = notifs.map(n => {
+            const iconClass = getIconClass(n.notificationType);
+            const icon = n.icon || 'bi-bell';
+            const unreadClass = n.isRead ? '' : 'unread';
+            const timeAgo = getTimeAgo(n.createdAt);
+
+            return `<div class="notif-item d-flex align-items-start gap-3 px-3 py-3 border-bottom ${unreadClass}" onclick="handleClick(${n.id}, '${escAttr(n.actionUrl)}')">
+                <div class="notif-icon ${iconClass}">
+                    <i class="bi ${esc(icon)}"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between">
+                        <div class="fw-semibold">${esc(n.title)}</div>
+                        ${!n.isRead ? '<span class="badge bg-primary" style="font-size:0.65rem;">NEW</span>' : ''}
+                    </div>
+                    <div class="text-muted small">${esc(n.message)}</div>
+                    <div class="text-muted" style="font-size:0.75rem;"><i class="bi bi-clock me-1"></i>${timeAgo}</div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function getIconClass(type) {
+        if (type.includes('Payment')) return 'payment';
+        if (type.includes('Firm')) return 'firm';
+        if (type.includes('Expense')) return 'expense';
+        if (type.includes('Rejected') || type.includes('Expired')) return 'alert';
+        return 'default';
+    }
+
+    async function handleClick(id, url) {
+        await fetch('/SuperAdminNotification/MarkAsRead', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'id=' + id
+        });
+        if (url) window.location.href = url;
+        else loadAllNotifications();
+    }
+
+    async function markAllRead() {
+        await fetch('/SuperAdminNotification/MarkAllAsRead', { method: 'POST' });
+        loadAllNotifications();
+    }
+
+    function getTimeAgo(ts) {
+        const now = new Date();
+        const dt = new Date(ts);
+        const diff = Math.floor((now - dt) / 1000);
+        if (diff < 60) return 'Just now';
+        if (diff < 3600) return Math.floor(diff / 60) + ' minutes ago';
+        if (diff < 86400) return Math.floor(diff / 3600) + ' hours ago';
+        if (diff < 604800) return Math.floor(diff / 86400) + ' days ago';
+        return dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function esc(s) { if(!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    function escAttr(s) { return (s||'').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+</script>
+}

@@ -331,6 +331,15 @@ public class LawFirmController : Controller
 
                 _logger.LogInformation("Law firm {FirmName} created by SuperAdmin {SuperAdminId}", firm.FirmName, superAdminId);
 
+                // Create notification
+                if (superAdminId != 0)
+                {
+                    await SuperAdminNotificationController.CreateNotification(_context, superAdminId,
+                        "New Law Firm Created",
+                        $"Law firm '{firm.FirmName}' was created with {request.SubscriptionPlan} plan.",
+                        "FirmCreated", "/LawFirm", "bi-buildings");
+                }
+
                 return Json(new
                 {
                     success = true,
@@ -473,6 +482,14 @@ public class LawFirmController : Controller
 
             _logger.LogInformation("Law firm {FirmId} deactivated by SuperAdmin {SuperAdminId}", id, superAdminId);
 
+            if (superAdminId != 0)
+            {
+                await SuperAdminNotificationController.CreateNotification(_context, superAdminId,
+                    "Law Firm Deactivated",
+                    $"Law firm '{firm.FirmName}' has been deactivated.",
+                    "FirmDeactivated", "/LawFirm", "bi-building-slash");
+            }
+
             return Json(new { success = true, message = "Law firm has been deactivated." });
         }
         catch (Exception ex)
@@ -515,6 +532,14 @@ public class LawFirmController : Controller
             );
 
             _logger.LogInformation("Law firm {FirmId} activated by SuperAdmin {SuperAdminId}", id, superAdminId);
+
+            if (superAdminId != 0)
+            {
+                await SuperAdminNotificationController.CreateNotification(_context, superAdminId,
+                    "Law Firm Activated",
+                    $"Law firm '{firm.FirmName}' has been activated.",
+                    "FirmActivated", "/LawFirm", "bi-building-check");
+            }
 
             return Json(new { success = true, message = "Law firm has been activated." });
         }

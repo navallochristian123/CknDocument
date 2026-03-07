@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CKNDocument.Data;
 using CKNDocument.Models.LawFirmDMS;
+using System.Security.Claims;
 
 namespace CKNDocument.Controllers.SuperAdmin;
 
@@ -95,6 +96,16 @@ public class ExpenseController : Controller
 
         _context.Expenses.Add(expense);
         await _context.SaveChangesAsync();
+
+        var adminIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (int.TryParse(adminIdClaim, out int saId))
+        {
+            await SuperAdminNotificationController.CreateNotification(_context, saId,
+                "Expense Added",
+                $"New expense '{input.Description}' for ₱{input.Amount:N2} ({input.Category ?? "Other"}).",
+                "ExpenseAdded", "/Expense", "bi-graph-down-arrow");
+        }
+
         return Json(new { success = true, id = expense.ExpenseID });
     }
 

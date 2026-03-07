@@ -3,6 +3,17 @@
     Layout = "_SuperAdminLayout";
 }
 
+@section Styles {
+<style>
+    .receipt-modal .receipt-header { border-bottom: 2px solid #0d6efd; padding-bottom: 15px; margin-bottom: 15px; }
+    .receipt-modal .receipt-logo { font-size: 1.5rem; font-weight: 700; color: #0d6efd; }
+    .receipt-modal .label { color: #6c757d; font-size: 0.8rem; }
+    .receipt-modal .receipt-table th { background: #f8f9fa; font-size: 0.8rem; }
+    .receipt-modal .receipt-table td { font-size: 0.85rem; }
+    .receipt-total { font-size: 1.1rem; font-weight: 700; }
+</style>
+}
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h4 class="mb-0">Invoices</h4>
@@ -49,13 +60,27 @@
     </div>
 </div>
 
-<!-- Filter Buttons -->
-<div class="mb-3">
-    <div class="btn-group btn-group-sm" role="group">
-        <button class="btn btn-outline-primary active" onclick="filterInvoices('all', this)">All</button>
-        <button class="btn btn-outline-success" onclick="filterInvoices('Paid', this)">Paid</button>
-        <button class="btn btn-outline-warning" onclick="filterInvoices('Pending', this)">Pending</button>
-        <button class="btn btn-outline-danger" onclick="filterInvoices('Overdue', this)">Overdue</button>
+<!-- Filters -->
+<div class="card mb-3 border-0 shadow-sm">
+    <div class="card-body py-3">
+        <div class="row align-items-center g-2">
+            <div class="col-md-6">
+                <div class="btn-group btn-group-sm" role="group">
+                    <button class="btn btn-outline-primary active" onclick="filterInvoices('all', this)">All</button>
+                    <button class="btn btn-outline-success" onclick="filterInvoices('Paid', this)">Paid</button>
+                    <button class="btn btn-outline-warning" onclick="filterInvoices('Pending', this)">Pending</button>
+                    <button class="btn btn-outline-danger" onclick="filterInvoices('Overdue', this)">Overdue</button>
+                </div>
+            </div>
+            <div class="col-md-6 text-end">
+                <select class="form-select form-select-sm d-inline-block" style="width: auto;" id="periodFilter" onchange="loadInvoices()">
+                    <option value="all">All Time</option>
+                    <option value="week">This Week</option>
+                    <option value="month">This Month</option>
+                    <option value="year">This Year</option>
+                </select>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -75,11 +100,12 @@
                         <th>Due Date</th>
                         <th>Payments</th>
                         <th>Status</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody id="invoiceTableBody">
                     <tr>
-                        <td colspan="9" class="text-center py-4 text-muted">
+                        <td colspan="10" class="text-center py-4 text-muted">
                             <div class="spinner-border spinner-border-sm me-2"></div> Loading invoices...
                         </td>
                     </tr>
@@ -89,10 +115,30 @@
     </div>
 </div>
 
+<!-- Receipt Modal -->
+<div class="modal fade" id="receiptModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content receipt-modal">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-receipt me-2"></i>Invoice Receipt</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="receiptContent">
+                <div class="text-center py-4"><div class="spinner-border"></div></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="downloadReceipt()"><i class="bi bi-download me-1"></i>Download Receipt</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
 <script>
     let currentFilter = 'all';
     let allInvoices = [];
+    let currentReceipt = null;
 
     document.addEventListener('DOMContentLoaded', () => {
         loadStats();
@@ -113,36 +159,45 @@
 
     async function loadInvoices() {
         try {
-            const url = currentFilter === 'all'
-                ? '/Invoice/GetInvoices'
-                : `/Invoice/GetInvoices?status=${currentFilter}`;
+            const period = document.getElementById('periodFilter').value;
+            let url = '/Invoice/GetInvoices?';
+            if (currentFilter !== 'all') url += `status=${currentFilter}&`;
+            if (period !== 'all') url += `period=${period}&`;
             const res = await fetch(url);
             allInvoices = await res.json();
             renderTable(allInvoices);
         } catch (e) {
             document.getElementById('invoiceTableBody').innerHTML =
-                '<tr><td colspan="9" class="text-center py-4 text-danger">Failed to load invoices</td></tr>';
+                '<tr><td colspan="10" class="text-center py-4 text-danger">Failed to load invoices</td></tr>';
         }
     }
 
     function renderTable(invoices) {
         const tbody = document.getElementById('invoiceTableBody');
         if (!invoices.length) {
-            tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-muted">No invoices found</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center py-4 text-muted">No invoices found</td></tr>';
             return;
         }
         tbody.innerHTML = invoices.map(i => {
             const statusClass = i.status === 'Paid' ? 'success' : i.status === 'Overdue' ? 'danger' : 'warning';
             return `<tr>
-                <td><strong>${i.invoiceNumber}</strong></td>
-                <td>${i.firmName}</td>
+                <td><strong>${esc(i.invoiceNumber)}</strong></td>
+                <td>${esc(i.firmName)}</td>
                 <td>₱${i.totalAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
                 <td class="text-success">₱${i.paidAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
                 <td class="${i.balance > 0 ? 'text-danger' : ''}">₱${i.balance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
-                <td>${new Date(i.invoiceDate).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
-                <td>${new Date(i.dueDate).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                <td>${formatDate(i.invoiceDate)}</td>
+                <td>${formatDate(i.dueDate)}</td>
                 <td><span class="badge bg-secondary">${i.paymentCount}</span></td>
                 <td><span class="badge bg-${statusClass}">${i.status}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick="viewReceipt(${i.invoiceID})" title="View Receipt">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" onclick="downloadSingleReceipt(${i.invoiceID})" title="Download Receipt">
+                        <i class="bi bi-download"></i>
+                    </button>
+                </td>
             </tr>`;
         }).join('');
     }
@@ -154,6 +209,233 @@
         loadInvoices();
     }
 
+    function formatDate(d) { return d ? new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'; }
+    function formatCurrency(v) { return '₱' + Number(v||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+    function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    // === Receipt Functions ===
+    async function viewReceipt(invoiceId) {
+        const modal = new bootstrap.Modal(document.getElementById('receiptModal'));
+        document.getElementById('receiptContent').innerHTML = '<div class="text-center py-4"><div class="spinner-border"></div></div>';
+        modal.show();
+
+        try {
+            const res = await fetch(`/Invoice/GetInvoiceReceipt?id=${invoiceId}`);
+            const data = await res.json();
+            if (!data.success) {
+                document.getElementById('receiptContent').innerHTML = `<div class="text-center text-danger py-4">${esc(data.message)}</div>`;
+                return;
+            }
+            currentReceipt = data;
+            renderReceipt(data);
+        } catch(e) {
+            document.getElementById('receiptContent').innerHTML = '<div class="text-center text-danger py-4">Failed to load receipt</div>';
+        }
+    }
+
+    function renderReceipt(d) {
+        const statusClass = d.status === 'Paid' ? 'success' : d.status === 'Overdue' ? 'danger' : 'warning';
+        let itemsHtml = '';
+        if (d.items && d.items.length) {
+            itemsHtml = `<table class="table receipt-table table-sm mt-3">
+                <thead><tr><th>Description</th><th class="text-end">Qty</th><th class="text-end">Unit Price</th><th class="text-end">Subtotal</th></tr></thead>
+                <tbody>${d.items.map(it => `<tr><td>${esc(it.description)}</td><td class="text-end">${it.quantity}</td><td class="text-end">${formatCurrency(it.unitPrice)}</td><td class="text-end">${formatCurrency(it.subTotal)}</td></tr>`).join('')}</tbody>
+            </table>`;
+        }
+
+        let paymentsHtml = '';
+        if (d.payments && d.payments.length) {
+            paymentsHtml = `<h6 class="mt-4 mb-2">Payment History</h6>
+            <table class="table receipt-table table-sm">
+                <thead><tr><th>Reference</th><th>Method</th><th class="text-end">Amount</th><th class="text-end">Tax</th><th class="text-end">Net</th><th>Date</th></tr></thead>
+                <tbody>${d.payments.map(p => `<tr><td>${esc(p.paymentReference)}</td><td>${esc(p.method)}</td><td class="text-end">${formatCurrency(p.amount)}</td><td class="text-end">${formatCurrency(p.taxAmount)}</td><td class="text-end">${formatCurrency(p.netAmount)}</td><td>${formatDate(p.date)}</td></tr>`).join('')}</tbody>
+            </table>`;
+        }
+
+        document.getElementById('receiptContent').innerHTML = `
+            <div class="receipt-header d-flex justify-content-between">
+                <div>
+                    <div class="receipt-logo"><img src="/images/document_logo.png" alt="Logo" style="width:28px;height:28px;"> CKN Document</div>
+                    <div class="small text-muted">Invoice Receipt</div>
+                </div>
+                <div class="text-end">
+                    <div class="fw-bold">${esc(d.invoiceNumber)}</div>
+                    <span class="badge bg-${statusClass}">${esc(d.status)}</span>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="label">Bill To</div>
+                    <div class="fw-semibold">${esc(d.firmName)}</div>
+                    <div class="small text-muted">${esc(d.firmAddress)}</div>
+                    <div class="small text-muted">${esc(d.firmEmail)}</div>
+                    <div class="small text-muted">Plan: ${esc(d.subscriptionPlan)}</div>
+                </div>
+                <div class="col-md-6 text-end">
+                    <div class="label">Invoice Date</div>
+                    <div>${formatDate(d.invoiceDate)}</div>
+                    <div class="label mt-2">Due Date</div>
+                    <div>${formatDate(d.dueDate)}</div>
+                </div>
+            </div>
+
+            ${itemsHtml}
+
+            <div class="border-top pt-3 mt-3">
+                <div class="row">
+                    <div class="col-md-6"></div>
+                    <div class="col-md-6">
+                        <div class="d-flex justify-content-between"><span>Total Amount:</span><span class="fw-bold">${formatCurrency(d.totalAmount)}</span></div>
+                        <div class="d-flex justify-content-between text-success"><span>Paid:</span><span>${formatCurrency(d.paidAmount)}</span></div>
+                        <div class="d-flex justify-content-between border-top mt-2 pt-2"><span class="receipt-total">Balance Due:</span><span class="receipt-total ${d.balance > 0 ? 'text-danger' : 'text-success'}">${formatCurrency(d.balance)}</span></div>
+                    </div>
+                </div>
+            </div>
+
+            ${d.notes ? `<div class="mt-3 p-2 rounded" style="background:#f8f9fa;"><strong class="small">Notes:</strong> <span class="small">${esc(d.notes)}</span></div>` : ''}
+            ${paymentsHtml}
+        `;
+    }
+
+    function downloadReceipt() {
+        if (!currentReceipt) return;
+        generateReceiptPDF(currentReceipt);
+    }
+
+    async function downloadSingleReceipt(invoiceId) {
+        try {
+            const res = await fetch(`/Invoice/GetInvoiceReceipt?id=${invoiceId}`);
+            const data = await res.json();
+            if (!data.success) { alert(data.message); return; }
+            generateReceiptPDF(data);
+        } catch(e) { alert('Failed to download receipt'); }
+    }
+
+    function generateReceiptPDF(d) {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        // Header
+        doc.setFontSize(20);
+        doc.setTextColor(13, 110, 253);
+        doc.text('CKN Document', 14, 20);
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text('INVOICE RECEIPT', 14, 28);
+
+        // Invoice info
+        doc.setFontSize(12);
+        doc.setTextColor(0);
+        doc.text(d.invoiceNumber, 196, 20, { align: 'right' });
+        doc.setFontSize(9);
+        doc.setTextColor(100);
+        doc.text(`Status: ${d.status}`, 196, 27, { align: 'right' });
+
+        doc.setDrawColor(13, 110, 253);
+        doc.setLineWidth(0.5);
+        doc.line(14, 32, 196, 32);
+
+        // Bill To
+        let y = 40;
+        doc.setFontSize(9);
+        doc.setTextColor(100);
+        doc.text('Bill To:', 14, y);
+        doc.setTextColor(0);
+        doc.setFontSize(11);
+        doc.text(d.firmName || 'N/A', 14, y + 6);
+        doc.setFontSize(9);
+        doc.setTextColor(100);
+        if (d.firmAddress) doc.text(d.firmAddress, 14, y + 12);
+        if (d.firmEmail) doc.text(d.firmEmail, 14, y + 18);
+        doc.text('Plan: ' + (d.subscriptionPlan || 'N/A'), 14, y + 24);
+
+        // Dates
+        doc.text('Invoice Date:', 140, y);
+        doc.setTextColor(0);
+        doc.text(d.invoiceDate ? new Date(d.invoiceDate).toLocaleDateString() : 'N/A', 196, y, { align: 'right' });
+        doc.setTextColor(100);
+        doc.text('Due Date:', 140, y + 8);
+        doc.setTextColor(0);
+        doc.text(d.dueDate ? new Date(d.dueDate).toLocaleDateString() : 'N/A', 196, y + 8, { align: 'right' });
+
+        y += 35;
+
+        // Items table
+        if (d.items && d.items.length) {
+            doc.autoTable({
+                startY: y,
+                head: [['Description', 'Qty', 'Unit Price', 'Subtotal']],
+                body: d.items.map(it => [it.description, it.quantity, 'PHP ' + it.unitPrice.toFixed(2), 'PHP ' + it.subTotal.toFixed(2)]),
+                styles: { fontSize: 8 },
+                headStyles: { fillColor: [13, 110, 253] },
+                theme: 'grid',
+                columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } }
+            });
+            y = doc.lastAutoTable.finalY + 10;
+        }
+
+        // Totals
+        doc.setFontSize(10);
+        doc.setTextColor(0);
+        doc.text('Total Amount:', 130, y);
+        doc.text('PHP ' + Number(d.totalAmount).toFixed(2), 196, y, { align: 'right' });
+        y += 7;
+        doc.setTextColor(25, 135, 84);
+        doc.text('Paid:', 130, y);
+        doc.text('PHP ' + Number(d.paidAmount).toFixed(2), 196, y, { align: 'right' });
+        y += 7;
+        doc.setDrawColor(0);
+        doc.line(130, y - 2, 196, y - 2);
+        doc.setFontSize(12);
+        doc.setTextColor(d.balance > 0 ? 220 : 25, d.balance > 0 ? 53 : 135, d.balance > 0 ? 69 : 84);
+        doc.text('Balance Due:', 130, y + 3);
+        doc.text('PHP ' + Number(d.balance).toFixed(2), 196, y + 3, { align: 'right' });
+
+        y += 15;
+
+        // Payment history
+        if (d.payments && d.payments.length) {
+            doc.setFontSize(10);
+            doc.setTextColor(0);
+            doc.text('Payment History', 14, y);
+            y += 3;
+            doc.autoTable({
+                startY: y,
+                head: [['Reference', 'Method', 'Amount', 'Tax', 'Net', 'Date']],
+                body: d.payments.map(p => [
+                    p.paymentReference || '-',
+                    p.method,
+                    'PHP ' + Number(p.amount).toFixed(2),
+                    'PHP ' + Number(p.taxAmount).toFixed(2),
+                    'PHP ' + Number(p.netAmount).toFixed(2),
+                    p.date ? new Date(p.date).toLocaleDateString() : 'N/A'
+                ]),
+                styles: { fontSize: 7 },
+                headStyles: { fillColor: [108, 117, 125] },
+                theme: 'grid'
+            });
+        }
+
+        // Notes
+        if (d.notes) {
+            const finalY = d.payments?.length ? doc.lastAutoTable.finalY + 10 : y + 10;
+            doc.setFontSize(8);
+            doc.setTextColor(100);
+            doc.text('Notes: ' + d.notes, 14, finalY);
+        }
+
+        // Footer
+        const pageHeight = doc.internal.pageSize.height;
+        doc.setFontSize(7);
+        doc.setTextColor(150);
+        doc.text('This is a system-generated receipt from CKN Document Management System.', 14, pageHeight - 15);
+        doc.text(`Generated: ${new Date().toLocaleString()}`, 14, pageHeight - 10);
+
+        doc.save(`receipt_${d.invoiceNumber || 'invoice'}.pdf`);
+    }
+
+    // === PDF Report Download ===
     function downloadPDF() {
         if (!allInvoices.length) return;
         const { jsPDF } = window.jspdf;

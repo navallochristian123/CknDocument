@@ -96,6 +96,24 @@
                 </div>
                 
                 <div class="nav-section">
+                    <div class="nav-section-title" id="nav-system">System</div>
+                    <ul class="nav flex-column" role="menu" aria-labelledby="nav-system">
+                        <li class="nav-item" role="none">
+                            <a class="nav-link" asp-controller="SuperAdminAuditLog" asp-action="Index" role="menuitem">
+                                <i class="bi bi-journal-text" aria-hidden="true"></i>
+                                <span>Audit Log</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" role="none">
+                            <a class="nav-link" asp-controller="SuperAdminNotification" asp-action="Index" role="menuitem">
+                                <i class="bi bi-bell" aria-hidden="true"></i>
+                                <span>Notifications</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="nav-section">
                     <div class="nav-section-title" id="nav-account">Account</div>
                     <ul class="nav flex-column" role="menu" aria-labelledby="nav-account">
                         <li class="nav-item" role="none">
@@ -125,7 +143,26 @@
         <main class="main-content" id="main-content" role="main">
             <header class="header">
                 <h1 class="header-title">@ViewData["Title"]</h1>
-                <div class="header-actions">
+                <div class="header-actions d-flex align-items-center gap-2">
+                    <!-- Notification Bell -->
+                    <div class="dropdown" id="notificationDropdown">
+                        <button class="btn btn-outline-secondary position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside" id="notifBellBtn">
+                            <i class="bi bi-bell"></i>
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" id="notifBadge">0</span>
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end shadow-lg" style="width: 380px; max-height: 480px; overflow: hidden;">
+                            <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+                                <h6 class="mb-0">Notifications</h6>
+                                <button class="btn btn-link btn-sm text-decoration-none p-0" onclick="markAllNotificationsRead()">Mark all read</button>
+                            </div>
+                            <div id="notifList" style="max-height: 380px; overflow-y: auto;">
+                                <div class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm"></div></div>
+                            </div>
+                            <div class="border-top px-3 py-2 text-center">
+                                <a href="/SuperAdminAuditLog" class="text-decoration-none small">View All Activity</a>
+                            </div>
+                        </div>
+                    </div>
                     <form asp-controller="Auth" asp-action="Logout" method="post">
                         <button type="submit" class="btn btn-secondary">
                             <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
@@ -218,5 +255,117 @@
         })();
     </script>
     @await RenderSectionAsync("Scripts", required: false)
+
+    <script>
+        // SuperAdmin Notification System
+        (function() {
+            let notifLoaded = false;
+
+            async function loadNotificationBadge() {
+                try {
+                    const res = await fetch('/SuperAdminNotification/GetUnreadCount');
+                    const data = await res.json();
+                    const badge = document.getElementById('notifBadge');
+                    if (data.count > 0) {
+                        badge.textContent = data.count > 99 ? '99+' : data.count;
+                        badge.classList.remove('d-none');
+                    } else {
+                        badge.classList.add('d-none');
+                    }
+                } catch(e) { console.error('Notification badge error:', e); }
+            }
+
+            async function loadNotifications() {
+                try {
+                    const res = await fetch('/SuperAdminNotification/GetNotifications?take=20');
+                    const notifs = await res.json();
+                    const container = document.getElementById('notifList');
+
+                    if (!notifs.length) {
+                        container.innerHTML = '<div class="text-center py-4 text-muted"><i class="bi bi-bell-slash fs-3 d-block mb-2"></i>No notifications yet</div>';
+                        return;
+                    }
+
+                    container.innerHTML = notifs.map(n => {
+                        const icon = n.icon || 'bi-bell';
+                        const readClass = n.isRead ? 'opacity-50' : '';
+                        const bgClass = n.isRead ? '' : 'bg-light';
+                        const timeAgo = getNotifTimeAgo(n.createdAt);
+                        const clickAction = n.actionUrl
+                            ? `onclick="handleNotifClick(${n.id}, '${escAttr(n.actionUrl)}')" style="cursor:pointer;"`
+                            : `onclick="markNotificationRead(${n.id})" style="cursor:pointer;"`;
+                        return `<div class="px-3 py-2 border-bottom ${bgClass} ${readClass}" ${clickAction}>
+                            <div class="d-flex align-items-start gap-2">
+                                <i class="bi ${icon} mt-1"></i>
+                                <div class="flex-grow-1">
+                                    <div class="fw-semibold small">${escHtml(n.title)}</div>
+                                    <div class="text-muted small">${escHtml(n.message)}</div>
+                                    <div class="text-muted" style="font-size:0.7rem;">${timeAgo}</div>
+                                </div>
+                                ${!n.isRead ? '<span class="badge bg-primary rounded-pill" style="font-size:0.6rem;">NEW</span>' : ''}
+                            </div>
+                        </div>`;
+                    }).join('');
+                    notifLoaded = true;
+                } catch(e) { console.error('Notification load error:', e); }
+            }
+
+            function getNotifTimeAgo(ts) {
+                const now = new Date();
+                const dt = new Date(ts);
+                const diff = Math.floor((now - dt) / 1000);
+                if (diff < 60) return 'Just now';
+                if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+                if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+                if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+                return dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+            }
+
+            function escHtml(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+            function escAttr(s) { return (s||'').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+
+            // Global functions
+            window.handleNotifClick = async function(id, url) {
+                await fetch('/SuperAdminNotification/MarkAsRead', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'id=' + id
+                });
+                loadNotificationBadge();
+                if (url) window.location.href = url;
+                else loadNotifications();
+            };
+
+            window.markNotificationRead = async function(id) {
+                await fetch('/SuperAdminNotification/MarkAsRead', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'id=' + id
+                });
+                loadNotificationBadge();
+                loadNotifications();
+            };
+
+            window.markAllNotificationsRead = async function() {
+                await fetch('/SuperAdminNotification/MarkAllAsRead', { method: 'POST' });
+                loadNotificationBadge();
+                loadNotifications();
+            };
+
+            // Load badge on page load, reload every 30s
+            document.addEventListener('DOMContentLoaded', function() {
+                loadNotificationBadge();
+                setInterval(loadNotificationBadge, 30000);
+
+                // Load notifications when dropdown opens
+                const bellBtn = document.getElementById('notifBellBtn');
+                if (bellBtn) {
+                    bellBtn.addEventListener('click', function() {
+                        loadNotifications();
+                    });
+                }
+            });
+        })();
+    </script>
 </body>
 </html>
