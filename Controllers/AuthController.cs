@@ -6,6 +6,7 @@ using CKNDocument.Data;
 using CKNDocument.Models.DTOs;
 using CKNDocument.Models.LawFirmDMS;
 using CKNDocument.Services;
+using CKNDocument.Controllers.SuperAdmin;
 using System.Security.Claims;
 
 namespace CKNDocument.Controllers;
@@ -155,6 +156,13 @@ public class AuthController : Controller
 
                     // Log successful login
                     await _auditLogService.LogLoginAsync(null, superAdmin.SuperAdminId, superAdmin.Email, true);
+
+                    // Create login notification for SuperAdmin
+                    await SuperAdminNotificationController.CreateNotification(
+                        _context, superAdmin.SuperAdminId,
+                        "Login Detected",
+                        $"SuperAdmin '{superAdmin.FullName}' logged in at {DateTime.UtcNow:MMM dd, yyyy hh:mm tt} UTC.",
+                        "Login", "/SuperAdminDashboard", "bi-box-arrow-in-right");
 
                     _logger.LogInformation("SuperAdmin {Email} logged in", superAdmin.Email);
 

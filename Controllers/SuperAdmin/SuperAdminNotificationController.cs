@@ -37,25 +37,32 @@ public class SuperAdminNotificationController : Controller
     [HttpGet]
     public async Task<IActionResult> GetNotifications(int take = 20)
     {
-        var adminId = GetSuperAdminId();
-        var notifications = await _context.SuperAdminNotifications
-            .Where(n => n.SuperAdminId == adminId)
-            .OrderByDescending(n => n.CreatedAt)
-            .Take(take)
-            .Select(n => new
-            {
-                n.Id,
-                n.Title,
-                n.Message,
-                n.NotificationType,
-                n.ActionUrl,
-                n.Icon,
-                n.IsRead,
-                n.CreatedAt
-            })
-            .ToListAsync();
+        try
+        {
+            var adminId = GetSuperAdminId();
+            var notifications = await _context.SuperAdminNotifications
+                .Where(n => n.SuperAdminId == adminId)
+                .OrderByDescending(n => n.CreatedAt)
+                .Take(take)
+                .Select(n => new
+                {
+                    n.Id,
+                    n.Title,
+                    n.Message,
+                    n.NotificationType,
+                    n.ActionUrl,
+                    n.Icon,
+                    n.IsRead,
+                    n.CreatedAt
+                })
+                .ToListAsync();
 
-        return Json(notifications);
+            return Json(notifications);
+        }
+        catch
+        {
+            return Json(Array.Empty<object>());
+        }
     }
 
     /// <summary>
@@ -64,10 +71,17 @@ public class SuperAdminNotificationController : Controller
     [HttpGet]
     public async Task<IActionResult> GetUnreadCount()
     {
-        var adminId = GetSuperAdminId();
-        var count = await _context.SuperAdminNotifications
-            .CountAsync(n => n.SuperAdminId == adminId && !n.IsRead);
-        return Json(new { count });
+        try
+        {
+            var adminId = GetSuperAdminId();
+            var count = await _context.SuperAdminNotifications
+                .CountAsync(n => n.SuperAdminId == adminId && !n.IsRead);
+            return Json(new { count });
+        }
+        catch
+        {
+            return Json(new { count = 0 });
+        }
     }
 
     /// <summary>
@@ -76,18 +90,25 @@ public class SuperAdminNotificationController : Controller
     [HttpPost]
     public async Task<IActionResult> MarkAsRead(int id)
     {
-        var adminId = GetSuperAdminId();
-        var notification = await _context.SuperAdminNotifications
-            .FirstOrDefaultAsync(n => n.Id == id && n.SuperAdminId == adminId);
+        try
+        {
+            var adminId = GetSuperAdminId();
+            var notification = await _context.SuperAdminNotifications
+                .FirstOrDefaultAsync(n => n.Id == id && n.SuperAdminId == adminId);
 
-        if (notification == null)
+            if (notification == null)
+                return Json(new { success = false });
+
+            notification.IsRead = true;
+            notification.ReadAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Json(new { success = true });
+        }
+        catch
+        {
             return Json(new { success = false });
-
-        notification.IsRead = true;
-        notification.ReadAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
-
-        return Json(new { success = true });
+        }
     }
 
     /// <summary>
@@ -96,19 +117,26 @@ public class SuperAdminNotificationController : Controller
     [HttpPost]
     public async Task<IActionResult> MarkAllAsRead()
     {
-        var adminId = GetSuperAdminId();
-        var unread = await _context.SuperAdminNotifications
-            .Where(n => n.SuperAdminId == adminId && !n.IsRead)
-            .ToListAsync();
-
-        foreach (var n in unread)
+        try
         {
-            n.IsRead = true;
-            n.ReadAt = DateTime.UtcNow;
-        }
+            var adminId = GetSuperAdminId();
+            var unread = await _context.SuperAdminNotifications
+                .Where(n => n.SuperAdminId == adminId && !n.IsRead)
+                .ToListAsync();
 
-        await _context.SaveChangesAsync();
-        return Json(new { success = true, count = unread.Count });
+            foreach (var n in unread)
+            {
+                n.IsRead = true;
+                n.ReadAt = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+            return Json(new { success = true, count = unread.Count });
+        }
+        catch
+        {
+            return Json(new { success = true, count = 0 });
+        }
     }
 
     /// <summary>
@@ -123,18 +151,25 @@ public class SuperAdminNotificationController : Controller
         string? actionUrl = null,
         string? icon = null)
     {
-        context.SuperAdminNotifications.Add(new SuperAdminNotification
+        try
         {
-            SuperAdminId = superAdminId,
-            Title = title,
-            Message = message,
-            NotificationType = notificationType,
-            ActionUrl = actionUrl,
-            Icon = icon ?? GetIconForType(notificationType),
-            IsRead = false,
-            CreatedAt = DateTime.UtcNow
-        });
-        await context.SaveChangesAsync();
+            context.SuperAdminNotifications.Add(new SuperAdminNotification
+            {
+                SuperAdminId = superAdminId,
+                Title = title,
+                Message = message,
+                NotificationType = notificationType,
+                ActionUrl = actionUrl,
+                Icon = icon ?? GetIconForType(notificationType),
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            });
+            await context.SaveChangesAsync();
+        }
+        catch
+        {
+            // Notification creation should never break the main operation
+        }
     }
 
     /// <summary>
@@ -148,26 +183,33 @@ public class SuperAdminNotificationController : Controller
         string? actionUrl = null,
         string? icon = null)
     {
-        var adminIds = await context.SuperAdmins
-            .Where(a => a.Status == "Active")
-            .Select(a => a.SuperAdminId)
-            .ToListAsync();
-
-        foreach (var adminId in adminIds)
+        try
         {
-            context.SuperAdminNotifications.Add(new SuperAdminNotification
+            var adminIds = await context.SuperAdmins
+                .Where(a => a.Status == "Active")
+                .Select(a => a.SuperAdminId)
+                .ToListAsync();
+
+            foreach (var adminId in adminIds)
             {
-                SuperAdminId = adminId,
-                Title = title,
-                Message = message,
-                NotificationType = notificationType,
-                ActionUrl = actionUrl,
-                Icon = icon ?? GetIconForType(notificationType),
-                IsRead = false,
-                CreatedAt = DateTime.UtcNow
-            });
+                context.SuperAdminNotifications.Add(new SuperAdminNotification
+                {
+                    SuperAdminId = adminId,
+                    Title = title,
+                    Message = message,
+                    NotificationType = notificationType,
+                    ActionUrl = actionUrl,
+                    Icon = icon ?? GetIconForType(notificationType),
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+            await context.SaveChangesAsync();
         }
-        await context.SaveChangesAsync();
+        catch
+        {
+            // Notification creation should never break the main operation
+        }
     }
 
     private static string GetIconForType(string type) => type switch

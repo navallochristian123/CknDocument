@@ -161,6 +161,70 @@ using (var scope = app.Services.CreateScope())
             var logger2 = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
             logger2.LogWarning(colEx, "Could not auto-add MaxStorageMB column (may already exist).");
         }
+
+        // Auto-add missing Audit_Log columns required for SuperAdmin audit logging
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(@"
+                IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Audit_Log') AND name = 'SuperAdminId')
+                    ALTER TABLE [Audit_Log] ADD [SuperAdminId] INT NULL;
+
+                IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Audit_Log') AND name = 'FirmID')
+                    ALTER TABLE [Audit_Log] ADD [FirmID] INT NULL;
+
+                IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Audit_Log') AND name = 'Description')
+                    ALTER TABLE [Audit_Log] ADD [Description] NVARCHAR(1000) NULL;
+
+                IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Audit_Log') AND name = 'OldValues')
+                    ALTER TABLE [Audit_Log] ADD [OldValues] NVARCHAR(2000) NULL;
+
+                IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Audit_Log') AND name = 'NewValues')
+                    ALTER TABLE [Audit_Log] ADD [NewValues] NVARCHAR(2000) NULL;
+
+                IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Audit_Log') AND name = 'UserAgent')
+                    ALTER TABLE [Audit_Log] ADD [UserAgent] NVARCHAR(500) NULL;
+
+                IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Audit_Log') AND name = 'ActionCategory')
+                    ALTER TABLE [Audit_Log] ADD [ActionCategory] NVARCHAR(50) NULL;
+            ");
+        }
+        catch (Exception auditColEx)
+        {
+            var logger2 = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+            logger2.LogWarning(auditColEx, "Could not auto-add Audit_Log columns (may already exist).");
+        }
+
+        // Auto-create SuperAdminNotification table if missing
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(@"
+                IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'SuperAdminNotification')
+                BEGIN
+                    CREATE TABLE [dbo].[SuperAdminNotification] (
+                        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [SuperAdminId] INT NOT NULL,
+                        [Title] NVARCHAR(255) NOT NULL,
+                        [Message] NVARCHAR(1000) NOT NULL,
+                        [NotificationType] NVARCHAR(50) NOT NULL,
+                        [ActionUrl] NVARCHAR(500) NULL,
+                        [Icon] NVARCHAR(50) NULL,
+                        [IsRead] BIT NOT NULL DEFAULT 0,
+                        [ReadAt] DATETIME2 NULL,
+                        [CreatedAt] DATETIME2 NULL DEFAULT GETDATE(),
+                        [UpdatedAt] DATETIME2 NULL,
+                        CONSTRAINT [FK_SuperAdminNotification_SuperAdmin] FOREIGN KEY ([SuperAdminId])
+                            REFERENCES [dbo].[SuperAdmin]([SuperAdminId]) ON DELETE CASCADE
+                    );
+                    CREATE INDEX [IX_SuperAdminNotification_SuperAdminId] ON [dbo].[SuperAdminNotification]([SuperAdminId]);
+                    CREATE INDEX [IX_SuperAdminNotification_IsRead] ON [dbo].[SuperAdminNotification]([IsRead]);
+                    CREATE INDEX [IX_SuperAdminNotification_CreatedAt] ON [dbo].[SuperAdminNotification]([CreatedAt] DESC);
+                END");
+        }
+        catch (Exception notifEx)
+        {
+            var logger3 = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+            logger3.LogWarning(notifEx, "Could not auto-create SuperAdminNotification table (may already exist).");
+        }
     }
     catch (Exception ex)
     {
