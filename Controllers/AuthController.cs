@@ -195,6 +195,16 @@ public class AuthController : Controller
                 return View("~/Views/Auth/Login.cshtml", request);
             }
 
+            // Check if the user's law firm is active
+            if (user.Firm != null && user.Firm.Status != "Active")
+            {
+                await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, "Law firm deactivated", user.FirmID);
+                TempData["ToastType"] = "error";
+                TempData["ToastMessage"] = "Your law firm account has been deactivated. Please contact the administrator.";
+                ViewData["Firms"] = await GetFirmsForDropdown();
+                return View("~/Views/Auth/Login.cshtml", request);
+            }
+
             // Check account status
             if (user.Status == "Pending")
             {

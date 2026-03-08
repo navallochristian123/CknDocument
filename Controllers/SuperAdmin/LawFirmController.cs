@@ -413,6 +413,32 @@ public class LawFirmController : Controller
                 }
             }
 
+            // Cascade user status based on firm status change
+            if (oldStatus == "Active" && request.Status != "Active")
+            {
+                // Firm being deactivated: disable all active users
+                var usersToDisable = await _context.Users
+                    .Where(u => u.FirmID == id && u.Status == "Active")
+                    .ToListAsync();
+                foreach (var u in usersToDisable)
+                {
+                    u.Status = "Inactive";
+                    u.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+            else if (oldStatus != "Active" && request.Status == "Active")
+            {
+                // Firm being re-activated: re-enable all inactive users
+                var usersToEnable = await _context.Users
+                    .Where(u => u.FirmID == id && u.Status == "Inactive")
+                    .ToListAsync();
+                foreach (var u in usersToEnable)
+                {
+                    u.Status = "Active";
+                    u.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+
             await _context.SaveChangesAsync();
 
             // Log the action
@@ -468,6 +494,16 @@ public class LawFirmController : Controller
                 sub.UpdatedAt = DateTime.UtcNow;
             }
 
+            // Disable all active users under this firm
+            var firmUsers = await _context.Users
+                .Where(u => u.FirmID == id && u.Status == "Active")
+                .ToListAsync();
+            foreach (var firmUser in firmUsers)
+            {
+                firmUser.Status = "Inactive";
+                firmUser.UpdatedAt = DateTime.UtcNow;
+            }
+
             await _context.SaveChangesAsync();
 
             await _auditLogService.LogAsync(
@@ -518,6 +554,16 @@ public class LawFirmController : Controller
 
             firm.Status = "Active";
             firm.UpdatedAt = DateTime.UtcNow;
+
+            // Re-enable all inactive users under this firm
+            var firmUsers = await _context.Users
+                .Where(u => u.FirmID == id && u.Status == "Inactive")
+                .ToListAsync();
+            foreach (var firmUser in firmUsers)
+            {
+                firmUser.Status = "Active";
+                firmUser.UpdatedAt = DateTime.UtcNow;
+            }
 
             await _context.SaveChangesAsync();
 
