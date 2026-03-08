@@ -364,6 +364,96 @@
 
 <!-- Archive Document Modal -->
 <div class="modal fade" id="archiveDocumentModal" tabindex="-1">
+
+<!-- Admin Override Workflow Modal -->
+<div class="modal fade" id="overrideWorkflowModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header border-bottom bg-warning-subtle">
+                <h5 class="modal-title"><i class="bi bi-lightning me-2 text-warning"></i>Admin Override Workflow</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>Override Mode:</strong> You are about to override the normal workflow process. This will skip the current review stage and move the document forward.
+                </div>
+
+                <input type="hidden" id="overrideDocId">
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Document</label>
+                        <p class="mb-0" id="overrideDocTitle">-</p>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Current Stage</label>
+                        <p class="mb-0"><span class="badge bg-secondary" id="overrideCurrentStage">-</span></p>
+                    </div>
+                </div>
+
+                <hr>
+
+                <!-- Target Stage -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Move To Stage <span class="text-danger">*</span></label>
+                    <select class="form-select" id="overrideTargetStage">
+                        <option value="">-- Select target stage --</option>
+                        <option value="PendingLawyerReview">Lawyer Review (skip staff)</option>
+                        <option value="PendingAdminReview">Admin Review (skip to admin)</option>
+                        <option value="Completed">Completed / Approved (skip all remaining)</option>
+                    </select>
+                    <small class="text-muted">Select where to move this document in the workflow</small>
+                </div>
+
+                <!-- Metadata Editing Section -->
+                <div class="card border mb-3">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0"><i class="bi bi-pencil-square me-2"></i>Edit Metadata (Optional)</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">Optionally update document metadata before overriding. Leave fields empty to keep current values.</p>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Title</label>
+                                <input type="text" class="form-control" id="overrideTitle" placeholder="Current title...">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Document Type</label>
+                                <input type="text" class="form-control" id="overrideDocType" placeholder="e.g. Contract, Affidavit...">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Category</label>
+                                <input type="text" class="form-control" id="overrideCategory" placeholder="e.g. Legal, Financial...">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Tags</label>
+                                <input type="text" class="form-control" id="overrideTags" placeholder="Comma-separated tags...">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Description</label>
+                                <textarea class="form-control" id="overrideDescription" rows="2" placeholder="Document description..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Override Remarks -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Override Remarks</label>
+                    <textarea class="form-control" id="overrideRemarks" rows="3" placeholder="Explain why you are overriding the workflow..."></textarea>
+                    <small class="text-muted">This will be logged in the review history and visible in audit logs</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" id="confirmOverrideBtn">
+                    <i class="bi bi-lightning me-1"></i>Override Workflow
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header border-bottom">
@@ -523,6 +613,11 @@
                             <i class="bi bi-eye me-1"></i>View
                         </button>
                         `}
+                        ${['PendingStaffReview','StaffReview','PendingLawyerReview','LawyerReview','PendingSecondOpinion','SecondOpinionReview'].includes(doc.workflowStage) ? `
+                        <button class="btn btn-sm btn-outline-warning" onclick="showOverrideModal(${doc.id}, '${escapeHtml(doc.title || doc.originalFileName)}', '${escapeHtml(doc.workflowStage)}', '${escapeHtml(doc.documentType || '')}', '${escapeHtml(doc.category || '')}', '${escapeHtml(doc.description || '')}', '${escapeHtml(doc.tags || '')}')" title="Override Workflow">
+                            <i class="bi bi-lightning me-1"></i>Override
+                        </button>
+                        ` : ''}
                         <div class="dropdown">
                             <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="More">
                                 <i class="bi bi-three-dots"></i>
@@ -531,6 +626,10 @@
                                 <li><a class="dropdown-item" href="#" onclick="viewDocumentDetails(${doc.id}); return false;"><i class="bi bi-info-circle me-2"></i>View Details</a></li>
                                 <li><a class="dropdown-item" href="#" onclick="previewDocument(${doc.id}, '${escapeHtml(doc.fileExtension || '')}', '${escapeHtml(doc.originalFileName || doc.title)}'); return false;"><i class="bi bi-file-earmark me-2"></i>Preview</a></li>
                                 <li><a class="dropdown-item" href="/api/DocumentApi/${doc.id}/download"><i class="bi bi-download me-2"></i>Download</a></li>
+                                ${['PendingStaffReview','StaffReview','PendingLawyerReview','LawyerReview','PendingSecondOpinion','SecondOpinionReview'].includes(doc.workflowStage) ? `
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item text-warning" href="#" onclick="showOverrideModal(${doc.id}, '${escapeHtml(doc.title || doc.originalFileName)}', '${escapeHtml(doc.workflowStage)}', '${escapeHtml(doc.documentType || '')}', '${escapeHtml(doc.category || '')}', '${escapeHtml(doc.description || '')}', '${escapeHtml(doc.tags || '')}'); return false;"><i class="bi bi-lightning me-2"></i>Override Workflow</a></li>
+                                ` : ''}
                                 ${(doc.status === 'Completed' || doc.status === 'Rejected') ? `
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item text-danger" href="#" onclick="showArchiveModal(${doc.id}, '${escapeHtml(doc.title || doc.originalFileName)}'); return false;"><i class="bi bi-archive me-2"></i>Move to Archive</a></li>
@@ -739,7 +838,9 @@
         if (status === 'Completed') return '<span class="status-badge completed">Approved</span>';
         if (status === 'Rejected') return '<span class="status-badge rejected">Rejected</span>';
         if (workflowStage === 'AdminReview' || workflowStage === 'PendingAdminReview') return '<span class="status-badge pending">Pending Admin Review</span>';
+        if (workflowStage === 'LawyerReview' || workflowStage === 'PendingLawyerReview') return '<span class="status-badge in-review">Lawyer Review</span>';
         if (workflowStage === 'StaffReview' || workflowStage === 'PendingStaffReview') return '<span class="status-badge in-review">Staff Review</span>';
+        if (workflowStage === 'PendingSecondOpinion' || workflowStage === 'SecondOpinionReview') return '<span class="status-badge in-review">2nd Opinion</span>';
         if (workflowStage === 'ClientUpload') return '<span class="status-badge uploaded">Pending Review</span>';
         return '<span class="status-badge pending">Pending</span>';
     }
@@ -913,5 +1014,93 @@
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-archive me-1"></i>Archive Document';
     }
+
+    // ===== ADMIN OVERRIDE WORKFLOW =====
+    function showOverrideModal(docId, docTitle, currentStage, docType, category, description, tags) {
+        document.getElementById('overrideDocId').value = docId;
+        document.getElementById('overrideDocTitle').textContent = docTitle;
+        document.getElementById('overrideCurrentStage').textContent = currentStage;
+        document.getElementById('overrideTitle').value = '';
+        document.getElementById('overrideDocType').value = docType || '';
+        document.getElementById('overrideCategory').value = category || '';
+        document.getElementById('overrideTags').value = tags || '';
+        document.getElementById('overrideDescription').value = description || '';
+        document.getElementById('overrideRemarks').value = '';
+
+        // Filter target stage options based on current stage
+        const targetSelect = document.getElementById('overrideTargetStage');
+        targetSelect.value = '';
+        const options = targetSelect.querySelectorAll('option');
+        options.forEach(opt => {
+            opt.style.display = '';
+            // Hide stages that are behind or equal to current stage
+            if (currentStage === 'PendingLawyerReview' || currentStage === 'LawyerReview') {
+                if (opt.value === 'PendingLawyerReview') opt.style.display = 'none';
+            }
+            if (currentStage === 'PendingAdminReview' || currentStage === 'AdminReview') {
+                if (opt.value === 'PendingLawyerReview' || opt.value === 'PendingAdminReview') opt.style.display = 'none';
+            }
+        });
+
+        new bootstrap.Modal(document.getElementById('overrideWorkflowModal')).show();
+    }
+
+    document.getElementById('confirmOverrideBtn').addEventListener('click', async function() {
+        const docId = document.getElementById('overrideDocId').value;
+        const targetStage = document.getElementById('overrideTargetStage').value;
+        const remarks = document.getElementById('overrideRemarks').value;
+        const title = document.getElementById('overrideTitle').value;
+        const description = document.getElementById('overrideDescription').value;
+        const category = document.getElementById('overrideCategory').value;
+        const documentType = document.getElementById('overrideDocType').value;
+        const tags = document.getElementById('overrideTags').value;
+
+        if (!targetStage) {
+            alert('Please select a target stage');
+            return;
+        }
+
+        const stageName = document.querySelector(`#overrideTargetStage option[value="${targetStage}"]`).textContent;
+        if (!confirm(`Are you sure you want to override this document's workflow and move it to "${stageName}"? This action will be logged.`)) {
+            return;
+        }
+
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+
+        try {
+            const body = {
+                targetStage: targetStage,
+                remarks: remarks || null,
+                title: title || null,
+                description: description || null,
+                category: category || null,
+                documentType: documentType || null,
+                tags: tags !== '' ? tags : null
+            };
+
+            const response = await fetch(`/api/ReviewApi/${docId}/admin-override-workflow`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('overrideWorkflowModal')).hide();
+                alert(data.message || 'Workflow overridden successfully!');
+                loadDocuments();
+            } else {
+                alert('Error: ' + (data.message || 'Failed to override workflow'));
+            }
+        } catch (error) {
+            console.error('Error overriding workflow:', error);
+            alert('Error overriding workflow');
+        }
+
+        this.disabled = false;
+        this.innerHTML = '<i class="bi bi-lightning me-1"></i>Override Workflow';
+    });
 </script>
 }

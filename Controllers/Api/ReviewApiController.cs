@@ -1385,6 +1385,62 @@ public class ReviewApiController : ControllerBase
     }
 
     /// <summary>
+    /// Admin overrides a document's workflow stage.
+    /// Allows admin to skip staff/lawyer review steps and optionally edit metadata.
+    /// </summary>
+    [HttpPost("{documentId}/admin-override-workflow")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> AdminOverrideWorkflow(int documentId, [FromBody] AdminOverrideDto dto)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var firmId = GetFirmId();
+
+            if (string.IsNullOrWhiteSpace(dto.TargetStage))
+                return BadRequest(new { success = false, message = "Target stage is required" });
+
+            // Validate target stage
+            var validTargets = new[] {
+                DocumentWorkflowService.STAGE_PENDING_LAWYER_REVIEW,
+                DocumentWorkflowService.STAGE_LAWYER_REVIEW,
+                DocumentWorkflowService.STAGE_PENDING_ADMIN_REVIEW,
+                DocumentWorkflowService.STAGE_ADMIN_REVIEW,
+                DocumentWorkflowService.STAGE_COMPLETED
+            };
+            if (!validTargets.Contains(dto.TargetStage))
+                return BadRequest(new { success = false, message = $"Invalid target stage: {dto.TargetStage}" });
+
+            var document = await _context.Documents
+                .FirstOrDefaultAsync(d => d.DocumentID == documentId && d.FirmID == firmId);
+
+            if (document == null)
+                return NotFound(new { success = false, message = "Document not found" });
+
+            var review = await _workflowService.AdminOverrideWorkflowAsync(
+                documentId, userId, dto.TargetStage, dto.Remarks,
+                dto.Title, dto.Description, dto.Category, dto.DocumentType, dto.Tags);
+
+            return Ok(new
+            {
+                success = true,
+                message = $"Document workflow overridden. Moved to {dto.TargetStage}.",
+                reviewId = review.ReviewId,
+                newStage = dto.TargetStage
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error overriding workflow for document {DocumentId}", documentId);
+            return StatusCode(500, new { success = false, message = "An error occurred while overriding the workflow" });
+        }
+    }
+
+    /// <summary>
     /// Get review statistics
     /// </summary>
     [HttpGet("stats")]
@@ -1497,4 +1553,15 @@ public class SecondOpinionRequestDto
 public class SecondOpinionResponseDto
 {
     public string? Remarks { get; set; }
+}
+
+public class AdminOverrideDto
+{
+    public string TargetStage { get; set; } = "";
+    public string? Remarks { get; set; }
+    public string? Title { get; set; }
+    public string? Description { get; set; }
+    public string? Category { get; set; }
+    public string? DocumentType { get; set; }
+    public string? Tags { get; set; }
 }

@@ -283,6 +283,75 @@
                     </div>
                 </div>
 
+                <!-- Admin Override Section (visible for documents in staff/lawyer review) -->
+                <div class="card border-warning mt-3" id="overrideSection" style="display: none;">
+                    <div class="card-header bg-warning-subtle">
+                        <h6 class="mb-0"><i class="bi bi-lightning me-2 text-warning"></i>Admin Override</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-2">
+                            This document is currently in <strong id="overrideCurrentStageLabel">-</strong>.
+                            As admin, you can override the workflow and advance it to a later stage.
+                        </p>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Move To Stage</label>
+                            <select class="form-select" id="overrideTargetStage">
+                                <option value="">-- Select target stage --</option>
+                                <option value="PendingLawyerReview">Lawyer Review</option>
+                                <option value="PendingAdminReview">Admin Review</option>
+                                <option value="Completed">Completed / Approved</option>
+                            </select>
+                        </div>
+
+                        <!-- Inline Metadata Editing -->
+                        <div class="accordion mb-3" id="overrideMetadataAccordion">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" data-bs-target="#overrideMetadataCollapse">
+                                        <i class="bi bi-pencil-square me-2"></i>Edit Metadata (Optional)
+                                    </button>
+                                </h2>
+                                <div id="overrideMetadataCollapse" class="accordion-collapse collapse">
+                                    <div class="accordion-body">
+                                        <div class="row g-2">
+                                            <div class="col-md-6">
+                                                <label class="form-label small">Title</label>
+                                                <input type="text" class="form-control form-control-sm" id="overrideMetaTitle">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small">Document Type</label>
+                                                <input type="text" class="form-control form-control-sm" id="overrideMetaDocType">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small">Category</label>
+                                                <input type="text" class="form-control form-control-sm" id="overrideMetaCategory">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small">Tags</label>
+                                                <input type="text" class="form-control form-control-sm" id="overrideMetaTags">
+                                            </div>
+                                            <div class="col-12">
+                                                <label class="form-label small">Description</label>
+                                                <textarea class="form-control form-control-sm" id="overrideMetaDescription" rows="2"></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small">Override Remarks</label>
+                            <textarea class="form-control form-control-sm" id="overrideReviewRemarks" rows="2" placeholder="Reason for overriding..."></textarea>
+                        </div>
+
+                        <button type="button" class="btn btn-warning w-100" id="btnOverrideWorkflow">
+                            <i class="bi bi-lightning me-1"></i>Override Workflow
+                        </button>
+                    </div>
+                </div>
+
                 <div class="alert alert-info mt-3 mb-0 small">
                     <i class="bi bi-lightbulb me-1"></i>
                     <strong>Tip:</strong> Approving will set retention period based on document type. Rejection requires remarks explaining the reason.
@@ -622,6 +691,7 @@
         document.getElementById('confirmRejectBtn').addEventListener('click', rejectDocument);
         document.getElementById('viewerVersionSelect').addEventListener('change', onViewerVersionChange);
         document.getElementById('btnAdminUploadVersion').addEventListener('click', adminUploadNewVersion);
+        document.getElementById('btnOverrideWorkflow').addEventListener('click', overrideWorkflow);
     });
 
     function getDocIdFromPath() {
@@ -673,6 +743,32 @@
 
         // Set action buttons
         document.getElementById('btnDownloadDoc').href = `/api/DocumentApi/${doc.id}/download`;
+
+        // Show/hide override section based on workflow stage
+        const overridableStages = ['PendingStaffReview', 'StaffReview', 'PendingLawyerReview', 'LawyerReview', 'PendingSecondOpinion', 'SecondOpinionReview'];
+        const overrideSection = document.getElementById('overrideSection');
+        if (overridableStages.includes(doc.workflowStage)) {
+            overrideSection.style.display = '';
+            document.getElementById('overrideCurrentStageLabel').textContent = doc.workflowStage;
+
+            // Pre-fill metadata fields
+            document.getElementById('overrideMetaTitle').value = doc.title || '';
+            document.getElementById('overrideMetaDocType').value = doc.documentType || '';
+            document.getElementById('overrideMetaCategory').value = doc.category || '';
+            document.getElementById('overrideMetaTags').value = doc.tags || '';
+            document.getElementById('overrideMetaDescription').value = doc.description || '';
+
+            // Filter target stage options
+            const targetSelect = document.getElementById('overrideTargetStage');
+            targetSelect.querySelectorAll('option').forEach(opt => {
+                opt.style.display = '';
+                if ((doc.workflowStage === 'PendingLawyerReview' || doc.workflowStage === 'LawyerReview') && opt.value === 'PendingLawyerReview') {
+                    opt.style.display = 'none';
+                }
+            });
+        } else {
+            overrideSection.style.display = 'none';
+        }
     }
 
     async function loadVersions(docId) {
@@ -1227,6 +1323,71 @@
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-upload"></i> Upload & Create New Version';
         }
+    }
+
+    // Admin Override Workflow from Review page
+    async function overrideWorkflow() {
+        const docId = document.getElementById('documentId').value;
+        const targetStage = document.getElementById('overrideTargetStage').value;
+        const remarks = document.getElementById('overrideReviewRemarks').value;
+        const title = document.getElementById('overrideMetaTitle').value;
+        const description = document.getElementById('overrideMetaDescription').value;
+        const category = document.getElementById('overrideMetaCategory').value;
+        const documentType = document.getElementById('overrideMetaDocType').value;
+        const tags = document.getElementById('overrideMetaTags').value;
+
+        if (!targetStage) {
+            alert('Please select a target stage');
+            return;
+        }
+
+        const stageName = document.querySelector(`#overrideTargetStage option[value="${targetStage}"]`).textContent;
+        if (!confirm(`Override workflow and move this document to "${stageName}"? This action will be logged.`)) {
+            return;
+        }
+
+        const btn = document.getElementById('btnOverrideWorkflow');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+
+        try {
+            const body = {
+                targetStage: targetStage,
+                remarks: remarks || null,
+                title: title || null,
+                description: description || null,
+                category: category || null,
+                documentType: documentType || null,
+                tags: tags !== '' ? tags : null
+            };
+
+            const response = await fetch(`/api/ReviewApi/${docId}/admin-override-workflow`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                alert(data.message || 'Workflow overridden successfully!');
+                if (targetStage === 'PendingAdminReview' || targetStage === 'AdminReview') {
+                    // Reload the page to now show it as admin review
+                    location.reload();
+                } else {
+                    // Go back to reviews list
+                    window.location.href = '/Review';
+                }
+            } else {
+                alert('Error: ' + (data.message || 'Failed to override workflow'));
+            }
+        } catch (error) {
+            console.error('Error overriding workflow:', error);
+            alert('Error overriding workflow');
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-lightning me-1"></i>Override Workflow';
     }
 
     function showError(message) {

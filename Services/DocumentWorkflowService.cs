@@ -1700,4 +1700,177 @@ public class DocumentWorkflowService
         }
         return $"{currentMajor + 1}";
     }
+
+    /// <summary>
+    /// Admin overrides the workflow stage of a document.
+    /// Allows admin to skip staff/lawyer review and move the document
+    /// directly to a target stage (e.g. from StaffReview to LawyerReview,
+    /// or from LawyerReview to AdminReview/Completed).
+    /// </summary>
+    public async Task<DocumentReview> AdminOverrideWorkflowAsync(
+        int documentId, int adminId, string targetStage, string? remarks,
+        string? metadataTitle, string? metadataDescription, string? metadataCategory,
+        string? metadataDocumentType, string? metadataTags)
+    {
+        var document = await _context.Documents
+            .Include(d => d.Uploader)
+            .FirstOrDefaultAsync(d => d.DocumentID == documentId);
+
+        if (document == null)
+            throw new InvalidOperationException("Document not found");
+
+        var previousStage = document.WorkflowStage;
+
+        // Apply metadata updates if provided
+        bool metadataChanged = false;
+        if (!string.IsNullOrWhiteSpace(metadataTitle) && metadataTitle != document.Title)
+        { document.Title = metadataTitle; metadataChanged = true; }
+        if (!string.IsNullOrWhiteSpace(metadataDescription) && metadataDescription != document.Description)
+        { document.Description = metadataDescription; metadataChanged = true; }
+        if (!string.IsNullOrWhiteSpace(metadataCategory) && metadataCategory != document.Category)
+        { document.Category = metadataCategory; metadataChanged = true; }
+        if (!string.IsNullOrWhiteSpace(metadataDocumentType) && metadataDocumentType != document.DocumentType)
+        { document.DocumentType = metadataDocumentType; metadataChanged = true; }
+        if (metadataTags != null && metadataTags != document.Tags)
+        { document.Tags = metadataTags; metadataChanged = true; }
+
+        // If metadata was changed, create a minor version snapshot
+        if (metadataChanged)
+        {
+            var existingVersions = await _context.DocumentVersions
+                .Where(v => v.DocumentId == documentId)
+                .OrderByDescending(v => v.VersionNumber)
+                .ToListAsync();
+
+            if (existingVersions.Any())
+            {
+                var currentVer = existingVersions.FirstOrDefault(v => v.IsCurrentVersion == true)
+                               ?? existingVersions.First();
+
+                var newLabel = CalcMinorVersionLabel(
+                    existingVersions.Select(v => v.VersionLabel).ToList());
+                var nextVersionNumber = existingVersions.Max(v => v.VersionNumber) + 1;
+
+                foreach (var v in existingVersions)
+                    v.IsCurrentVersion = false;
+
+                var metaVersion = new DocumentVersion
+                {
+                    DocumentId = documentId,
+                    VersionNumber = nextVersionNumber,
+                    VersionLabel = newLabel,
+                    FilePath = currentVer.FilePath,
+                    FileSize = currentVer.FileSize,
+                    OriginalFileName = currentVer.OriginalFileName,
+                    FileExtension = currentVer.FileExtension,
+                    MimeType = currentVer.MimeType,
+                    UploadedBy = adminId,
+                    ChangeDescription = $"Admin override: metadata updated and workflow moved from {previousStage} to {targetStage}",
+                    ChangedBy = "Admin",
+                    IsCurrentVersion = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.DocumentVersions.Add(metaVersion);
+                document.CurrentVersion = nextVersionNumber;
+            }
+        }
+
+        // Apply the workflow stage transition
+        switch (targetStage)
+        {
+            case STAGE_PENDING_LAWYER_REVIEW:
+            case STAGE_LAWYER_REVIEW:
+                document.StaffReviewedAt = DateTime.UtcNow;
+                // Auto-assign to lawyer if moving to lawyer review
+                await AssignToLawyerAsync(documentId, document.FirmID);
+                break;
+
+            case STAGE_PENDING_ADMIN_REVIEW:
+            case STAGE_ADMIN_REVIEW:
+                document.StaffReviewedAt ??= DateTime.UtcNow;
+                document.LawyerReviewedAt = DateTime.UtcNow;
+                document.WorkflowStage = targetStage;
+                document.Status = STATUS_UNDER_REVIEW;
+                document.AssignedAdminId = adminId;
+                break;
+
+            case STAGE_COMPLETED:
+                document.StaffReviewedAt ??= DateTime.UtcNow;
+                document.LawyerReviewedAt ??= DateTime.UtcNow;
+                document.AdminReviewedAt = DateTime.UtcNow;
+                document.ApprovedAt = DateTime.UtcNow;
+                document.WorkflowStage = STAGE_COMPLETED;
+                document.Status = STATUS_COMPLETED;
+                await ApplyRetentionOnApprovalAsync(document, adminId);
+                break;
+
+            default:
+                throw new InvalidOperationException($"Invalid target stage: {targetStage}");
+        }
+
+        // Create a review record for the override
+        var review = new DocumentReview
+        {
+            DocumentId = documentId,
+            ReviewedBy = adminId,
+            ReviewStatus = targetStage == STAGE_COMPLETED ? STATUS_APPROVED : "Override",
+            Remarks = $"[Admin Override] Moved from {previousStage} to {targetStage}." +
+                      (string.IsNullOrWhiteSpace(remarks) ? "" : $" Remarks: {remarks}"),
+            ReviewedAt = DateTime.UtcNow,
+            ReviewerRole = "Admin",
+            IsChecklistComplete = targetStage == STAGE_COMPLETED,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.DocumentReviews.Add(review);
+        await _context.SaveChangesAsync();
+
+        // Notify relevant parties
+        if (document.UploadedBy.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.UploadedBy.Value,
+                "Document Workflow Updated",
+                $"Your document '{document.Title}' workflow has been updated by admin. New stage: {targetStage}.",
+                "AdminOverride",
+                documentId,
+                $"/Document/Details/{documentId}");
+        }
+
+        if (document.AssignedStaffId.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.AssignedStaffId.Value,
+                "Document Workflow Override",
+                $"Document '{document.Title}' has been moved from {previousStage} to {targetStage} by admin.",
+                "AdminOverride",
+                documentId,
+                $"/Document/Details/{documentId}");
+        }
+
+        if (document.AssignedLawyerId.HasValue)
+        {
+            await _notificationService.NotifyAsync(
+                document.AssignedLawyerId.Value,
+                "Document Workflow Override",
+                $"Document '{document.Title}' has been moved from {previousStage} to {targetStage} by admin.",
+                "AdminOverride",
+                documentId,
+                $"/Document/Details/{documentId}");
+        }
+
+        // Audit log
+        await _auditLogService.LogAsync(
+            "AdminOverrideWorkflow",
+            "Document",
+            documentId,
+            $"Admin overrode workflow: {document.Title} moved from {previousStage} to {targetStage}" +
+            (metadataChanged ? " (metadata updated)" : ""),
+            null,
+            System.Text.Json.JsonSerializer.Serialize(new { previousStage, targetStage, remarks, metadataChanged }),
+            "WorkflowOverride");
+
+        return review;
+    }
 }
