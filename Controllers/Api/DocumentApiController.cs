@@ -297,6 +297,260 @@ public class DocumentApiController : ControllerBase
     }
 
     /// <summary>
+    /// Manual upload by Admin, Lawyer, or Staff (no client account needed)
+    /// Records who performed the manual upload for audit trail
+    /// </summary>
+    [HttpPost("manual-upload")]
+    [Authorize(Policy = "AdminOrStaff")]
+    public async Task<IActionResult> ManualUpload([FromForm] ManualUploadDto dto)
+    {
+        try
+        {
+            if (dto.File == null || dto.File.Length == 0)
+                return BadRequest(new { success = false, message = "No file provided" });
+
+            if (dto.File.Length > MaxFileSize)
+                return BadRequest(new { success = false, message = "File size exceeds 50MB limit" });
+
+            var extension = Path.GetExtension(dto.File.FileName).ToLower();
+            if (!_allowedExtensions.Contains(extension))
+                return BadRequest(new { success = false, message = "File type not allowed. Allowed types: " + string.Join(", ", _allowedExtensions) });
+
+            var userId = GetCurrentUserId();
+            var firmId = GetFirmId();
+            var role = GetUserRole();
+
+            if (userId == 0 || firmId == 0)
+                return BadRequest(new { success = false, message = "User not authenticated properly" });
+
+            // Check firm storage limit
+            var firm = await _context.Firms.AsNoTracking().FirstOrDefaultAsync(f => f.FirmID == firmId);
+            if (firm == null)
+                return BadRequest(new { success = false, message = "Law firm not found" });
+
+            var maxStorageBytes = firm.MaxStorageMB * 1024L * 1024L;
+            var currentStorageUsed = await _context.Documents
+                .Where(d => d.FirmID == firmId)
+                .SumAsync(d => (long)(d.TotalFileSize ?? 0));
+
+            if (currentStorageUsed + dto.File.Length > maxStorageBytes)
+            {
+                var usedGB = Math.Round(currentStorageUsed / (1024.0 * 1024.0 * 1024.0), 2);
+                var maxGB = Math.Round(firm.MaxStorageMB / 1024.0, 1);
+                return BadRequest(new { success = false, message = $"Storage limit exceeded. Used: {usedGB} GB / {maxGB} GB." });
+            }
+
+            // Validate folder if provided
+            if (dto.FolderId.HasValue)
+            {
+                var folder = await _context.ClientFolders
+                    .FirstOrDefaultAsync(f => f.FolderId == dto.FolderId && f.FirmId == firmId);
+                if (folder == null)
+                    return BadRequest(new { success = false, message = "Invalid folder" });
+            }
+
+            // Validate client if provided (optional - manual upload may not have a client)
+            if (dto.OnBehalfOfClientId.HasValue)
+            {
+                var client = await _context.Users
+                    .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+                    .FirstOrDefaultAsync(u => u.UserID == dto.OnBehalfOfClientId && u.FirmID == firmId);
+                if (client == null)
+                    return BadRequest(new { success = false, message = "Invalid client selected" });
+            }
+
+            // The document is stored under the uploader (staff/lawyer/admin) path
+            var uploadPath = Path.Combine(_environment.ContentRootPath, "Uploads", firmId.ToString(), userId.ToString());
+            Directory.CreateDirectory(uploadPath);
+
+            var uniqueFileName = $"{Guid.NewGuid()}{extension}";
+            var filePath = Path.Combine(uploadPath, uniqueFileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await dto.File.CopyToAsync(stream);
+            }
+
+            // Get uploader info for recording
+            var uploader = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserID == userId);
+            var uploaderName = uploader != null ? $"{uploader.FirstName} {uploader.LastName}".Trim() : "Unknown";
+
+            // UploadedBy = the staff/lawyer/admin who manually uploaded
+            var document = new Document
+            {
+                FirmID = firmId,
+                Title = dto.Title ?? Path.GetFileNameWithoutExtension(dto.File.FileName),
+                Description = dto.Description + (string.IsNullOrWhiteSpace(dto.ClientName) 
+                    ? $"\n[Manual upload by {role}: {uploaderName}]" 
+                    : $"\n[Manual upload by {role}: {uploaderName}, on behalf of: {dto.ClientName}]"),
+                Category = dto.Category,
+                Status = "Pending",
+                UploadedBy = dto.OnBehalfOfClientId ?? userId,
+                FolderId = dto.FolderId,
+                DocumentType = dto.DocumentType,
+                WorkflowStage = DocumentWorkflowService.STAGE_CLIENT_UPLOAD,
+                OriginalFileName = dto.File.FileName,
+                FileExtension = extension,
+                MimeType = dto.File.ContentType,
+                TotalFileSize = dto.File.Length,
+                CurrentVersion = 1,
+                IsAIProcessed = false,
+                IsDuplicate = false,
+                IsHighRisk = dto.IsHighRisk,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = $"{role}:{uploaderName} (Manual Upload)"
+            };
+
+            _context.Documents.Add(document);
+            await _context.SaveChangesAsync();
+
+            // Create initial version - record the actual uploader role
+            var version = new DocumentVersion
+            {
+                DocumentId = document.DocumentID,
+                VersionNumber = 1,
+                VersionLabel = "1",
+                FilePath = filePath,
+                FileSize = dto.File.Length,
+                UploadedBy = userId,
+                OriginalFileName = dto.File.FileName,
+                FileExtension = extension,
+                MimeType = dto.File.ContentType,
+                ChangeDescription = $"Manual upload by {role}: {uploaderName}" + 
+                    (string.IsNullOrWhiteSpace(dto.ClientName) ? "" : $" (on behalf of {dto.ClientName})"),
+                ChangedBy = role,
+                IsCurrentVersion = true,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.DocumentVersions.Add(version);
+            await _context.SaveChangesAsync();
+
+            // AI Processing (non-blocking)
+            try
+            {
+                using (var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                {
+                    var aiResult = await _aiService.ProcessDocumentAsync(document.DocumentID, fileStream, dto.File.FileName);
+                    if (aiResult.Success && !string.IsNullOrEmpty(aiResult.DetectedDocumentType))
+                        await _aiService.EnsureChecklistItemsExistAsync(firmId, aiResult.DetectedDocumentType);
+                }
+            }
+            catch (Exception aiEx)
+            {
+                _logger.LogWarning(aiEx, "AI processing failed for manual upload document {DocumentId}", document.DocumentID);
+            }
+
+            // Workflow routing based on uploader role:
+            // Staff uploads → goes to Lawyer review
+            // Lawyer uploads → goes directly to Admin review
+            // Admin uploads → goes to Lawyer review (standard flow)
+            User? assignedUser = null;
+            string assignedToRole = "";
+            try
+            {
+                if (role == "Staff")
+                {
+                    // Staff manual upload → assign to Lawyer
+                    assignedUser = await _workflowService.AssignToLawyerAsync(document.DocumentID, firmId);
+                    assignedToRole = "Lawyer";
+                    if (assignedUser != null)
+                    {
+                        await _notificationService.NotifyAsync(
+                            assignedUser.UserID,
+                            "📄 New Document for Review (Manual Upload)",
+                            $"Staff {uploaderName} manually uploaded document '{document.Title}' for your review.",
+                            "DocumentPendingReview",
+                            document.DocumentID,
+                            "/Lawyer/PendingReviews");
+                    }
+                }
+                else if (role == "Lawyer")
+                {
+                    // Lawyer manual upload → assign directly to Admin
+                    assignedUser = await _workflowService.AssignToAdminAsync(document.DocumentID, firmId);
+                    assignedToRole = "Admin";
+                    if (assignedUser != null)
+                    {
+                        await _notificationService.NotifyAsync(
+                            assignedUser.UserID,
+                            "📄 New Document for Admin Review (Manual Upload)",
+                            $"Lawyer {uploaderName} manually uploaded document '{document.Title}' for your approval.",
+                            "DocumentPendingReview",
+                            document.DocumentID,
+                            "/Admin/Documents");
+                    }
+                }
+                else if (role == "Admin")
+                {
+                    // Admin manual upload → assign to Lawyer for review first
+                    assignedUser = await _workflowService.AssignToLawyerAsync(document.DocumentID, firmId);
+                    assignedToRole = "Lawyer";
+                    if (assignedUser != null)
+                    {
+                        await _notificationService.NotifyAsync(
+                            assignedUser.UserID,
+                            "📄 New Document for Review (Manual Upload by Admin)",
+                            $"Admin {uploaderName} manually uploaded document '{document.Title}' for your review.",
+                            "DocumentPendingReview",
+                            document.DocumentID,
+                            "/Lawyer/PendingReviews");
+                    }
+                }
+            }
+            catch (Exception assignEx)
+            {
+                _logger.LogWarning(assignEx, "Failed to assign/notify for manual upload document {DocumentId}", document.DocumentID);
+            }
+
+            // Audit log
+            try
+            {
+                await _auditLogService.LogAsync(
+                    "ManualDocumentUpload",
+                    "Document",
+                    document.DocumentID,
+                    $"{role} {uploaderName} manually uploaded document: {document.Title}" +
+                        (dto.OnBehalfOfClientId.HasValue ? $" (on behalf of client ID {dto.OnBehalfOfClientId})" : "") +
+                        (!string.IsNullOrWhiteSpace(dto.ClientName) ? $" (client: {dto.ClientName})" : "") +
+                        (dto.IsHighRisk ? " [HIGH-RISK]" : ""),
+                    null,
+                    System.Text.Json.JsonSerializer.Serialize(new { 
+                        manualUpload = true, 
+                        uploadedByUserId = userId, 
+                        uploadedByRole = role, 
+                        uploadedByName = uploaderName,
+                        onBehalfOfClientId = dto.OnBehalfOfClientId,
+                        clientName = dto.ClientName,
+                        isHighRisk = dto.IsHighRisk 
+                    }),
+                    "ManualDocumentUpload");
+            }
+            catch (Exception auditEx)
+            {
+                _logger.LogWarning(auditEx, "Failed to log audit for manual upload {DocumentId}", document.DocumentID);
+            }
+
+            return Ok(new
+            {
+                success = true,
+                message = $"Document manually uploaded by {role} successfully" + 
+                    (assignedUser != null ? $". Assigned to {assignedToRole}: {assignedUser.FullName}" : ""),
+                documentId = document.DocumentID,
+                assignedTo = assignedUser?.FullName,
+                assignedToRole = assignedToRole,
+                isHighRisk = dto.IsHighRisk,
+                manualUploadBy = uploaderName
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in manual upload");
+            return StatusCode(500, new { success = false, message = "An error occurred during manual upload" });
+        }
+    }
+
+    /// <summary>
     /// Get document details
     /// </summary>
     [HttpGet("{id}")]
@@ -1700,6 +1954,21 @@ public class DocumentUploadDto
     public string? DocumentType { get; set; }
     public int? FolderId { get; set; }
     public bool IsHighRisk { get; set; } = false;
+}
+
+public class ManualUploadDto
+{
+    public IFormFile? File { get; set; }
+    public string? Title { get; set; }
+    public string? Description { get; set; }
+    public string? Category { get; set; }
+    public string? DocumentType { get; set; }
+    public int? FolderId { get; set; }
+    public bool IsHighRisk { get; set; } = false;
+    /// <summary>Optional: associate with an existing client account</summary>
+    public int? OnBehalfOfClientId { get; set; }
+    /// <summary>Optional: client name when no client account exists (emergency upload)</summary>
+    public string? ClientName { get; set; }
 }
 
 public class DocumentUpdateDto

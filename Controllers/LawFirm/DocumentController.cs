@@ -38,6 +38,14 @@ public class DocumentController : Controller
         return View(GetRoleViewPath("Documents"));
     }
 
+    public IActionResult ManualUpload()
+    {
+        var role = User.FindFirst(ClaimTypes.Role)?.Value ?? "Client";
+        if (role == "Admin" || role == "Lawyer" || role == "Staff")
+            return View(GetRoleViewPath("ManualUpload"));
+        return RedirectToAction("Index");
+    }
+
     public IActionResult Edit(int id)
     {
         return View(GetRoleViewPath("Documents"));

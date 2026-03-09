@@ -8,9 +8,9 @@
         <h4 class="mb-0">All Documents</h4>
         <p class="text-muted mb-0">Browse all documents - <span id="documentCount">Loading...</span></p>
     </div>
-    <a href="/Document/Upload" class="btn btn-primary">
-        <i class="bi bi-cloud-upload"></i> Upload Document
-    </a>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#manualUploadModal">
+        <i class="bi bi-cloud-upload me-1"></i> Upload Document
+    </button>
 </div>
 
 <div class="card">
@@ -105,6 +105,105 @@
                         <i class="bi bi-download me-2"></i>Download File
                     </a>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Manual Upload Modal -->
+<div class="modal fade" id="manualUploadModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white border-bottom">
+                <h5 class="modal-title"><i class="bi bi-upload me-2"></i>Manual Document Upload</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Emergency / Manual Upload:</strong> Upload a document on behalf of a client or without a client account. Your name and role will be recorded in the audit trail.
+                </div>
+                <form id="manualUploadForm" enctype="multipart/form-data">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">Document Title <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="muTitle" required placeholder="Enter document title">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">Document Type</label>
+                            <select class="form-select" id="muDocType">
+                                <option value="">Auto-detect</option>
+                                <option value="Contract">Contract</option>
+                                <option value="Agreement">Agreement</option>
+                                <option value="Legal Brief">Legal Brief</option>
+                                <option value="Affidavit">Affidavit</option>
+                                <option value="Power of Attorney">Power of Attorney</option>
+                                <option value="Deed">Deed</option>
+                                <option value="Lease Agreement">Lease Agreement</option>
+                                <option value="Invoice">Invoice</option>
+                                <option value="Certificate">Certificate</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">Category</label>
+                            <select class="form-select" id="muCategory">
+                                <option value="">Select category</option>
+                                <option value="Legal">Legal</option>
+                                <option value="Financial">Financial</option>
+                                <option value="Administrative">Administrative</option>
+                                <option value="Personal">Personal</option>
+                                <option value="Business">Business</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">Folder</label>
+                            <select class="form-select" id="muFolder">
+                                <option value="">No folder (General)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">Client (Optional)</label>
+                            <select class="form-select" id="muClientId">
+                                <option value="">No client account (Emergency)</option>
+                            </select>
+                            <small class="text-muted">Select existing client or leave blank for emergency upload</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">Client Name (if no account)</label>
+                            <input type="text" class="form-control" id="muClientName" placeholder="e.g. Juan Dela Cruz">
+                            <small class="text-muted">Used when uploading without a client account</small>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Description</label>
+                        <textarea class="form-control" id="muDescription" rows="2" placeholder="Brief description of the document..."></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">File <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" id="muFile" required
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.gif">
+                        <small class="text-muted">Max 50MB. Allowed: PDF, Word, Excel, PowerPoint, Text, Images</small>
+                    </div>
+                </form>
+                <div id="muProgress" style="display:none;">
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" id="muProgressBar" style="width:0%"></div>
+                    </div>
+                    <small class="text-muted mt-1 d-block" id="muProgressText">Uploading...</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="muSubmitBtn" onclick="submitManualUpload()">
+                    <i class="bi bi-upload me-1"></i>Upload Document
+                </button>
             </div>
         </div>
     </div>
@@ -321,6 +420,80 @@
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    // ===== MANUAL UPLOAD =====
+    async function loadManualUploadData() {
+        try {
+            const clientRes = await fetch('/api/FolderApi/staff/clients');
+            const clientData = await clientRes.json();
+            if (clientData.success) {
+                const sel = document.getElementById('muClientId');
+                sel.innerHTML = '<option value="">No client account (Emergency)</option>' +
+                    clientData.clients.map(c => `<option value="${c.id}">${escapeHtml(c.name || c.fullName)} (${escapeHtml(c.email||'')})</option>`).join('');
+            }
+            const folderRes = await fetch('/api/FolderApi');
+            const folderData = await folderRes.json();
+            if (folderData.success) {
+                const sel = document.getElementById('muFolder');
+                sel.innerHTML = '<option value="">No folder (General)</option>' +
+                    (folderData.folders||[]).map(f => `<option value="${f.folderId}">${escapeHtml(f.folderName)}</option>`).join('');
+            }
+        } catch(e) { console.error('Error loading manual upload data:', e); }
+    }
+
+    document.getElementById('manualUploadModal').addEventListener('show.bs.modal', loadManualUploadData);
+
+    async function submitManualUpload() {
+        const fileInput = document.getElementById('muFile');
+        const title = document.getElementById('muTitle').value.trim();
+        if (!title) { alert('Please enter a document title'); return; }
+        if (!fileInput.files.length) { alert('Please select a file'); return; }
+
+        const btn = document.getElementById('muSubmitBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Uploading...';
+        document.getElementById('muProgress').style.display = 'block';
+        document.getElementById('muProgressBar').style.width = '30%';
+
+        const formData = new FormData();
+        formData.append('File', fileInput.files[0]);
+        formData.append('Title', title);
+        formData.append('Description', document.getElementById('muDescription').value);
+        formData.append('Category', document.getElementById('muCategory').value);
+        formData.append('DocumentType', document.getElementById('muDocType').value);
+        const folderId = document.getElementById('muFolder').value;
+        if (folderId) formData.append('FolderId', folderId);
+        const clientId = document.getElementById('muClientId').value;
+        if (clientId) formData.append('OnBehalfOfClientId', clientId);
+        const clientName = document.getElementById('muClientName').value.trim();
+        if (clientName) formData.append('ClientName', clientName);
+
+        try {
+            document.getElementById('muProgressBar').style.width = '60%';
+            const response = await fetch('/api/DocumentApi/manual-upload', { method: 'POST', body: formData });
+            const data = await response.json();
+            document.getElementById('muProgressBar').style.width = '100%';
+
+            if (data.success) {
+                document.getElementById('muProgressText').textContent = 'Upload successful!';
+                bootstrap.Modal.getInstance(document.getElementById('manualUploadModal')).hide();
+                document.getElementById('manualUploadForm').reset();
+                document.getElementById('muProgress').style.display = 'none';
+                alert(`Document uploaded successfully! ${data.manualUploadBy ? 'Uploaded by: ' + data.manualUploadBy : ''}`);
+                loadDocuments();
+            } else {
+                alert('Error: ' + (data.message || 'Upload failed'));
+            }
+        } catch(e) {
+            console.error('Manual upload error:', e);
+            alert('Error uploading document');
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-upload me-1"></i>Upload Document';
+        document.getElementById('muProgress').style.display = 'none';
+        document.getElementById('muProgressBar').style.width = '0%';
     }
 </script>
 }

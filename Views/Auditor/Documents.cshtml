@@ -215,6 +215,7 @@
             const ext  = (d.fileExtension||'').toLowerCase();
             const icon = iconMap[ext] || 'bi-file-earmark text-secondary';
             const sc   = statusMap[d.status] || 'secondary';
+            const isManual = d.createdBy && d.createdBy.includes('Manual Upload');
             return `<tr>
                 <td class="ps-4">
                     <div class="d-flex align-items-center">
@@ -227,8 +228,9 @@
                 </td>
                 <td><small class="badge bg-light text-dark border">${escapeHtml(d.documentType||'-')}</small></td>
                 <td>
-                    <div class="small">${escapeHtml(d.clientName||'-')}</div>
-                    <div class="text-muted" style="font-size:0.75rem">By ${escapeHtml(d.uploadedBy||'-')}</div>
+                    <div class="small fw-medium">${escapeHtml(d.clientName||'N/A')}</div>
+                    <div class="text-muted" style="font-size:0.75rem">By ${escapeHtml(d.uploadedBy||'N/A')}${d.uploaderEmail ? ' (' + escapeHtml(d.uploaderEmail) + ')' : ''}</div>
+                    ${isManual ? '<span class="badge bg-warning text-dark" style="font-size:0.65rem"><i class="bi bi-upload me-1"></i>Manual Upload</span>' : ''}
                 </td>
                 <td><small class="text-muted">${formatDate(d.uploadedAt)}</small></td>
                 <td><span class="badge bg-${sc}">${escapeHtml(d.status||'Unknown')}</span></td>

@@ -181,7 +181,10 @@ public class AuditorApiController : ControllerBase
                 query = query.Where(d =>
                     (d.Title != null && d.Title.ToLower().Contains(s)) ||
                     (d.OriginalFileName != null && d.OriginalFileName.ToLower().Contains(s)) ||
-                    (d.DocumentType != null && d.DocumentType.ToLower().Contains(s)));
+                    (d.DocumentType != null && d.DocumentType.ToLower().Contains(s)) ||
+                    (d.Uploader != null && d.Uploader.FirstName != null && d.Uploader.FirstName.ToLower().Contains(s)) ||
+                    (d.Uploader != null && d.Uploader.LastName != null && d.Uploader.LastName.ToLower().Contains(s)) ||
+                    (d.Uploader != null && d.Uploader.Email != null && d.Uploader.Email.ToLower().Contains(s)));
             }
 
             if (!string.IsNullOrWhiteSpace(status))
@@ -198,22 +201,26 @@ public class AuditorApiController : ControllerBase
                 .Take(pageSize)
                 .Select(d => new
                 {
-                    id = d.DocumentID,
+                    documentId = d.DocumentID,
                     title = d.Title,
                     originalFileName = d.OriginalFileName,
                     fileExtension = d.FileExtension,
                     documentType = d.DocumentType,
                     status = d.Status,
                     workflowStage = d.WorkflowStage,
-                    uploaderName = d.Uploader != null ? (d.Uploader.FirstName ?? "") + " " + (d.Uploader.LastName ?? "") : "Unknown",
+                    clientName = d.Uploader != null ? (d.Uploader.FirstName ?? "") + " " + (d.Uploader.LastName ?? "") : "Unknown",
+                    uploadedBy = d.Uploader != null ? (d.Uploader.FirstName ?? "") + " " + (d.Uploader.LastName ?? "") : "Unknown",
+                    uploaderEmail = d.Uploader != null ? d.Uploader.Email : null,
                     folderName = d.Folder != null ? d.Folder.FolderName : null,
                     totalFileSize = d.TotalFileSize,
                     currentVersion = d.CurrentVersion,
                     versionCount = d.Versions.Count,
+                    uploadedAt = d.CreatedAt,
                     createdAt = d.CreatedAt,
                     approvedAt = d.ApprovedAt,
                     isHighRisk = d.IsHighRisk,
-                    isDuplicate = d.IsDuplicate
+                    isDuplicate = d.IsDuplicate,
+                    createdBy = d.CreatedBy
                 })
                 .ToListAsync();
 
