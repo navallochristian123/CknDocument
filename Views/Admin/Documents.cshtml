@@ -362,9 +362,6 @@
     </div>
 </div>
 
-<!-- Archive Document Modal -->
-<div class="modal fade" id="archiveDocumentModal" tabindex="-1">
-
 <!-- Admin Override Workflow Modal -->
 <div class="modal fade" id="overrideWorkflowModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -454,6 +451,9 @@
         </div>
     </div>
 </div>
+
+<!-- Archive Document Modal -->
+<div class="modal fade" id="archiveDocumentModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header border-bottom">
@@ -712,7 +712,7 @@
                             <i class="bi bi-eye me-1"></i>View
                         </button>
                         `}
-                        ${['PendingStaffReview','StaffReview','PendingLawyerReview','LawyerReview','PendingSecondOpinion','SecondOpinionReview'].includes(doc.workflowStage) ? `
+                        ${!['Completed','Approved','Archived'].includes(doc.workflowStage) && doc.status !== 'Completed' ? `
                         <button class="btn btn-sm btn-outline-warning" onclick="showOverrideModal(${doc.id}, '${escapeHtml(doc.title || doc.originalFileName)}', '${escapeHtml(doc.workflowStage)}', '${escapeHtml(doc.documentType || '')}', '${escapeHtml(doc.category || '')}', '${escapeHtml(doc.description || '')}', '${escapeHtml(doc.tags || '')}')" title="Override Workflow">
                             <i class="bi bi-lightning me-1"></i>Override
                         </button>
@@ -725,7 +725,7 @@
                                 <li><a class="dropdown-item" href="#" onclick="viewDocumentDetails(${doc.id}); return false;"><i class="bi bi-info-circle me-2"></i>View Details</a></li>
                                 <li><a class="dropdown-item" href="#" onclick="previewDocument(${doc.id}, '${escapeHtml(doc.fileExtension || '')}', '${escapeHtml(doc.originalFileName || doc.title)}'); return false;"><i class="bi bi-file-earmark me-2"></i>Preview</a></li>
                                 <li><a class="dropdown-item" href="/api/DocumentApi/${doc.id}/download"><i class="bi bi-download me-2"></i>Download</a></li>
-                                ${['PendingStaffReview','StaffReview','PendingLawyerReview','LawyerReview','PendingSecondOpinion','SecondOpinionReview'].includes(doc.workflowStage) ? `
+                                ${!['Completed','Approved','Archived'].includes(doc.workflowStage) && doc.status !== 'Completed' ? `
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item text-warning" href="#" onclick="showOverrideModal(${doc.id}, '${escapeHtml(doc.title || doc.originalFileName)}', '${escapeHtml(doc.workflowStage)}', '${escapeHtml(doc.documentType || '')}', '${escapeHtml(doc.category || '')}', '${escapeHtml(doc.description || '')}', '${escapeHtml(doc.tags || '')}'); return false;"><i class="bi bi-lightning me-2"></i>Override Workflow</a></li>
                                 ` : ''}
@@ -1209,10 +1209,10 @@
         options.forEach(opt => {
             opt.style.display = '';
             // Hide stages that are behind or equal to current stage
-            if (currentStage === 'PendingLawyerReview' || currentStage === 'LawyerReview') {
+            if (['PendingLawyerReview','LawyerReview','LawyerRejected'].includes(currentStage)) {
                 if (opt.value === 'PendingLawyerReview') opt.style.display = 'none';
             }
-            if (currentStage === 'PendingAdminReview' || currentStage === 'AdminReview') {
+            if (['PendingAdminReview','AdminReview','AdminRejected'].includes(currentStage)) {
                 if (opt.value === 'PendingLawyerReview' || opt.value === 'PendingAdminReview') opt.style.display = 'none';
             }
         });
