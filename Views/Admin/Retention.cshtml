@@ -792,20 +792,23 @@
     }
 
     async function processExpired() {
-        if (!confirm('This will archive all expired documents. Continue?')) return;
+        if (!confirm('This will move expired/expiring (≤1 day) documents to the Disposition Queue for review. Continue?')) return;
         
         try {
             const response = await fetch('/api/RetentionApi/process-expired', { method: 'POST' });
             const result = await response.json();
             if (result.success) {
-                alert(`Processed ${result.archivedCount} expired documents!`);
+                alert(`${result.message}`);
                 loadRetentionDocuments();
                 loadStats();
+                // Also refresh disposition queue so items appear immediately
+                loadDispositionQueue();
             } else {
-                alert('Error: ' + result.message);
+                alert('Error: ' + (result.message || 'Unknown error'));
             }
         } catch (e) {
-            alert('Error processing expired documents');
+            console.error('Error processing expired documents:', e);
+            alert('Error processing expired documents: ' + e.message);
         }
     }
 

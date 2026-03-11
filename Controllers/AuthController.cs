@@ -425,7 +425,7 @@ public class AuthController : Controller
             }
 
             // Validate FirmCode - proof that client belongs to the law firm
-            if (string.IsNullOrWhiteSpace(firm.FirmCode) || 
+            if (string.IsNullOrWhiteSpace(firm.FirmCode) ||
                 !string.Equals(firm.FirmCode, request.FirmCode?.Trim(), StringComparison.OrdinalIgnoreCase))
             {
                 ModelState.AddModelError("FirmCode", "Invalid firm verification code. Please contact the law firm for the correct code.");

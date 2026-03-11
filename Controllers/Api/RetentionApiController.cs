@@ -620,81 +620,115 @@ public class RetentionApiController : ControllerBase
     }
 
     /// <summary>
-    /// Process expired retentions and auto-archive
+    /// Process expired retentions and auto-archive (includes documents with ≤1 day remaining for faster testing)
     /// </summary>
     [HttpPost("process-expired")]
     public async Task<IActionResult> ProcessExpiredRetentions()
     {
-        var firmId = GetFirmId();
-        var userId = GetCurrentUserId();
-        var now = DateTime.UtcNow;
-
-        var expiredRetentions = await _context.DocumentRetentions
-            .Include(dr => dr.Document)
-            .Where(dr => dr.FirmId == firmId && 
-                         dr.IsArchived != true && 
-                         dr.ExpiryDate <= now &&
-                         dr.Document != null)
-            .ToListAsync();
-
-        var archivedCount = 0;
-        var docsToArchive = new List<int>();
-
-        foreach (var retention in expiredRetentions)
+        try
         {
-            if (retention.Document == null) continue;
+            var firmId = GetFirmId();
+            var userId = GetCurrentUserId();
+            var now = DateTime.UtcNow;
+            // Include documents expiring within the next 1 day (for faster disposition testing)
+            var cutoffDate = now.AddDays(1);
 
-            // Create archive record
-            var archive = new Archive
+            var expiredRetentions = await _context.DocumentRetentions
+                .Include(dr => dr.Document)
+                .Where(dr => dr.FirmId == firmId && 
+                             dr.IsArchived != true && 
+                             dr.ExpiryDate <= cutoffDate &&
+                             dr.Document != null)
+                .ToListAsync();
+
+            var archivedCount = 0;
+            var docsToArchive = new List<int>();
+
+            foreach (var retention in expiredRetentions)
             {
-                DocumentID = retention.DocumentID,
-                ArchivedDate = now,
-                Reason = "Retention period expired",
-                ArchiveType = "Retention",
-                OriginalRetentionDate = retention.ExpiryDate,
-                ArchivedBy = userId,
-                IsRestored = false
-            };
+                if (retention.Document == null) continue;
+                if (!retention.DocumentID.HasValue) continue;
 
-            _context.Archives.Add(archive);
+                // Skip if an active (non-restored, non-deleted) archive already exists
+                var existingArchive = await _context.Archives
+                    .FirstOrDefaultAsync(a => a.DocumentID == retention.DocumentID &&
+                                             a.IsRestored != true && a.IsDeleted != true);
+                if (existingArchive != null)
+                {
+                    retention.IsArchived = true;
+                    continue;
+                }
 
-            // Update retention record
-            retention.IsArchived = true;
+                var gracePeriodEnd = now.AddDays(30);
 
-            // Collect document ID for bulk update
-            if (retention.DocumentID.HasValue)
-            {
+                // Create complete archive record with all disposition queue fields
+                var archive = new Archive
+                {
+                    DocumentID = retention.DocumentID,
+                    FirmId = firmId,
+                    ArchivedDate = now,
+                    Reason = $"Retention period expired on {retention.ExpiryDate:d}",
+                    ArchiveType = "Retention",
+                    OriginalRetentionDate = retention.ExpiryDate,
+                    ArchivedBy = userId,
+                    IsRestored = false,
+                    OriginalStatus = retention.Document.Status,
+                    OriginalWorkflowStage = retention.Document.WorkflowStage,
+                    OriginalFolderId = retention.Document.FolderId,
+                    ScheduledDeleteDate = gracePeriodEnd,
+                    RetentionDispositionStatus = "PendingReview",
+                    GracePeriodStartDate = now,
+                    GracePeriodEndDate = gracePeriodEnd,
+                    IsOnHold = false,
+                    IsDeleted = false,
+                    ExpiryNotificationSent = true,
+                    ExpiryNotifiedAt = true,
+                    CreatedAt = now
+                };
+
+                _context.Archives.Add(archive);
+
+                // Update retention record
+                retention.IsArchived = true;
+                retention.ModifiedAt = now;
+                retention.ModificationReason = "Processed via disposition queue";
+
                 docsToArchive.Add(retention.DocumentID.Value);
+
+                // Detach document to prevent UpdatedAt column issue
+                _context.Entry(retention.Document).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+
+                archivedCount++;
             }
 
-            // Detach document to prevent UpdatedAt column issue
-            _context.Entry(retention.Document).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+            await _context.SaveChangesAsync();
 
-            archivedCount++;
+            // Update document statuses using ExecuteUpdateAsync to avoid UpdatedAt column issue
+            if (docsToArchive.Any())
+            {
+                await _context.Documents
+                    .Where(d => docsToArchive.Contains(d.DocumentID))
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(d => d.Status, "Archived")
+                        .SetProperty(d => d.WorkflowStage, "Archived"));
+            }
+
+            await _auditLogService.LogAsync(
+                "ProcessExpiredRetentions",
+                "System",
+                userId,
+                $"Processed {archivedCount} expired retention documents to disposition queue",
+                null,
+                null,
+                "RetentionManagement");
+
+            return Ok(new { success = true, message = $"Processed {archivedCount} expired documents to disposition queue", archivedCount });
         }
-
-        await _context.SaveChangesAsync();
-
-        // Update document statuses using ExecuteUpdateAsync to avoid UpdatedAt column issue
-        if (docsToArchive.Any())
+        catch (Exception ex)
         {
-            await _context.Documents
-                .Where(d => docsToArchive.Contains(d.DocumentID))
-                .ExecuteUpdateAsync(setters => setters
-                    .SetProperty(d => d.Status, "Archived")
-                    .SetProperty(d => d.WorkflowStage, "Archived"));
+            _logger.LogError(ex, "Error processing expired retentions");
+            return StatusCode(500, new { success = false, message = "Error processing expired retentions: " + ex.Message });
         }
-
-        await _auditLogService.LogAsync(
-            "ProcessExpiredRetentions",
-            "System",
-            0,
-            $"Processed {archivedCount} expired retention documents",
-            null,
-            null,
-            "RetentionManagement");
-
-        return Ok(new { success = true, message = $"Processed {archivedCount} expired documents", archivedCount });
     }
 
     /// <summary>
