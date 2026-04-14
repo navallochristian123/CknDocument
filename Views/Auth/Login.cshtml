@@ -191,9 +191,21 @@
         });
 
         var captchaVerified = false;
+        var captchaIssuedAt = 0;
+        var captchaRequestInFlight = false;
+        var captchaMaxAgeMs = 100000;
 
-        function verifyCaptcha() {
-            if (captchaVerified) return;
+        function showCaptchaError(message) {
+            var errorDiv = document.getElementById('recaptchaError');
+            errorDiv.style.display = 'block';
+            errorDiv.textContent = message;
+            document.getElementById('recaptchaBox').classList.add('error');
+        }
+
+        function runCaptchaVerification() {
+            if (captchaRequestInFlight) {
+                return Promise.reject(new Error('Captcha verification already in progress.'));
+            }
 
             var checkbox = document.getElementById('recaptchaCheckbox');
             var checkmark = document.getElementById('recaptchaCheckmark');
@@ -203,15 +215,28 @@
             var errorDiv = document.getElementById('recaptchaError');
 
             // Show loading state
+            captchaRequestInFlight = true;
             checkbox.style.display = 'none';
             spinner.style.display = 'flex';
             label.textContent = 'Verifying...';
             errorDiv.style.display = 'none';
+            box.classList.remove('error');
 
-            grecaptcha.ready(function() {
-                grecaptcha.execute('@recaptchaSiteKey', { action: 'login' }).then(function(token) {
+            if (typeof grecaptcha === 'undefined') {
+                captchaRequestInFlight = false;
+                spinner.style.display = 'none';
+                checkbox.style.display = 'flex';
+                label.textContent = 'I\'m not a robot';
+                return Promise.reject(new Error('reCAPTCHA script was not loaded.'));
+            }
+
+            return new Promise(function(resolve, reject) {
+                grecaptcha.ready(function() {
+                    grecaptcha.execute('@recaptchaSiteKey', { action: 'login' }).then(function(token) {
                     document.getElementById('recaptchaToken').value = token;
                     captchaVerified = true;
+                    captchaIssuedAt = Date.now();
+                    captchaRequestInFlight = false;
 
                     // Show success state
                     spinner.style.display = 'none';
@@ -222,23 +247,42 @@
                     label.style.color = '#43A047';
                     box.classList.add('verified');
                     box.style.cursor = 'default';
-                }).catch(function(err) {
-                    spinner.style.display = 'none';
-                    checkbox.style.display = 'flex';
-                    label.textContent = 'I\'m not a robot';
-                    errorDiv.style.display = 'block';
-                    errorDiv.textContent = 'Verification failed. Please try again.';
-                    console.error('reCAPTCHA error:', err);
+                    resolve(token);
+                    }).catch(function(err) {
+                        captchaRequestInFlight = false;
+                        spinner.style.display = 'none';
+                        checkbox.style.display = 'flex';
+                        label.textContent = 'I\'m not a robot';
+                        showCaptchaError('Verification failed. Please try again.');
+                        console.error('reCAPTCHA error:', err);
+                        reject(err);
+                    });
                 });
+            });
+        }
+
+        function verifyCaptcha() {
+            var hasFreshToken = captchaVerified && (Date.now() - captchaIssuedAt) < captchaMaxAgeMs;
+            if (hasFreshToken) return;
+
+            runCaptchaVerification().catch(function() {
+                // Error is already handled in UI.
             });
         }
 
         // Form submit validation
         document.getElementById('loginForm').addEventListener('submit', function(e) {
-            if (!captchaVerified) {
+            var form = this;
+            var token = document.getElementById('recaptchaToken').value;
+            var hasFreshToken = captchaVerified && !!token && (Date.now() - captchaIssuedAt) < captchaMaxAgeMs;
+
+            if (!hasFreshToken) {
                 e.preventDefault();
-                document.getElementById('recaptchaError').style.display = 'block';
-                document.getElementById('recaptchaBox').classList.add('error');
+                runCaptchaVerification().then(function() {
+                    form.submit();
+                }).catch(function() {
+                    showCaptchaError('Please complete reCAPTCHA verification before signing in.');
+                });
                 return false;
             }
         });

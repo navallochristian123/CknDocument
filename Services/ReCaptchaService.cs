@@ -11,19 +11,30 @@ public class ReCaptchaService
 {
     private readonly HttpClient _httpClient;
     private readonly string _secretKey;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<ReCaptchaService> _logger;
+    private readonly float _minimumScore;
 
     /// <summary>
-    /// Minimum score threshold. Requests scoring below this are treated as bots.
-    /// 0.5 is Google's recommended default.
+    /// Minimum score threshold for v3 responses. Defaults to 0.3 to reduce false negatives.
+    /// Can be overridden by GoogleReCaptcha:MinimumScore.
     /// </summary>
-    private const float MinimumScore = 0.5f;
+    private const float DefaultMinimumScore = 0.3f;
 
-    public ReCaptchaService(HttpClient httpClient, IConfiguration configuration, ILogger<ReCaptchaService> logger)
+    public ReCaptchaService(
+        HttpClient httpClient,
+        IConfiguration configuration,
+        IHttpContextAccessor httpContextAccessor,
+        ILogger<ReCaptchaService> logger)
     {
         _httpClient = httpClient;
         _secretKey = configuration["GoogleReCaptcha:SecretKey"]
             ?? throw new InvalidOperationException("GoogleReCaptcha:SecretKey is not configured.");
+        _httpContextAccessor = httpContextAccessor;
+        _minimumScore = Math.Clamp(
+            configuration.GetValue<float?>("GoogleReCaptcha:MinimumScore") ?? DefaultMinimumScore,
+            0f,
+            1f);
         _logger = logger;
     }
 
@@ -43,18 +54,29 @@ public class ReCaptchaService
 
         try
         {
-            var content = new FormUrlEncodedContent(new Dictionary<string, string>
+            var form = new Dictionary<string, string>
             {
                 { "secret", _secretKey },
                 { "response", recaptchaResponse }
-            });
+            };
+
+            var remoteIp = _httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString();
+            if (!string.IsNullOrWhiteSpace(remoteIp))
+            {
+                form["remoteip"] = remoteIp;
+            }
+
+            var content = new FormUrlEncodedContent(form);
 
             var response = await _httpClient.PostAsync("https://www.google.com/recaptcha/api/siteverify", content);
             var json = await response.Content.ReadAsStringAsync();
 
             _logger.LogDebug("reCAPTCHA verify response: {Json}", json);
 
-            var result = JsonSerializer.Deserialize<ReCaptchaVerificationResult>(json);
+            var result = JsonSerializer.Deserialize<ReCaptchaVerificationResult>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
 
             if (result == null)
             {
@@ -69,21 +91,29 @@ public class ReCaptchaService
                 return false;
             }
 
-            // Check the score (v3 specific)
-            if (result.Score < MinimumScore)
+            // v3 returns score/action. v2 may omit both and still be valid (success=true).
+            var isV3Response = result.Score > 0 || !string.IsNullOrWhiteSpace(result.Action);
+
+            if (isV3Response && result.Score < _minimumScore)
             {
                 _logger.LogWarning("reCAPTCHA score {Score} is below minimum threshold {MinScore} for action '{Action}'.",
-                    result.Score, MinimumScore, result.Action);
+                    result.Score, _minimumScore, result.Action);
                 return false;
             }
 
-            // Optionally verify the action matches
+            // Validate action when Google sends one; don't fail hard when action is absent.
             if (!string.IsNullOrEmpty(expectedAction) &&
+                !string.IsNullOrWhiteSpace(result.Action) &&
                 !string.Equals(result.Action, expectedAction, StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogWarning("reCAPTCHA action mismatch. Expected '{Expected}', got '{Actual}'.",
                     expectedAction, result.Action);
                 return false;
+            }
+
+            if (!isV3Response)
+            {
+                _logger.LogInformation("reCAPTCHA validated without v3 score/action. Accepted based on success response.");
             }
 
             _logger.LogInformation("reCAPTCHA v3 passed. Score: {Score}, Action: {Action}", result.Score, result.Action);
