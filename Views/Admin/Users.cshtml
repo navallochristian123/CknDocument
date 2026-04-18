@@ -3,6 +3,7 @@
     ViewData["Title"] = "Users";
     Layout = "_AdminLayout";
     var roles = ViewData["Roles"] as IEnumerable<CKNDocument.Models.LawFirmDMS.Role> ?? new List<CKNDocument.Models.LawFirmDMS.Role>();
+    var allowedRoleNames = new[] { "Staff", "Lawyer", "Client", "Auditor" };
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -57,12 +58,13 @@
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
                     <option value="Locked">Locked</option>
+                    <option value="PermanentlyLocked">Permanently Locked</option>
                 </select>
             </div>
             <div class="col-md-3">
                 <select class="form-select" id="roleFilter">
                     <option value="">All Roles</option>
-                    @foreach (var role in roles.Where(r => r.RoleName != "Admin" && r.RoleName != "SuperAdmin"))
+                    @foreach (var role in roles.Where(r => r.RoleName != null && allowedRoleNames.Contains(r.RoleName)))
                     {
                         <option value="@role.RoleName">@role.RoleName</option>
                     }
@@ -114,6 +116,7 @@
                                 "Inactive" => "bg-secondary",
                                 "Pending" => "bg-warning text-dark",
                                 "Locked" => "bg-danger",
+                                "PermanentlyLocked" => "bg-danger",
                                 _ => "bg-warning"
                             };
                             var lastActive = user.LastLoginAt.HasValue
@@ -204,7 +207,7 @@
                     <div class="mb-4">
                         <label class="form-label fw-bold">User Role <span class="text-danger">*</span></label>
                         <div class="row g-2">
-                            @foreach (var role in roles.Where(r => r.RoleName != "Admin" && r.RoleName != "SuperAdmin"))
+                            @foreach (var role in roles.Where(r => r.RoleName != null && allowedRoleNames.Contains(r.RoleName)))
                             {
                                 var roleIcon = role.RoleName switch
                                 {
@@ -259,7 +262,8 @@
                         <div class="col-md-6">
                             <label class="form-label">Phone Number</label>
                             <input type="tel" class="form-control" name="PhoneNumber" maxlength="11" 
-                                   pattern="[0-9]{11}" title="Enter 11-digit phone number">
+                                   pattern="[0-9]{10,11}" title="Enter 10-11 digit phone number"
+                                   inputmode="numeric" oninput="this.value = this.value.replace(/\D/g, '').slice(0, 11)">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Date of Birth</label>
@@ -316,7 +320,18 @@
                                         </div>
                                         <div class="col-md-6">
                                             <label class="form-label">Position</label>
-                                            <input type="text" class="form-control" name="Position" maxlength="100">
+                                            <select class="form-select" name="Position">
+                                                <option value="">Select Position</option>
+                                                <option value="Partner">Partner</option>
+                                                <option value="Senior Lawyer">Senior Lawyer</option>
+                                                <option value="Associate Lawyer">Associate Lawyer</option>
+                                                <option value="Paralegal">Paralegal</option>
+                                                <option value="Legal Secretary">Legal Secretary</option>
+                                                <option value="Records Officer">Records Officer</option>
+                                                <option value="Compliance Officer">Compliance Officer</option>
+                                                <option value="Auditor">Auditor</option>
+                                                <option value="Client Liaison">Client Liaison</option>
+                                            </select>
                                         </div>
                                         <div class="col-md-6">
                                             <label class="form-label">Bar Number</label>
@@ -344,12 +359,40 @@
                                             <input type="text" class="form-control" name="Street" maxlength="255">
                                         </div>
                                         <div class="col-md-4">
+                                            <label class="form-label">Barangay</label>
+                                            <select class="form-select" name="Barangay">
+                                                <option value="">Select Barangay</option>
+                                                <option value="Poblacion">Poblacion</option>
+                                                <option value="San Isidro">San Isidro</option>
+                                                <option value="San Jose">San Jose</option>
+                                                <option value="San Roque">San Roque</option>
+                                                <option value="San Antonio">San Antonio</option>
+                                                <option value="Santa Cruz">Santa Cruz</option>
+                                                <option value="Santa Lucia">Santa Lucia</option>
+                                                <option value="Bagong Silang">Bagong Silang</option>
+                                                <option value="Commonwealth">Commonwealth</option>
+                                                <option value="Batasan Hills">Batasan Hills</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4">
                                             <label class="form-label">City</label>
                                             <input type="text" class="form-control" name="City" maxlength="100">
                                         </div>
                                         <div class="col-md-4">
                                             <label class="form-label">Province</label>
-                                            <input type="text" class="form-control" name="Province" maxlength="100">
+                                            <select class="form-select" name="Province">
+                                                <option value="">Select Province</option>
+                                                <option value="Metro Manila">Metro Manila</option>
+                                                <option value="Cavite">Cavite</option>
+                                                <option value="Laguna">Laguna</option>
+                                                <option value="Batangas">Batangas</option>
+                                                <option value="Rizal">Rizal</option>
+                                                <option value="Bulacan">Bulacan</option>
+                                                <option value="Pampanga">Pampanga</option>
+                                                <option value="Cebu">Cebu</option>
+                                                <option value="Davao del Sur">Davao del Sur</option>
+                                                <option value="Iloilo">Iloilo</option>
+                                            </select>
                                         </div>
                                         <div class="col-md-4">
                                             <label class="form-label">Zip Code</label>
@@ -570,6 +613,15 @@
 @section Scripts {
 <script>
     // Tab filtering
+    const provinceOptions = ['Metro Manila', 'Cavite', 'Laguna', 'Batangas', 'Rizal', 'Bulacan', 'Pampanga', 'Cebu', 'Davao del Sur', 'Iloilo'];
+    const barangayOptions = ['Poblacion', 'San Isidro', 'San Jose', 'San Roque', 'San Antonio', 'Santa Cruz', 'Santa Lucia', 'Bagong Silang', 'Commonwealth', 'Batasan Hills'];
+    const positionOptions = ['Partner', 'Senior Lawyer', 'Associate Lawyer', 'Paralegal', 'Legal Secretary', 'Records Officer', 'Compliance Officer', 'Auditor', 'Client Liaison'];
+
+    function renderSelectOptions(options, selected) {
+        const normalizedSelected = (selected || '').toLowerCase();
+        return options.map(o => `<option value="${escAttr(o)}" ${o.toLowerCase() === normalizedSelected ? 'selected' : ''}>${esc(o)}</option>`).join('');
+    }
+
     document.querySelectorAll('#userTabs .nav-link').forEach(tab => {
         tab.addEventListener('click', function(e) {
             e.preventDefault();
@@ -690,7 +742,7 @@
                     return;
                 }
                 const d = result.data;
-                const statusClass = d.status === 'Active' ? 'bg-success' : d.status === 'Pending' ? 'bg-warning text-dark' : d.status === 'Locked' ? 'bg-danger' : 'bg-secondary';
+                const statusClass = d.status === 'Active' ? 'bg-success' : d.status === 'Pending' ? 'bg-warning text-dark' : (d.status === 'Locked' || d.status === 'PermanentlyLocked') ? 'bg-danger' : 'bg-secondary';
                 const roleClass = d.roleName === 'Admin' ? 'bg-danger' : d.roleName === 'Lawyer' ? 'bg-primary' : d.roleName === 'Staff' ? 'bg-success' : d.roleName === 'Client' ? 'bg-purple' : d.roleName === 'Auditor' ? 'bg-info' : 'bg-secondary';
                 const roleStyle = d.roleName === 'Client' ? 'background-color: #a855f7 !important;' : '';
 
@@ -755,11 +807,12 @@
                 }
 
                 // Address info (only show if any field has data)
-                if (d.street || d.city || d.province || d.zipCode) {
+                if (d.street || d.barangay || d.city || d.province || d.zipCode) {
                     html += `
                     <div class="row g-3 mt-1">
                         <div class="col-12"><h6 class="border-bottom pb-2 text-secondary"><i class="bi bi-geo-alt me-1"></i>Address</h6></div>
                         ${detailRow('Street', d.street)}
+                        ${detailRow('Barangay', d.barangay)}
                         ${detailRow('City', d.city)}
                         ${detailRow('Province', d.province)}
                         ${detailRow('Zip Code', d.zipCode)}
@@ -811,7 +864,7 @@
                     `<option value="${r.roleID}" ${r.roleID === d.roleId ? 'selected' : ''}>${esc(r.roleName)}</option>`
                 ).join('');
 
-                const statusOptions = ['Active', 'Inactive', 'Pending', 'Locked'].map(s =>
+                const statusOptions = ['Active', 'Inactive', 'Pending', 'Locked', 'PermanentlyLocked'].map(s =>
                     `<option value="${s}" ${s === d.status ? 'selected' : ''}>${s}</option>`
                 ).join('');
 
@@ -835,7 +888,7 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Phone Number</label>
-                            <input type="text" class="form-control" name="PhoneNumber" value="${escAttr(d.phoneNumber || '')}" maxlength="11">
+                            <input type="tel" class="form-control" name="PhoneNumber" value="${escAttr(d.phoneNumber || '')}" maxlength="11" pattern="[0-9]{10,11}" inputmode="numeric" oninput="this.value = this.value.replace(/\\D/g, '').slice(0, 11)">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Date of Birth</label>
@@ -856,7 +909,10 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Position</label>
-                            <input type="text" class="form-control" name="Position" value="${escAttr(d.position || '')}" maxlength="100">
+                            <select class="form-select" name="Position">
+                                <option value="">Select Position</option>
+                                ${renderSelectOptions(positionOptions, d.position)}
+                            </select>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Bar Number</label>
@@ -872,12 +928,22 @@
                             <input type="text" class="form-control" name="Street" value="${escAttr(d.street || '')}" maxlength="255">
                         </div>
                         <div class="col-md-4">
+                            <label class="form-label">Barangay</label>
+                            <select class="form-select" name="Barangay">
+                                <option value="">Select Barangay</option>
+                                ${renderSelectOptions(barangayOptions, d.barangay)}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
                             <label class="form-label">City</label>
                             <input type="text" class="form-control" name="City" value="${escAttr(d.city || '')}" maxlength="100">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Province</label>
-                            <input type="text" class="form-control" name="Province" value="${escAttr(d.province || '')}" maxlength="100">
+                            <select class="form-select" name="Province">
+                                <option value="">Select Province</option>
+                                ${renderSelectOptions(provinceOptions, d.province)}
+                            </select>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Zip Code</label>

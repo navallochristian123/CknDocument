@@ -105,29 +105,67 @@ public class DatabaseSeeder
         try
         {
             _logger.LogInformation("Checking SuperAdmin table...");
-            if (await _context.SuperAdmins.AnyAsync())
+            // Primary SuperAdmin
+            var primaryUsername = "superadmin";
+            var primaryEmail = "superadmin@ckn.com";
+            var primaryPassword = "SuperAdmin@123";
+
+            var primaryExists = await _context.SuperAdmins
+                .AnyAsync(s => s.Username.ToLower() == primaryUsername || s.Email.ToLower() == primaryEmail);
+
+            if (!primaryExists)
             {
-                _logger.LogInformation("SuperAdmin already exists, skipping seed");
-                return;
+                _logger.LogInformation("Seeding primary SuperAdmin...");
+                _context.SuperAdmins.Add(new SuperAdmin
+                {
+                    Username = primaryUsername,
+                    Email = primaryEmail,
+                    PasswordHash = PasswordHelper.HashPassword(primaryPassword),
+                    FirstName = "Primary",
+                    LastName = "SuperAdmin",
+                    PhoneNumber = "09123456789",
+                    Status = "Active",
+                    CreatedAt = DateTime.UtcNow
+                });
             }
 
-            _logger.LogInformation("Seeding SuperAdmin...");
-            var superAdmin = new SuperAdmin
+            // Backup SuperAdmin
+            var backupUsername = Environment.GetEnvironmentVariable("BACKUP_SUPERADMIN_USERNAME")?.Trim();
+            var backupEmail = Environment.GetEnvironmentVariable("BACKUP_SUPERADMIN_EMAIL")?.Trim();
+            var backupPassword = Environment.GetEnvironmentVariable("BACKUP_SUPERADMIN_PASSWORD")?.Trim();
+
+            backupUsername = string.IsNullOrWhiteSpace(backupUsername) ? "backup_superadmin" : backupUsername;
+            backupEmail = string.IsNullOrWhiteSpace(backupEmail) ? "backup.superadmin@ckn.com" : backupEmail;
+            backupPassword = string.IsNullOrWhiteSpace(backupPassword) ? "BackupSuperAdmin@123" : backupPassword;
+
+            var backupExists = await _context.SuperAdmins
+                .AnyAsync(s => s.Username.ToLower() == backupUsername.ToLower() || s.Email.ToLower() == backupEmail.ToLower());
+
+            if (!backupExists)
             {
-                Username = "superadmin",
-                Email = "superadmin@ckn.com",
-                PasswordHash = PasswordHelper.HashPassword("SuperAdmin@123"),
-                FirstName = "Super",
-                LastName = "Admin",
-                PhoneNumber = "09123456789",
-                Status = "Active",
-                CreatedAt = DateTime.UtcNow
-            };
+                _logger.LogInformation("Seeding backup SuperAdmin account...");
+                _context.SuperAdmins.Add(new SuperAdmin
+                {
+                    Username = backupUsername,
+                    Email = backupEmail,
+                    PasswordHash = PasswordHelper.HashPassword(backupPassword),
+                    FirstName = "Backup",
+                    LastName = "SuperAdmin",
+                    PhoneNumber = "09123456780",
+                    Status = "Active",
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
 
-            _context.SuperAdmins.Add(superAdmin);
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation("SuperAdmin seeded: superadmin / SuperAdmin@123");
+            if (_context.ChangeTracker.HasChanges())
+            {
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("SuperAdmin seeding complete (primary/backup ensured).");
+            }
+            else
+            {
+                _logger.LogInformation("Primary and backup SuperAdmin accounts already exist.");
+            }
         }
         catch (Exception ex)
         {
