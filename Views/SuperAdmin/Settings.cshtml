@@ -80,6 +80,8 @@
 }
 
 <div class="container-fluid py-4">
+    <div id="saAntiForgeryToken" class="d-none">@Html.AntiForgeryToken()</div>
+
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
 
@@ -254,13 +256,69 @@
                         </div>
                     </div>
 
-                    <div class="card settings-card mt-4">
+                    <div class="card settings-card mt-4" id="emergencyShieldCard" style="display:none;">
                         <div class="card-header bg-white border-bottom">
                             <h5 class="mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>Login Activity</h5>
                         </div>
                         <div class="card-body">
                             <p class="text-muted mb-2">Last Login</p>
                             <p id="lastLogin" class="fw-bold">-</p>
+                        </div>
+                    </div>
+
+                    <div class="card settings-card mt-4" id="recoveryAccountsCard" style="display:none;">
+                        <div class="card-header bg-white border-bottom">
+                            <h5 class="mb-0"><i class="bi bi-shield-lock me-2 text-danger"></i>Emergency Data Shield</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-warning mb-3">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                When enabled by backup SuperAdmin, sensitive SuperAdmin pages are immediately hidden from non-backup SuperAdmin accounts.
+                            </div>
+                            <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
+                                <div>
+                                    <div class="fw-semibold">Shield Status: <span id="emergencyShieldStatus" class="badge bg-secondary">Unknown</span></div>
+                                    <small class="text-muted" id="emergencyShieldHint">Checking permissions...</small>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-danger btn-sm" id="enableEmergencyShieldBtn" disabled>
+                                        <i class="bi bi-lock-fill me-1"></i>Enable Shield
+                                    </button>
+                                    <button type="button" class="btn btn-outline-success btn-sm" id="disableEmergencyShieldBtn" disabled>
+                                        <i class="bi bi-unlock-fill me-1"></i>Disable Shield
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card settings-card mt-4">
+                        <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="bi bi-life-preserver me-2 text-primary"></i>SuperAdmin Recovery Accounts</h5>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshSuperAdminAccountsBtn">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted small mb-3">Use your backup SuperAdmin account to recover or deactivate compromised SuperAdmin accounts.</p>
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Username</th>
+                                            <th>Email</th>
+                                            <th>Status</th>
+                                            <th>Last Login</th>
+                                            <th class="text-end">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="superAdminAccountsBody">
+                                        <tr>
+                                            <td colspan="5" class="text-muted text-center py-3">Loading SuperAdmin accounts...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -360,9 +418,11 @@
 @section Scripts {
 <script>
     let currentProfile = null;
+    let recoveryState = { isBackupAdmin: false, emergencyDataHidden: false };
 
     document.addEventListener('DOMContentLoaded', function() {
         loadProfile();
+        loadRecoveryStatus();
         initTheme();
         
         document.getElementById('profileForm').addEventListener('submit', saveProfile);
@@ -370,7 +430,201 @@
         document.getElementById('profilePictureInput').addEventListener('change', uploadProfilePicture);
         document.getElementById('newPassword').addEventListener('input', checkPasswordStrength);
         document.getElementById('confirmPassword').addEventListener('input', checkPasswordMatch);
+        document.getElementById('refreshSuperAdminAccountsBtn').addEventListener('click', loadSuperAdminAccounts);
+        document.getElementById('enableEmergencyShieldBtn').addEventListener('click', () => setEmergencyShield(true));
+        document.getElementById('disableEmergencyShieldBtn').addEventListener('click', () => setEmergencyShield(false));
     });
+
+    async function loadRecoveryStatus() {
+        try {
+            const response = await fetch('/SuperAdminSettings/GetRecoveryStatus');
+            const data = await response.json();
+
+            if (!data.success) {
+                showToast(data.message || 'Failed to load recovery status', 'danger');
+                return;
+            }
+
+            recoveryState = {
+                isBackupAdmin: !!data.isBackupAdmin,
+                emergencyDataHidden: !!data.emergencyDataHidden
+            };
+
+            const emergencyShieldCard = document.getElementById('emergencyShieldCard');
+            const recoveryAccountsCard = document.getElementById('recoveryAccountsCard');
+
+            if (recoveryState.isBackupAdmin) {
+                if (emergencyShieldCard) {
+                    emergencyShieldCard.style.display = '';
+                }
+                if (recoveryAccountsCard) {
+                    recoveryAccountsCard.style.display = '';
+                }
+                loadSuperAdminAccounts();
+            } else {
+                if (emergencyShieldCard) {
+                    emergencyShieldCard.style.display = 'none';
+                }
+                if (recoveryAccountsCard) {
+                    recoveryAccountsCard.style.display = 'none';
+                }
+            }
+
+            updateEmergencyShieldUI();
+        } catch (error) {
+            console.error('Error loading recovery status:', error);
+            showToast('Error loading recovery status', 'danger');
+        }
+    }
+
+    function updateEmergencyShieldUI() {
+        const statusEl = document.getElementById('emergencyShieldStatus');
+        const hintEl = document.getElementById('emergencyShieldHint');
+        const enableBtn = document.getElementById('enableEmergencyShieldBtn');
+        const disableBtn = document.getElementById('disableEmergencyShieldBtn');
+
+        const shieldOn = recoveryState.emergencyDataHidden;
+        statusEl.textContent = shieldOn ? 'Enabled' : 'Disabled';
+        statusEl.className = shieldOn ? 'badge bg-danger' : 'badge bg-success';
+
+        if (recoveryState.isBackupAdmin) {
+            hintEl.textContent = 'Backup SuperAdmin privileges detected. You can toggle emergency shield mode.';
+            enableBtn.disabled = shieldOn;
+            disableBtn.disabled = !shieldOn;
+        } else {
+            hintEl.textContent = 'Only backup SuperAdmin can change emergency shield mode.';
+            enableBtn.disabled = true;
+            disableBtn.disabled = true;
+        }
+    }
+
+    async function setEmergencyShield(enabled) {
+        if (!recoveryState.isBackupAdmin) {
+            showToast('Only backup SuperAdmin can toggle emergency shield mode.', 'danger');
+            return;
+        }
+
+        const actionWord = enabled ? 'enable' : 'disable';
+        if (!confirm(`Are you sure you want to ${actionWord} emergency data shield mode?`)) {
+            return;
+        }
+
+        try {
+            const token = document.querySelector('#saAntiForgeryToken input[name="__RequestVerificationToken"]')?.value || '';
+            const response = await fetch('/SuperAdminSettings/SetEmergencyDataHidden', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': token
+                },
+                body: JSON.stringify({ enabled })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                recoveryState.emergencyDataHidden = enabled;
+                updateEmergencyShieldUI();
+                showToast(data.message || 'Emergency shield updated', 'success');
+            } else {
+                showToast(data.message || 'Failed to update emergency shield', 'danger');
+            }
+        } catch (error) {
+            console.error('Error updating emergency shield:', error);
+            showToast('Error updating emergency shield mode', 'danger');
+        }
+    }
+
+    async function loadSuperAdminAccounts() {
+        const body = document.getElementById('superAdminAccountsBody');
+        if (!body) return;
+
+        body.innerHTML = '<tr><td colspan="5" class="text-muted text-center py-3">Loading SuperAdmin accounts...</td></tr>';
+
+        try {
+            const response = await fetch('/SuperAdminSettings/GetSuperAdminAccounts');
+            const data = await response.json();
+
+            if (!data.success || !Array.isArray(data.accounts)) {
+                body.innerHTML = '<tr><td colspan="5" class="text-danger text-center py-3">Failed to load accounts.</td></tr>';
+                return;
+            }
+
+            if (data.accounts.length === 0) {
+                body.innerHTML = '<tr><td colspan="5" class="text-muted text-center py-3">No SuperAdmin accounts found.</td></tr>';
+                return;
+            }
+
+            body.innerHTML = data.accounts.map(account => {
+                const isActive = (account.status || '').toLowerCase() === 'active';
+                const statusBadge = isActive
+                    ? '<span class="badge bg-success">Active</span>'
+                    : '<span class="badge bg-secondary">Inactive</span>';
+                const backupBadge = account.isBackup ? ' <span class="badge bg-info">Backup</span>' : '';
+                const currentBadge = account.isCurrent ? ' <span class="badge bg-primary">Current</span>' : '';
+                const lastLogin = account.lastLoginAt ? new Date(account.lastLoginAt).toLocaleString() : 'Never';
+
+                let actionHtml = '<span class="text-muted small">No action</span>';
+                if (!account.isCurrent) {
+                    if (isActive) {
+                        actionHtml = `<button class="btn btn-outline-danger btn-sm" onclick="setSuperAdminStatus(${account.superAdminId}, 'Inactive')"><i class="bi bi-person-x me-1"></i>Deactivate</button>`;
+                    } else {
+                        actionHtml = `<button class="btn btn-outline-success btn-sm" onclick="setSuperAdminStatus(${account.superAdminId}, 'Active')"><i class="bi bi-person-check me-1"></i>Activate</button>`;
+                    }
+                }
+
+                return `
+                    <tr>
+                        <td>${escapeHtml(account.username)}${backupBadge}${currentBadge}</td>
+                        <td>${escapeHtml(account.email)}</td>
+                        <td>${statusBadge}</td>
+                        <td>${escapeHtml(lastLogin)}</td>
+                        <td class="text-end">${actionHtml}</td>
+                    </tr>
+                `;
+            }).join('');
+        } catch (error) {
+            console.error('Error loading SuperAdmin accounts:', error);
+            body.innerHTML = '<tr><td colspan="5" class="text-danger text-center py-3">Error loading accounts.</td></tr>';
+        }
+    }
+
+    async function setSuperAdminStatus(superAdminId, status) {
+        const actionWord = status === 'Active' ? 'activate' : 'deactivate';
+        if (!confirm(`Are you sure you want to ${actionWord} this SuperAdmin account?`)) {
+            return;
+        }
+
+        try {
+            const token = document.querySelector('#saAntiForgeryToken input[name="__RequestVerificationToken"]')?.value || '';
+            const response = await fetch('/SuperAdminSettings/SetSuperAdminStatus', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': token
+                },
+                body: JSON.stringify({ superAdminId, status })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                showToast(data.message || 'Status updated successfully', 'success');
+                loadSuperAdminAccounts();
+                loadRecoveryStatus();
+            } else {
+                showToast(data.message || 'Failed to update status', 'danger');
+            }
+        } catch (error) {
+            console.error('Error updating SuperAdmin status:', error);
+            showToast('Error updating account status', 'danger');
+        }
+    }
+
+    function escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    }
 
     function showToast(message, type = 'success') {
         const toastHtml = `

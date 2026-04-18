@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.IdentityModel.Tokens;
 using DotNetEnv;
 using System.Text;
+using System.Security.Claims;
 using CKNDocument.Data;
 using CKNDocument.Services;
 using CKNDocument.Hubs;
@@ -248,6 +250,26 @@ using (var scope = app.Services.CreateScope())
             var logger3 = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
             logger3.LogWarning(notifEx, "Could not auto-create SuperAdminNotification table (may already exist).");
         }
+
+        // Auto-create AppSecuritySetting table if missing
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(@"
+                IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'AppSecuritySetting')
+                BEGIN
+                    CREATE TABLE [dbo].[AppSecuritySetting] (
+                        [SettingKey] NVARCHAR(100) NOT NULL PRIMARY KEY,
+                        [SettingValue] NVARCHAR(100) NOT NULL,
+                        [UpdatedAt] DATETIME2 NULL
+                    );
+                END
+            ");
+        }
+        catch (Exception settingEx)
+        {
+            var logger4 = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+            logger4.LogWarning(settingEx, "Could not auto-create AppSecuritySetting table (may already exist).");
+        }
     }
     catch (Exception ex)
     {
@@ -271,6 +293,66 @@ app.UseRouting();
 app.UseSession();
 app.UseAuthentication();
 app.UseAuthorization();
+
+// ===========================================
+// MIDDLEWARE: Enforce active SuperAdmin + emergency data-hide mode
+// ===========================================
+app.Use(async (context, next) =>
+{
+    var user = context.User;
+    if (user.Identity?.IsAuthenticated == true)
+    {
+        var role = user.FindFirst(ClaimTypes.Role)?.Value;
+        if (string.Equals(role, "SuperAdmin", StringComparison.OrdinalIgnoreCase))
+        {
+            var superAdminIdClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (int.TryParse(superAdminIdClaim, out var superAdminId) && superAdminId > 0)
+            {
+                var dbContext = context.RequestServices.GetRequiredService<CKNDocument.Data.LawFirmDMSDbContext>();
+                var superAdmin = await dbContext.SuperAdmins
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.SuperAdminId == superAdminId);
+
+                // If disabled or missing in DB, immediately sign out.
+                if (superAdmin == null || !string.Equals(superAdmin.Status, "Active", StringComparison.OrdinalIgnoreCase))
+                {
+                    await context.SignOutAsync("CookieAuth");
+                    context.Response.Redirect("/Auth/Login");
+                    return;
+                }
+
+                var isBackupSuperAdmin = (superAdmin.Username?.Contains("backup", StringComparison.OrdinalIgnoreCase) ?? false)
+                    || (superAdmin.Email?.Contains("backup", StringComparison.OrdinalIgnoreCase) ?? false);
+
+                var emergencyDataHiddenValue = await dbContext.Database
+                    .SqlQueryRaw<string>("SELECT TOP 1 [SettingValue] AS [Value] FROM [AppSecuritySetting] WHERE [SettingKey] = 'EmergencyDataHidden'")
+                    .FirstOrDefaultAsync();
+                var emergencyDataHidden = string.Equals(emergencyDataHiddenValue, "true", StringComparison.OrdinalIgnoreCase);
+
+                if (emergencyDataHidden && !isBackupSuperAdmin)
+                {
+                    var path = context.Request.Path.Value?.ToLowerInvariant() ?? string.Empty;
+                    var allowedDuringShield = path.StartsWith("/superadminsettings", StringComparison.OrdinalIgnoreCase)
+                        || path.StartsWith("/auth/logout", StringComparison.OrdinalIgnoreCase)
+                        || path.StartsWith("/auth/login", StringComparison.OrdinalIgnoreCase)
+                        || path.StartsWith("/css", StringComparison.OrdinalIgnoreCase)
+                        || path.StartsWith("/js", StringComparison.OrdinalIgnoreCase)
+                        || path.StartsWith("/lib", StringComparison.OrdinalIgnoreCase)
+                        || path.StartsWith("/images", StringComparison.OrdinalIgnoreCase)
+                        || path.StartsWith("/_", StringComparison.OrdinalIgnoreCase);
+
+                    if (!allowedDuringShield)
+                    {
+                        context.Response.Redirect("/SuperAdminSettings");
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    await next();
+});
 
 // ===========================================
 // MIDDLEWARE: Block unpaid firms from accessing the system
