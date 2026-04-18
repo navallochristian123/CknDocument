@@ -1,12 +1,34 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using DotNetEnv;
 using System.Text;
 using CKNDocument.Data;
 using CKNDocument.Services;
 using CKNDocument.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ===========================================
+// ENVIRONMENT VARIABLES (.env support + OS env fallback)
+// ===========================================
+var envPath = Path.Combine(builder.Environment.ContentRootPath, ".env");
+if (File.Exists(envPath))
+{
+    Env.Load(envPath);
+}
+
+if (builder.Environment.IsDevelopment())
+{
+    var envDevPath = Path.Combine(builder.Environment.ContentRootPath, ".env.development");
+    if (File.Exists(envDevPath))
+    {
+        Env.Load(envDevPath);
+    }
+}
+
+// Refresh configuration after loading .env into process environment.
+builder.Configuration.AddEnvironmentVariables();
 
 // ===========================================
 // DATABASE CONTEXT - Single Unified Database

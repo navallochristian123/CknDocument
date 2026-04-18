@@ -5,3 +5,8 @@ obj/
 *.suo
 *.cache
 *.log
+
+# Local secrets
+.env
+.env.*
+!.env.example
