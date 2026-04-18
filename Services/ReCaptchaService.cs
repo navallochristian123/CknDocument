@@ -10,7 +10,8 @@ namespace CKNDocument.Services;
 public class ReCaptchaService
 {
     private readonly HttpClient _httpClient;
-    private readonly string _secretKey;
+    private string? _secretKey;
+    private readonly IConfiguration _configuration;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<ReCaptchaService> _logger;
     private readonly float _minimumScore;
@@ -28,14 +29,39 @@ public class ReCaptchaService
         ILogger<ReCaptchaService> logger)
     {
         _httpClient = httpClient;
-        _secretKey = configuration["GoogleReCaptcha:SecretKey"]
-            ?? throw new InvalidOperationException("GoogleReCaptcha:SecretKey is not configured.");
+        _configuration = configuration;
+        _secretKey = ResolveSecretKey();
+
         _httpContextAccessor = httpContextAccessor;
         _minimumScore = Math.Clamp(
             configuration.GetValue<float?>("GoogleReCaptcha:MinimumScore") ?? DefaultMinimumScore,
             0f,
             1f);
         _logger = logger;
+
+        if (string.IsNullOrWhiteSpace(_secretKey))
+        {
+            _logger.LogError("GoogleReCaptcha:SecretKey is not configured. Set GoogleReCaptcha__SecretKey in .env or OS environment variables.");
+        }
+    }
+
+    private string? ResolveSecretKey()
+    {
+        var configuredSecret = NormalizeValue(_configuration["GoogleReCaptcha:SecretKey"]);
+        if (!string.IsNullOrWhiteSpace(configuredSecret))
+            return configuredSecret;
+
+        var envSecret = NormalizeValue(Environment.GetEnvironmentVariable("GoogleReCaptcha__SecretKey"));
+        if (!string.IsNullOrWhiteSpace(envSecret))
+            return envSecret;
+
+        return NormalizeValue(Environment.GetEnvironmentVariable("GOOGLE_RECAPTCHA_SECRET_KEY"));
+    }
+
+    private static string? NormalizeValue(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        return value.Trim().Trim('"');
     }
 
     /// <summary>
@@ -46,6 +72,13 @@ public class ReCaptchaService
     /// <returns>True if the captcha is valid and score is above threshold; otherwise false.</returns>
     public async Task<bool> VerifyAsync(string? recaptchaResponse, string? expectedAction = null)
     {
+        _secretKey ??= ResolveSecretKey();
+        if (string.IsNullOrWhiteSpace(_secretKey))
+        {
+            _logger.LogError("reCAPTCHA verification skipped because secret key is missing.");
+            return false;
+        }
+
         if (string.IsNullOrWhiteSpace(recaptchaResponse))
         {
             _logger.LogWarning("reCAPTCHA response token is empty or null.");

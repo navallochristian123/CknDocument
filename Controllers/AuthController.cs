@@ -8,6 +8,9 @@ using CKNDocument.Models.LawFirmDMS;
 using CKNDocument.Services;
 using CKNDocument.Controllers.SuperAdmin;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
 namespace CKNDocument.Controllers;
 
@@ -18,11 +21,17 @@ namespace CKNDocument.Controllers;
 /// </summary>
 public class AuthController : Controller
 {
+    private const string PendingLoginSessionKey = "Auth.PendingLogin";
+    private const int OtpCodeLength = 6;
+    private const int OtpExpiryMinutes = 10;
+    private const int MaxOtpAttempts = 5;
+
     private readonly LawFirmDMSDbContext _context;
     private readonly AuditLogService _auditLogService;
     private readonly ILogger<AuthController> _logger;
     private readonly PayMongoService _payMongoService;
     private readonly ReCaptchaService _reCaptchaService;
+    private readonly SmtpEmailService _smtpEmailService;
     private readonly IConfiguration _configuration;
 
     public AuthController(
@@ -31,6 +40,7 @@ public class AuthController : Controller
         ILogger<AuthController> logger,
         PayMongoService payMongoService,
         ReCaptchaService reCaptchaService,
+        SmtpEmailService smtpEmailService,
         IConfiguration configuration)
     {
         _context = context;
@@ -38,7 +48,22 @@ public class AuthController : Controller
         _logger = logger;
         _payMongoService = payMongoService;
         _reCaptchaService = reCaptchaService;
+        _smtpEmailService = smtpEmailService;
         _configuration = configuration;
+    }
+
+    private string? GetReCaptchaSiteKey()
+    {
+        var key = _configuration["GoogleReCaptcha:SiteKey"];
+        if (!string.IsNullOrWhiteSpace(key))
+            return key;
+
+        key = Environment.GetEnvironmentVariable("GoogleReCaptcha__SiteKey");
+        if (!string.IsNullOrWhiteSpace(key))
+            return key;
+
+        key = Environment.GetEnvironmentVariable("GOOGLE_RECAPTCHA_SITE_KEY");
+        return string.IsNullOrWhiteSpace(key) ? null : key;
     }
 
     #region Views
@@ -56,7 +81,7 @@ public class AuthController : Controller
         }
         ViewData["ReturnUrl"] = returnUrl;
         ViewData["Firms"] = await GetFirmsForDropdown();
-        ViewData["ReCaptchaSiteKey"] = _configuration["GoogleReCaptcha:SiteKey"];
+        ViewData["ReCaptchaSiteKey"] = GetReCaptchaSiteKey();
         return View("~/Views/Auth/Login.cshtml");
     }
 
@@ -72,7 +97,7 @@ public class AuthController : Controller
             return RedirectBasedOnRole();
         }
         ViewData["Firms"] = await GetFirmsForDropdown();
-        ViewData["ReCaptchaSiteKey"] = _configuration["GoogleReCaptcha:SiteKey"];
+        ViewData["ReCaptchaSiteKey"] = GetReCaptchaSiteKey();
         return View("~/Views/Auth/Register.cshtml");
     }
 
@@ -110,7 +135,7 @@ public class AuthController : Controller
         try
         {
             // Always pass the reCAPTCHA site key to the view
-            ViewData["ReCaptchaSiteKey"] = _configuration["GoogleReCaptcha:SiteKey"];
+            ViewData["ReCaptchaSiteKey"] = GetReCaptchaSiteKey();
 
             if (!ModelState.IsValid)
             {
@@ -142,40 +167,34 @@ public class AuthController : Controller
             {
                 if (PasswordHelper.VerifyPassword(request.Password, superAdmin.PasswordHash))
                 {
-                    await SignInUser(
-                        superAdmin.SuperAdminId,
-                        superAdmin.FullName,
-                        superAdmin.Email,
-                        superAdmin.Username,
-                        "SuperAdmin",
-                        null,
-                        request.RememberMe);
+                    var otpSentForSuperAdmin = await BeginEmailOtpChallengeAsync(new PendingLoginContext
+                    {
+                        IsSuperAdmin = true,
+                        PrincipalId = superAdmin.SuperAdminId,
+                        FullName = superAdmin.FullName,
+                        Email = superAdmin.Email,
+                        Username = superAdmin.Username,
+                        Role = "SuperAdmin",
+                        FirmId = null,
+                        RememberMe = request.RememberMe,
+                        PostVerifyRedirectUrl = Url.Action("Index", "SuperAdminDashboard") ?? "/SuperAdminDashboard"
+                    });
 
-                    superAdmin.LastLoginAt = DateTime.UtcNow;
-                    await _context.SaveChangesAsync();
+                    if (!otpSentForSuperAdmin)
+                    {
+                        TempData["ToastType"] = "error";
+                        TempData["ToastMessage"] = "Could not send your authentication code. Please try again.";
+                        ViewData["Firms"] = await GetFirmsForDropdown();
+                        return View("~/Views/Auth/Login.cshtml", request);
+                    }
 
-                    // Log successful login
-                    await _auditLogService.LogLoginAsync(null, superAdmin.SuperAdminId, superAdmin.Email, true);
-
-                    // Create login notification for SuperAdmin
-                    await SuperAdminNotificationController.CreateNotification(
-                        _context, superAdmin.SuperAdminId,
-                        "Login Detected",
-                        $"SuperAdmin '{superAdmin.FullName}' logged in at {DateTime.UtcNow:MMM dd, yyyy hh:mm tt} UTC.",
-                        "Login", "/SuperAdminDashboard", "bi-box-arrow-in-right");
-
-                    _logger.LogInformation("SuperAdmin {Email} logged in", superAdmin.Email);
-
-                    TempData["ToastType"] = "success";
-                    TempData["ToastMessage"] = $"Welcome back, {superAdmin.FirstName}!";
-
-                    return RedirectToAction("Index", "SuperAdminDashboard");
+                    TempData["ToastType"] = "info";
+                    TempData["ToastMessage"] = "A verification code has been sent to your email.";
+                    return RedirectToAction("VerifyOtp");
                 }
-                else
-                {
-                    // Log failed login attempt
-                    await _auditLogService.LogLoginAsync(null, superAdmin.SuperAdminId, superAdmin.Email, false, "Invalid password");
-                }
+
+                // Log failed login attempt
+                await _auditLogService.LogLoginAsync(null, superAdmin.SuperAdminId, superAdmin.Email, false, "Invalid password");
             }
 
             // Check LawFirm users
@@ -222,24 +241,34 @@ public class AuthController : Controller
                 var role2 = user.UserRoles.FirstOrDefault()?.Role?.RoleName ?? "Client";
                 if (role2 == "Admin")
                 {
-                    // Sign them in and redirect to payment
                     user.FailedLoginAttempts = 0;
                     user.LockoutEnd = null;
-                    user.LastLoginAt = DateTime.UtcNow;
                     await _context.SaveChangesAsync();
 
-                    await SignInUser(
-                        user.UserID,
-                        user.FullName,
-                        user.Email ?? "",
-                        user.Username ?? "",
-                        role2,
-                        user.FirmID,
-                        request.RememberMe);
+                    var otpSentForPendingPayment = await BeginEmailOtpChallengeAsync(new PendingLoginContext
+                    {
+                        IsSuperAdmin = false,
+                        PrincipalId = user.UserID,
+                        FullName = user.FullName,
+                        Email = user.Email ?? string.Empty,
+                        Username = user.Username ?? string.Empty,
+                        Role = role2,
+                        FirmId = user.FirmID,
+                        RememberMe = request.RememberMe,
+                        PostVerifyRedirectUrl = Url.Action("SubscriptionPayment", "Auth") ?? "/Auth/SubscriptionPayment"
+                    });
 
-                    TempData["ToastType"] = "warning";
-                    TempData["ToastMessage"] = "Please complete your subscription payment to activate your law firm account.";
-                    return RedirectToAction("SubscriptionPayment");
+                    if (!otpSentForPendingPayment)
+                    {
+                        TempData["ToastType"] = "error";
+                        TempData["ToastMessage"] = "Could not send your authentication code. Please try again.";
+                        ViewData["Firms"] = await GetFirmsForDropdown();
+                        return View("~/Views/Auth/Login.cshtml", request);
+                    }
+
+                    TempData["ToastType"] = "info";
+                    TempData["ToastMessage"] = "A verification code has been sent to your email.";
+                    return RedirectToAction("VerifyOtp");
                 }
 
                 await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, "Firm pending payment", user.FirmID);
@@ -297,35 +326,39 @@ public class AuthController : Controller
             // Successful login - reset failed attempts
             user.FailedLoginAttempts = 0;
             user.LockoutEnd = null;
-            user.LastLoginAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
             // Get user role
             var role = user.UserRoles.FirstOrDefault()?.Role?.RoleName ?? "Client";
 
-            await SignInUser(
-                user.UserID,
-                user.FullName,
-                user.Email ?? "",
-                user.Username ?? "",
-                role,
-                user.FirmID,
-                request.RememberMe);
+            var postVerifyRedirect = !string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)
+                ? returnUrl
+                : GetDefaultRedirectPathForRole(role);
 
-            // Log successful login
-            await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", true, null, user.FirmID);
-
-            _logger.LogInformation("User {Email} ({Role}) logged in", user.Email, role);
-
-            TempData["ToastType"] = "success";
-            TempData["ToastMessage"] = $"Welcome back, {user.FirstName}!";
-
-            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+            var otpSent = await BeginEmailOtpChallengeAsync(new PendingLoginContext
             {
-                return Redirect(returnUrl);
+                IsSuperAdmin = false,
+                PrincipalId = user.UserID,
+                FullName = user.FullName,
+                Email = user.Email ?? string.Empty,
+                Username = user.Username ?? string.Empty,
+                Role = role,
+                FirmId = user.FirmID,
+                RememberMe = request.RememberMe,
+                PostVerifyRedirectUrl = postVerifyRedirect
+            });
+
+            if (!otpSent)
+            {
+                TempData["ToastType"] = "error";
+                TempData["ToastMessage"] = "Could not send your authentication code. Please try again.";
+                ViewData["Firms"] = await GetFirmsForDropdown();
+                return View("~/Views/Auth/Login.cshtml", request);
             }
 
-            return RedirectBasedOnRole(role);
+            TempData["ToastType"] = "info";
+            TempData["ToastMessage"] = "A verification code has been sent to your email.";
+            return RedirectToAction("VerifyOtp");
         }
         catch (Exception ex)
         {
@@ -358,7 +391,7 @@ public class AuthController : Controller
         try
         {
             // Always pass the reCAPTCHA site key to the view
-            ViewData["ReCaptchaSiteKey"] = _configuration["GoogleReCaptcha:SiteKey"];
+            ViewData["ReCaptchaSiteKey"] = GetReCaptchaSiteKey();
 
             if (!ModelState.IsValid)
             {
@@ -534,6 +567,8 @@ public class AuthController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Logout()
     {
+        ClearPendingLogin();
+
         var userEmail = User.FindFirst(ClaimTypes.Email)?.Value;
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
@@ -561,6 +596,106 @@ public class AuthController : Controller
         TempData["ToastMessage"] = "You have been logged out successfully.";
 
         return RedirectToAction("Login");
+    }
+
+    [HttpGet]
+    [AllowAnonymous]
+    public IActionResult VerifyOtp()
+    {
+        var pending = ReadPendingLogin();
+        if (pending == null)
+        {
+            TempData["ToastType"] = "warning";
+            TempData["ToastMessage"] = "Your verification session has expired. Please log in again.";
+            return RedirectToAction("Login");
+        }
+
+        ViewData["MaskedEmail"] = MaskEmail(pending.Email);
+        return View("~/Views/Auth/VerifyOtp.cshtml");
+    }
+
+    [HttpPost]
+    [AllowAnonymous]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> VerifyOtp([FromForm] string otpCode)
+    {
+        var pending = ReadPendingLogin();
+        if (pending == null)
+        {
+            TempData["ToastType"] = "warning";
+            TempData["ToastMessage"] = "Your verification session has expired. Please log in again.";
+            return RedirectToAction("Login");
+        }
+
+        if (pending.OtpExpiresAtUtc <= DateTime.UtcNow)
+        {
+            ClearPendingLogin();
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = "Verification code expired. Please log in again.";
+            return RedirectToAction("Login");
+        }
+
+        if (string.IsNullOrWhiteSpace(otpCode))
+        {
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = "Please enter the verification code.";
+            ViewData["MaskedEmail"] = MaskEmail(pending.Email);
+            return View("~/Views/Auth/VerifyOtp.cshtml");
+        }
+
+        var providedCodeHash = ComputeSha256Hex(otpCode.Trim());
+        if (!FixedTimeEquals(providedCodeHash, pending.OtpHash))
+        {
+            pending.OtpAttempts += 1;
+            if (pending.OtpAttempts >= MaxOtpAttempts)
+            {
+                ClearPendingLogin();
+                TempData["ToastType"] = "error";
+                TempData["ToastMessage"] = "Too many invalid attempts. Please log in again.";
+                return RedirectToAction("Login");
+            }
+
+            WritePendingLogin(pending);
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = $"Invalid code. {MaxOtpAttempts - pending.OtpAttempts} attempts remaining.";
+            ViewData["MaskedEmail"] = MaskEmail(pending.Email);
+            return View("~/Views/Auth/VerifyOtp.cshtml");
+        }
+
+        await FinalizeSuccessfulLoginAsync(pending);
+        ClearPendingLogin();
+
+        TempData["ToastType"] = "success";
+        TempData["ToastMessage"] = "Authentication successful.";
+        return LocalRedirect(pending.PostVerifyRedirectUrl);
+    }
+
+    [HttpPost]
+    [AllowAnonymous]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResendOtp()
+    {
+        var pending = ReadPendingLogin();
+        if (pending == null)
+        {
+            TempData["ToastType"] = "warning";
+            TempData["ToastMessage"] = "Your verification session has expired. Please log in again.";
+            return RedirectToAction("Login");
+        }
+
+        var sent = await RefreshOtpAndSendAsync(pending);
+        if (!sent)
+        {
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = "Could not resend verification code. Please try again.";
+        }
+        else
+        {
+            TempData["ToastType"] = "info";
+            TempData["ToastMessage"] = "A new verification code has been sent to your email.";
+        }
+
+        return RedirectToAction("VerifyOtp");
     }
 
     /// <summary>
@@ -805,6 +940,213 @@ public class AuthController : Controller
         };
 
         await HttpContext.SignInAsync("CookieAuth", principal, authProperties);
+    }
+
+    private async Task TrySendLoginNotificationEmailAsync(string fullName, string email, string role)
+    {
+        try
+        {
+            await _smtpEmailService.SendLoginNotificationAsync(email, fullName, role);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Login notification email failed for {Email}", email);
+        }
+    }
+
+    private string GetDefaultRedirectPathForRole(string role)
+    {
+        var normalizedRole = NormalizeRole(role);
+        return normalizedRole switch
+        {
+            "SuperAdmin" => Url.Action("Index", "SuperAdminDashboard") ?? "/SuperAdminDashboard",
+            "Admin" => Url.Action("Index", "Dashboard") ?? "/Dashboard",
+            "Lawyer" => Url.Action("Index", "Dashboard") ?? "/Dashboard",
+            "Staff" => Url.Action("Index", "Dashboard") ?? "/Dashboard",
+            "Client" => Url.Action("Index", "Dashboard") ?? "/Dashboard",
+            "Auditor" => Url.Action("Index", "Dashboard") ?? "/Dashboard",
+            _ => Url.Action("Index", "Home") ?? "/"
+        };
+    }
+
+    private async Task<bool> BeginEmailOtpChallengeAsync(PendingLoginContext pending)
+    {
+        if (string.IsNullOrWhiteSpace(pending.Email))
+        {
+            _logger.LogWarning("Cannot start OTP challenge: email missing for principal {PrincipalId}", pending.PrincipalId);
+            return false;
+        }
+
+        var code = GenerateOtpCode();
+        pending.OtpHash = ComputeSha256Hex(code);
+        pending.OtpExpiresAtUtc = DateTime.UtcNow.AddMinutes(OtpExpiryMinutes);
+        pending.OtpAttempts = 0;
+
+        var sent = await _smtpEmailService.SendLoginOtpAsync(pending.Email, pending.FullName, code, OtpExpiryMinutes);
+        if (!sent)
+        {
+            return false;
+        }
+
+        WritePendingLogin(pending);
+        return true;
+    }
+
+    private async Task<bool> RefreshOtpAndSendAsync(PendingLoginContext pending)
+    {
+        var code = GenerateOtpCode();
+        pending.OtpHash = ComputeSha256Hex(code);
+        pending.OtpExpiresAtUtc = DateTime.UtcNow.AddMinutes(OtpExpiryMinutes);
+        pending.OtpAttempts = 0;
+
+        var sent = await _smtpEmailService.SendLoginOtpAsync(pending.Email, pending.FullName, code, OtpExpiryMinutes);
+        if (!sent)
+        {
+            return false;
+        }
+
+        WritePendingLogin(pending);
+        return true;
+    }
+
+    private async Task FinalizeSuccessfulLoginAsync(PendingLoginContext pending)
+    {
+        await SignInUser(
+            pending.PrincipalId,
+            pending.FullName,
+            pending.Email,
+            pending.Username,
+            pending.Role,
+            pending.FirmId,
+            pending.RememberMe);
+
+        if (pending.IsSuperAdmin)
+        {
+            var superAdmin = await _context.SuperAdmins.FirstOrDefaultAsync(s => s.SuperAdminId == pending.PrincipalId);
+            if (superAdmin != null)
+            {
+                superAdmin.LastLoginAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                await _auditLogService.LogLoginAsync(null, superAdmin.SuperAdminId, superAdmin.Email, true);
+
+                await SuperAdminNotificationController.CreateNotification(
+                    _context,
+                    superAdmin.SuperAdminId,
+                    "Login Detected",
+                    $"SuperAdmin '{superAdmin.FullName}' logged in at {DateTime.UtcNow:MMM dd, yyyy hh:mm tt} UTC.",
+                    "Login",
+                    "/SuperAdminDashboard",
+                    "bi-box-arrow-in-right");
+
+                await TrySendLoginNotificationEmailAsync(superAdmin.FullName, superAdmin.Email, "SuperAdmin");
+            }
+
+            return;
+        }
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.UserID == pending.PrincipalId);
+        if (user != null)
+        {
+            user.LastLoginAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", true, null, user.FirmID);
+            await TrySendLoginNotificationEmailAsync(user.FullName, user.Email ?? "", pending.Role);
+        }
+    }
+
+    private string GenerateOtpCode()
+    {
+        var value = RandomNumberGenerator.GetInt32(0, 1_000_000);
+        return value.ToString("D6");
+    }
+
+    private string ComputeSha256Hex(string input)
+    {
+        var bytes = Encoding.UTF8.GetBytes(input);
+        var hash = SHA256.HashData(bytes);
+        return Convert.ToHexString(hash);
+    }
+
+    private bool FixedTimeEquals(string left, string right)
+    {
+        var leftBytes = Encoding.UTF8.GetBytes(left);
+        var rightBytes = Encoding.UTF8.GetBytes(right);
+
+        if (leftBytes.Length != rightBytes.Length)
+        {
+            return false;
+        }
+
+        return CryptographicOperations.FixedTimeEquals(leftBytes, rightBytes);
+    }
+
+    private void WritePendingLogin(PendingLoginContext pending)
+    {
+        var payload = JsonSerializer.Serialize(pending);
+        HttpContext.Session.SetString(PendingLoginSessionKey, payload);
+    }
+
+    private PendingLoginContext? ReadPendingLogin()
+    {
+        var payload = HttpContext.Session.GetString(PendingLoginSessionKey);
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<PendingLoginContext>(payload);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private void ClearPendingLogin()
+    {
+        HttpContext.Session.Remove(PendingLoginSessionKey);
+    }
+
+    private string MaskEmail(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
+        {
+            return "your email";
+        }
+
+        var atIndex = email.IndexOf('@');
+        var local = email[..atIndex];
+        var domain = email[atIndex..];
+
+        if (local.Length <= 1)
+        {
+            return $"*{domain}";
+        }
+
+        if (local.Length == 2)
+        {
+            return $"{local[0]}*{domain}";
+        }
+
+        return $"{local[0]}***{local[^1]}{domain}";
+    }
+
+    private class PendingLoginContext
+    {
+        public bool IsSuperAdmin { get; set; }
+        public int PrincipalId { get; set; }
+        public string FullName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Username { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+        public int? FirmId { get; set; }
+        public bool RememberMe { get; set; }
+        public string PostVerifyRedirectUrl { get; set; } = "/";
+        public string OtpHash { get; set; } = string.Empty;
+        public DateTime OtpExpiresAtUtc { get; set; }
+        public int OtpAttempts { get; set; }
     }
 
     /// <summary>
