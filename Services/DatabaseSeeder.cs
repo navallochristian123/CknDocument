@@ -106,27 +106,37 @@ public class DatabaseSeeder
         {
             _logger.LogInformation("Checking SuperAdmin table...");
             // Primary SuperAdmin
-            var primaryUsername = "superadmin";
-            var primaryEmail = "superadmin@ckn.com";
-            var primaryPassword = "SuperAdmin@123";
+            var primaryUsername = Environment.GetEnvironmentVariable("PRIMARY_SUPERADMIN_USERNAME")?.Trim();
+            var primaryEmail = Environment.GetEnvironmentVariable("PRIMARY_SUPERADMIN_EMAIL")?.Trim();
+            var primaryPassword = Environment.GetEnvironmentVariable("PRIMARY_SUPERADMIN_PASSWORD")?.Trim();
+
+            primaryUsername = string.IsNullOrWhiteSpace(primaryUsername) ? "superadmin" : primaryUsername;
+            primaryEmail = string.IsNullOrWhiteSpace(primaryEmail) ? "superadmin@ckn.com" : primaryEmail;
 
             var primaryExists = await _context.SuperAdmins
                 .AnyAsync(s => s.Username.ToLower() == primaryUsername || s.Email.ToLower() == primaryEmail);
 
             if (!primaryExists)
             {
-                _logger.LogInformation("Seeding primary SuperAdmin...");
-                _context.SuperAdmins.Add(new SuperAdmin
+                if (string.IsNullOrWhiteSpace(primaryPassword))
                 {
-                    Username = primaryUsername,
-                    Email = primaryEmail,
-                    PasswordHash = PasswordHelper.HashPassword(primaryPassword),
-                    FirstName = "Primary",
-                    LastName = "SuperAdmin",
-                    PhoneNumber = "09123456789",
-                    Status = "Active",
-                    CreatedAt = DateTime.UtcNow
-                });
+                    _logger.LogWarning("Primary SuperAdmin does not exist but PRIMARY_SUPERADMIN_PASSWORD is not set. Skipping primary account creation.");
+                }
+                else
+                {
+                    _logger.LogInformation("Seeding primary SuperAdmin...");
+                    _context.SuperAdmins.Add(new SuperAdmin
+                    {
+                        Username = primaryUsername,
+                        Email = primaryEmail,
+                        PasswordHash = PasswordHelper.HashPassword(primaryPassword),
+                        FirstName = "Primary",
+                        LastName = "SuperAdmin",
+                        PhoneNumber = "09123456789",
+                        Status = "Active",
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
             }
 
             // Backup SuperAdmin
@@ -136,25 +146,31 @@ public class DatabaseSeeder
 
             backupUsername = string.IsNullOrWhiteSpace(backupUsername) ? "backup_superadmin" : backupUsername;
             backupEmail = string.IsNullOrWhiteSpace(backupEmail) ? "backup.superadmin@ckn.com" : backupEmail;
-            backupPassword = string.IsNullOrWhiteSpace(backupPassword) ? "BackupSuperAdmin@123" : backupPassword;
 
             var backupExists = await _context.SuperAdmins
                 .AnyAsync(s => s.Username.ToLower() == backupUsername.ToLower() || s.Email.ToLower() == backupEmail.ToLower());
 
             if (!backupExists)
             {
-                _logger.LogInformation("Seeding backup SuperAdmin account...");
-                _context.SuperAdmins.Add(new SuperAdmin
+                if (string.IsNullOrWhiteSpace(backupPassword))
                 {
-                    Username = backupUsername,
-                    Email = backupEmail,
-                    PasswordHash = PasswordHelper.HashPassword(backupPassword),
-                    FirstName = "Backup",
-                    LastName = "SuperAdmin",
-                    PhoneNumber = "09123456780",
-                    Status = "Active",
-                    CreatedAt = DateTime.UtcNow
-                });
+                    _logger.LogWarning("Backup SuperAdmin does not exist but BACKUP_SUPERADMIN_PASSWORD is not set. Skipping backup account creation.");
+                }
+                else
+                {
+                    _logger.LogInformation("Seeding backup SuperAdmin account...");
+                    _context.SuperAdmins.Add(new SuperAdmin
+                    {
+                        Username = backupUsername,
+                        Email = backupEmail,
+                        PasswordHash = PasswordHelper.HashPassword(backupPassword),
+                        FirstName = "Backup",
+                        LastName = "SuperAdmin",
+                        PhoneNumber = "09123456780",
+                        Status = "Active",
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
             }
 
             if (_context.ChangeTracker.HasChanges())
