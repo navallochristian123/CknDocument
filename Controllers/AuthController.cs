@@ -41,6 +41,20 @@ public class AuthController : Controller
         _configuration = configuration;
     }
 
+    private string? GetReCaptchaSiteKey()
+    {
+        var key = _configuration["GoogleReCaptcha:SiteKey"];
+        if (!string.IsNullOrWhiteSpace(key))
+            return key;
+
+        key = Environment.GetEnvironmentVariable("GoogleReCaptcha__SiteKey");
+        if (!string.IsNullOrWhiteSpace(key))
+            return key;
+
+        key = Environment.GetEnvironmentVariable("GOOGLE_RECAPTCHA_SITE_KEY");
+        return string.IsNullOrWhiteSpace(key) ? null : key;
+    }
+
     #region Views
 
     /// <summary>
@@ -56,7 +70,7 @@ public class AuthController : Controller
         }
         ViewData["ReturnUrl"] = returnUrl;
         ViewData["Firms"] = await GetFirmsForDropdown();
-        ViewData["ReCaptchaSiteKey"] = _configuration["GoogleReCaptcha:SiteKey"];
+        ViewData["ReCaptchaSiteKey"] = GetReCaptchaSiteKey();
         return View("~/Views/Auth/Login.cshtml");
     }
 
@@ -72,7 +86,7 @@ public class AuthController : Controller
             return RedirectBasedOnRole();
         }
         ViewData["Firms"] = await GetFirmsForDropdown();
-        ViewData["ReCaptchaSiteKey"] = _configuration["GoogleReCaptcha:SiteKey"];
+        ViewData["ReCaptchaSiteKey"] = GetReCaptchaSiteKey();
         return View("~/Views/Auth/Register.cshtml");
     }
 
@@ -110,7 +124,7 @@ public class AuthController : Controller
         try
         {
             // Always pass the reCAPTCHA site key to the view
-            ViewData["ReCaptchaSiteKey"] = _configuration["GoogleReCaptcha:SiteKey"];
+            ViewData["ReCaptchaSiteKey"] = GetReCaptchaSiteKey();
 
             if (!ModelState.IsValid)
             {
@@ -358,7 +372,7 @@ public class AuthController : Controller
         try
         {
             // Always pass the reCAPTCHA site key to the view
-            ViewData["ReCaptchaSiteKey"] = _configuration["GoogleReCaptcha:SiteKey"];
+            ViewData["ReCaptchaSiteKey"] = GetReCaptchaSiteKey();
 
             if (!ModelState.IsValid)
             {

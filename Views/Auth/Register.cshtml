@@ -570,6 +570,8 @@
                 return Promise.reject(new Error('Captcha verification already in progress.'));
             }
 
+            var siteKey = '@recaptchaSiteKey';
+
             var checkbox = document.getElementById('recaptchaCheckbox');
             var checkmark = document.getElementById('recaptchaCheckmark');
             var label = document.getElementById('recaptchaLabel');
@@ -585,6 +587,15 @@
             errorDiv.style.display = 'none';
             box.classList.remove('error');
 
+            if (!siteKey || siteKey.trim() === '') {
+                captchaRequestInFlight = false;
+                spinner.style.display = 'none';
+                checkbox.style.display = 'flex';
+                label.textContent = 'I\'m not a robot';
+                showCaptchaError('reCAPTCHA site key is missing. Please contact administrator.');
+                return Promise.reject(new Error('reCAPTCHA site key is missing.'));
+            }
+
             if (typeof grecaptcha === 'undefined') {
                 captchaRequestInFlight = false;
                 spinner.style.display = 'none';
@@ -595,7 +606,7 @@
 
             return new Promise(function(resolve, reject) {
                 grecaptcha.ready(function() {
-                    grecaptcha.execute('@recaptchaSiteKey', { action: 'register' }).then(function(token) {
+                    grecaptcha.execute(siteKey, { action: 'register' }).then(function(token) {
                         document.getElementById('recaptchaToken').value = token;
                         captchaVerified = true;
                         captchaIssuedAt = Date.now();
