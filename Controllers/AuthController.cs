@@ -26,6 +26,10 @@ public class AuthController : Controller
     private const int OtpCodeLength = 6;
     private const int OtpExpiryMinutes = 10;
     private const int MaxOtpAttempts = 5;
+    private const int FailedAttemptsPerLockoutStage = 5;
+    private const int FirstLockoutMinutes = 5;
+    private const int SecondLockoutMinutes = 10;
+    private const string PermanentlyLockedStatus = "PermanentlyLocked";
 
     private readonly LawFirmDMSDbContext _context;
     private readonly AuditLogService _auditLogService;
@@ -279,6 +283,15 @@ public class AuthController : Controller
                 return View("~/Views/Auth/Login.cshtml", request);
             }
 
+            if (string.Equals(user.Status, PermanentlyLockedStatus, StringComparison.OrdinalIgnoreCase))
+            {
+                await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, "Account permanently locked", user.FirmID);
+                TempData["ToastType"] = "error";
+                TempData["ToastMessage"] = "Your account is permanently locked due to repeated failed logins. Please contact your law firm administrator for reactivation.";
+                ViewData["Firms"] = await GetFirmsForDropdown();
+                return View("~/Views/Auth/Login.cshtml", request);
+            }
+
             if (user.Status != "Active")
             {
                 await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, $"Account inactive: {user.Status}", user.FirmID);
@@ -302,21 +315,35 @@ public class AuthController : Controller
             // Verify password
             if (!PasswordHelper.VerifyPassword(request.Password, user.PasswordHash ?? ""))
             {
-                user.FailedLoginAttempts = (user.FailedLoginAttempts ?? 0) + 1;
+                var failedAttempts = (user.FailedLoginAttempts ?? 0) + 1;
+                user.FailedLoginAttempts = failedAttempts;
 
-                // Lock account after 5 failed attempts
-                if (user.FailedLoginAttempts >= 5)
+                if (failedAttempts >= FailedAttemptsPerLockoutStage * 3)
                 {
-                    user.LockoutEnd = DateTime.UtcNow.AddMinutes(15);
-                    await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, "Account locked due to failed attempts", user.FirmID);
+                    user.Status = PermanentlyLockedStatus;
+                    user.LockoutEnd = null;
+                    await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, "Account permanently locked after repeated failed attempts", user.FirmID);
                     TempData["ToastType"] = "error";
-                    TempData["ToastMessage"] = "Account locked due to too many failed attempts. Please try again in 15 minutes.";
+                    TempData["ToastMessage"] = "Your account has been permanently locked after repeated failed attempts. Please contact your law firm administrator for reactivation.";
+                }
+                else if (failedAttempts % FailedAttemptsPerLockoutStage == 0)
+                {
+                    var lockoutStage = failedAttempts / FailedAttemptsPerLockoutStage;
+                    var lockoutMinutes = lockoutStage == 1 ? FirstLockoutMinutes : SecondLockoutMinutes;
+                    user.LockoutEnd = DateTime.UtcNow.AddMinutes(lockoutMinutes);
+
+                    await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, $"Account locked for {lockoutMinutes} minutes due to failed attempts", user.FirmID);
+                    TempData["ToastType"] = "error";
+                    TempData["ToastMessage"] = $"Account locked due to too many failed attempts. Please try again in {lockoutMinutes} minutes.";
                 }
                 else
                 {
+                    var attemptsInCurrentStage = failedAttempts % FailedAttemptsPerLockoutStage;
+                    var remainingAttempts = FailedAttemptsPerLockoutStage - attemptsInCurrentStage;
+
                     await _auditLogService.LogLoginAsync(user.UserID, null, user.Email ?? "", false, "Invalid password", user.FirmID);
                     TempData["ToastType"] = "error";
-                    TempData["ToastMessage"] = $"Invalid password. {5 - user.FailedLoginAttempts} attempts remaining.";
+                    TempData["ToastMessage"] = $"Invalid password. {remainingAttempts} attempts remaining before account lock.";
                 }
 
                 await _context.SaveChangesAsync();
