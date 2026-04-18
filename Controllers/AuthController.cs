@@ -7,6 +7,7 @@ using CKNDocument.Models.DTOs;
 using CKNDocument.Models.LawFirmDMS;
 using CKNDocument.Services;
 using CKNDocument.Controllers.SuperAdmin;
+using System.Net.Mail;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -971,11 +972,14 @@ public class AuthController : Controller
 
     private async Task<bool> BeginEmailOtpChallengeAsync(PendingLoginContext pending)
     {
-        if (string.IsNullOrWhiteSpace(pending.Email))
+        var normalizedEmail = NormalizeEmailForOtp(pending.Email);
+        if (normalizedEmail == null)
         {
             _logger.LogWarning("Cannot start OTP challenge: email missing for principal {PrincipalId}", pending.PrincipalId);
             return false;
         }
+
+        pending.Email = normalizedEmail;
 
         var code = GenerateOtpCode();
         pending.OtpHash = ComputeSha256Hex(code);
@@ -994,6 +998,15 @@ public class AuthController : Controller
 
     private async Task<bool> RefreshOtpAndSendAsync(PendingLoginContext pending)
     {
+        var normalizedEmail = NormalizeEmailForOtp(pending.Email);
+        if (normalizedEmail == null)
+        {
+            _logger.LogWarning("Cannot refresh OTP challenge: invalid email for principal {PrincipalId}", pending.PrincipalId);
+            return false;
+        }
+
+        pending.Email = normalizedEmail;
+
         var code = GenerateOtpCode();
         pending.OtpHash = ComputeSha256Hex(code);
         pending.OtpExpiresAtUtc = DateTime.UtcNow.AddMinutes(OtpExpiryMinutes);
@@ -1056,8 +1069,28 @@ public class AuthController : Controller
 
     private string GenerateOtpCode()
     {
-        var value = RandomNumberGenerator.GetInt32(0, 1_000_000);
-        return value.ToString("D6");
+        var maxValue = (int)Math.Pow(10, OtpCodeLength);
+        var value = RandomNumberGenerator.GetInt32(0, maxValue);
+        return value.ToString($"D{OtpCodeLength}");
+    }
+
+    private string? NormalizeEmailForOtp(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return null;
+        }
+
+        var trimmed = email.Trim();
+        try
+        {
+            var parsed = new MailAddress(trimmed);
+            return parsed.Address;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private string ComputeSha256Hex(string input)
