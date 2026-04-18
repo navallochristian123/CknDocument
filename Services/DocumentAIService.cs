@@ -25,6 +25,7 @@ public class DocumentAIService
     private readonly ILogger<DocumentAIService> _logger;
     private readonly IConfiguration _configuration;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IWebHostEnvironment _environment;
 
     private readonly Dictionary<string, List<string>> _documentTypeKeywords = new()
     {
@@ -171,12 +172,43 @@ public class DocumentAIService
         LawFirmDMSDbContext context,
         ILogger<DocumentAIService> logger,
         IConfiguration configuration,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        IWebHostEnvironment environment)
     {
         _context = context;
         _logger = logger;
         _configuration = configuration;
         _httpClientFactory = httpClientFactory;
+        _environment = environment;
+    }
+
+    private string? ResolveStoredVersionPath(string? storedPath)
+    {
+        if (string.IsNullOrWhiteSpace(storedPath)) return null;
+
+        if (File.Exists(storedPath)) return storedPath;
+
+        var normalizedStoredPath = storedPath.Replace('/', Path.DirectorySeparatorChar)
+                                            .Replace('\\', Path.DirectorySeparatorChar);
+        var relativeCandidate = Path.Combine(_environment.ContentRootPath, "Uploads", normalizedStoredPath);
+        if (File.Exists(relativeCandidate)) return relativeCandidate;
+
+        var normalised = storedPath.Replace('\\', '/');
+        var uploadsIdx = normalised.IndexOf("/Uploads/", StringComparison.OrdinalIgnoreCase);
+        if (uploadsIdx >= 0)
+        {
+            var relativePart = normalised.Substring(uploadsIdx + 1);
+            var candidate = Path.Combine(_environment.ContentRootPath, relativePart);
+            if (File.Exists(candidate)) return candidate;
+        }
+
+        var fileName = Path.GetFileName(storedPath);
+        if (string.IsNullOrEmpty(fileName)) return null;
+
+        var uploadsRoot = Path.Combine(_environment.ContentRootPath, "Uploads");
+        if (!Directory.Exists(uploadsRoot)) return null;
+
+        return Directory.GetFiles(uploadsRoot, fileName, SearchOption.AllDirectories).FirstOrDefault();
     }
 
     #region Text Extraction
@@ -702,9 +734,10 @@ Analyze all changes between these versions and return JSON.";
                 .FirstOrDefaultAsync();
 
             string extractedText = "";
-            if (version?.FilePath != null && File.Exists(version.FilePath))
+            var resolvedVersionPath = ResolveStoredVersionPath(version?.FilePath);
+            if (!string.IsNullOrEmpty(resolvedVersionPath))
             {
-                extractedText = await ExtractTextFromFileAsync(version.FilePath, fileName);
+                extractedText = await ExtractTextFromFileAsync(resolvedVersionPath, fileName);
             }
             else
             {
@@ -985,7 +1018,6 @@ Analyze all changes between these versions and return JSON.";
                 .Include(d => d.Versions)
                 .Where(d => d.FirmID == firmId &&
                             d.DocumentID != currentDocumentId &&
-                            d.OriginalFileName == currentDoc.OriginalFileName &&
                             d.TotalFileSize == currentDoc.TotalFileSize &&
                             d.WorkflowStage != "Archived")
                 .FirstOrDefaultAsync();
@@ -1263,9 +1295,16 @@ Look for:
                 return result;
             }
 
+            var resolvedPath = ResolveStoredVersionPath(version.FilePath);
+            if (string.IsNullOrEmpty(resolvedPath))
+            {
+                result.Message = "Document file not found on disk";
+                return result;
+            }
+
             // Extract text from document
-            var fileName = version.OriginalFileName ?? Path.GetFileName(version.FilePath);
-            var textContent = await ExtractTextFromFileAsync(version.FilePath, fileName);
+            var fileName = (document.Title ?? "document") + (version.FileExtension ?? "");
+            var textContent = await ExtractTextFromFileAsync(resolvedPath, fileName);
 
             if (string.IsNullOrEmpty(textContent))
             {

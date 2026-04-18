@@ -106,7 +106,7 @@ public class DashboardApiController : ControllerBase
             {
                 id = d.DocumentID,
                 title = d.Title,
-                originalFileName = d.OriginalFileName,
+                originalFileName = (d.Title ?? "document") + (d.FileExtension ?? ""),
                 fileExtension = d.FileExtension,
                 documentType = d.DocumentType,
                 category = d.Category,
@@ -219,7 +219,7 @@ public class DashboardApiController : ControllerBase
             {
                 id = d.DocumentID,
                 title = d.Title,
-                originalFileName = d.OriginalFileName,
+                originalFileName = (d.Title ?? "document") + (d.FileExtension ?? ""),
                 fileExtension = d.FileExtension,
                 documentType = d.DocumentType,
                 clientName = d.Uploader != null ? (d.Uploader.FirstName ?? "") + " " + (d.Uploader.LastName ?? "") : "Unknown",
@@ -257,7 +257,7 @@ public class DashboardApiController : ControllerBase
                 reviewId = r.ReviewId,
                 documentId = r.DocumentId,
                 documentTitle = r.Document != null ? r.Document.Title : "Unknown",
-                originalFileName = r.Document != null ? r.Document.OriginalFileName : null,
+                originalFileName = r.Document != null ? ((r.Document.Title ?? "document") + (r.Document.FileExtension ?? "")) : null,
                 fileExtension = r.Document != null ? r.Document.FileExtension : null,
                 clientName = r.Document != null && r.Document.Uploader != null ? (r.Document.Uploader.FirstName ?? "") + " " + (r.Document.Uploader.LastName ?? "") : "Unknown",
                 // Staff "Approved" means forwarded to Lawyer — translate for display
@@ -340,7 +340,7 @@ public class DashboardApiController : ControllerBase
             {
                 id = d.DocumentID,
                 title = d.Title,
-                originalFileName = d.OriginalFileName,
+                originalFileName = (d.Title ?? "document") + (d.FileExtension ?? ""),
                 fileExtension = d.FileExtension,
                 documentType = d.DocumentType,
                 uploadedBy = d.Uploader != null ? (d.Uploader.FirstName ?? "") + " " + (d.Uploader.LastName ?? "") : "Unknown",
@@ -379,7 +379,7 @@ public class DashboardApiController : ControllerBase
                 reviewId = r.ReviewId,
                 documentId = r.DocumentId,
                 documentTitle = r.Document != null ? r.Document.Title : "Unknown",
-                originalFileName = r.Document != null ? r.Document.OriginalFileName : null,
+                originalFileName = r.Document != null ? ((r.Document.Title ?? "document") + (r.Document.FileExtension ?? "")) : null,
                 fileExtension = r.Document != null ? r.Document.FileExtension : null,
                 clientName = r.Document != null && r.Document.Uploader != null ? (r.Document.Uploader.FirstName ?? "") + " " + (r.Document.Uploader.LastName ?? "") : "Unknown",
                 reviewerName = r.Reviewer != null ? (r.Reviewer.FirstName ?? "") + " " + (r.Reviewer.LastName ?? "") : "Unknown",
@@ -504,7 +504,7 @@ public class DashboardApiController : ControllerBase
             {
                 id = d.DocumentID,
                 title = d.Title,
-                originalFileName = d.OriginalFileName,
+                originalFileName = (d.Title ?? "document") + (d.FileExtension ?? ""),
                 fileExtension = d.FileExtension,
                 documentType = d.DocumentType,
                 status = d.Status,
@@ -550,7 +550,7 @@ public class DashboardApiController : ControllerBase
             {
                 documentId    = r.DocumentId,
                 documentTitle = r.Document != null ? r.Document.Title : null,
-                originalFileName = r.Document != null ? r.Document.OriginalFileName : null,
+                originalFileName = r.Document != null ? ((r.Document.Title ?? "document") + (r.Document.FileExtension ?? "")) : null,
                 firstName  = r.Document != null && r.Document.Uploader != null ? r.Document.Uploader.FirstName : null,
                 middleName = r.Document != null && r.Document.Uploader != null ? r.Document.Uploader.MiddleName : null,
                 lastName   = r.Document != null && r.Document.Uploader != null ? r.Document.Uploader.LastName : null,

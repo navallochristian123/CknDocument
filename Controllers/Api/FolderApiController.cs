@@ -153,7 +153,7 @@ public class FolderApiController : ControllerBase
                 {
                     id = d.DocumentID,
                     title = d.Title,
-                    originalFileName = d.OriginalFileName,
+                    originalFileName = (d.Title ?? "document") + (d.FileExtension ?? ""),
                     fileExtension = d.FileExtension,
                     status = d.Status,
                     workflowStage = d.WorkflowStage,
@@ -469,7 +469,6 @@ public class FolderApiController : ControllerBase
             search = search.ToLower();
             query = query.Where(d => 
                 (d.Title != null && d.Title.ToLower().Contains(search)) ||
-                (d.OriginalFileName != null && d.OriginalFileName.ToLower().Contains(search)) ||
                 (d.DocumentType != null && d.DocumentType.ToLower().Contains(search)));
         }
 
@@ -479,7 +478,7 @@ public class FolderApiController : ControllerBase
             {
                 id = d.DocumentID,
                 title = d.Title,
-                originalFileName = d.OriginalFileName,
+                originalFileName = (d.Title ?? "document") + (d.FileExtension ?? ""),
                 documentType = d.DocumentType,
                 fileExtension = d.FileExtension,
                 totalFileSize = d.TotalFileSize,
@@ -535,7 +534,6 @@ public class FolderApiController : ControllerBase
             search = search.ToLower();
             query = query.Where(d => 
                 (d.Title != null && d.Title.ToLower().Contains(search)) ||
-                (d.OriginalFileName != null && d.OriginalFileName.ToLower().Contains(search)) ||
                 (d.DocumentType != null && d.DocumentType.ToLower().Contains(search)) ||
                 (d.Uploader != null && (
                     (d.Uploader.FirstName != null && d.Uploader.FirstName.ToLower().Contains(search)) ||
@@ -551,7 +549,7 @@ public class FolderApiController : ControllerBase
             {
                 id = d.DocumentID,
                 title = d.Title,
-                originalFileName = d.OriginalFileName,
+                originalFileName = (d.Title ?? "document") + (d.FileExtension ?? ""),
                 documentType = d.DocumentType,
                 fileExtension = d.FileExtension,
                 totalFileSize = d.TotalFileSize,

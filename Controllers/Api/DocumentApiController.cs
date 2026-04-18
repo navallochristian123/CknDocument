@@ -5,6 +5,8 @@ using CKNDocument.Data;
 using CKNDocument.Models.LawFirmDMS;
 using CKNDocument.Services;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace CKNDocument.Controllers.Api;
 
@@ -45,6 +47,52 @@ public class DocumentApiController : ControllerBase
         _auditLogService = auditLogService;
         _environment = environment;
         _logger = logger;
+    }
+
+    private static string GenerateNonceHex(int bytes = 16)
+    {
+        return Convert.ToHexString(RandomNumberGenerator.GetBytes(bytes)).ToLowerInvariant();
+    }
+
+    private static string ComputeSha256Hex(string value)
+    {
+        using var sha = SHA256.Create();
+        var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    private static string HashSensitiveValue(string plainText)
+    {
+        var nonce = GenerateNonceHex();
+        var hash = ComputeSha256Hex($"{plainText}|{nonce}");
+        return $"{nonce}:{hash}";
+    }
+
+    private (string RelativePath, string AbsolutePath) CreateHashedStoragePath(int firmId, int ownerUserId, string extension, string seed)
+    {
+        var nonce = GenerateNonceHex();
+        var digest = ComputeSha256Hex($"{seed}|{firmId}|{ownerUserId}|{DateTime.UtcNow.Ticks}|{Guid.NewGuid()}|{nonce}");
+        var hashedFileName = $"{digest}{extension}";
+        var relativePath = Path.Combine(firmId.ToString(), ownerUserId.ToString(), hashedFileName)
+            .Replace('\\', '/');
+
+        var absolutePath = Path.Combine(_environment.ContentRootPath, "Uploads", firmId.ToString(), ownerUserId.ToString(), hashedFileName);
+        return (relativePath, absolutePath);
+    }
+
+    private static string BuildDisplayFileName(string? title, string? fileExtension, string fallbackBaseName = "document")
+    {
+        var safeBase = string.IsNullOrWhiteSpace(title) ? fallbackBaseName : title.Trim();
+        foreach (var invalid in Path.GetInvalidFileNameChars())
+        {
+            safeBase = safeBase.Replace(invalid, '_');
+        }
+
+        var ext = string.IsNullOrWhiteSpace(fileExtension) ? string.Empty : fileExtension;
+        if (!string.IsNullOrEmpty(ext) && !ext.StartsWith('.'))
+            ext = $".{ext}";
+
+        return $"{safeBase}{ext}";
     }
 
     private int GetCurrentUserId() => int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
@@ -98,8 +146,9 @@ public class DocumentApiController : ControllerBase
                 var usedGB = Math.Round(currentStorageUsed / (1024.0 * 1024.0 * 1024.0), 2);
                 var maxGB = Math.Round(firm.MaxStorageMB / 1024.0, 1);
                 var fileSizeMB = Math.Round(dto.File.Length / (1024.0 * 1024.0), 2);
-                return BadRequest(new { 
-                    success = false, 
+                return BadRequest(new
+                {
+                    success = false,
                     message = $"Storage limit exceeded. Your firm's plan allows {maxGB} GB of storage. Currently used: {usedGB} GB. This file ({fileSizeMB} MB) would exceed the limit. Please contact your administrator to upgrade the subscription plan."
                 });
             }
@@ -121,19 +170,17 @@ public class DocumentApiController : ControllerBase
                     return BadRequest(new { success = false, message = "Invalid folder" });
             }
 
-            // Create storage directory
-            var uploadPath = Path.Combine(_environment.ContentRootPath, "Uploads", firmId.ToString(), userId.ToString());
-            Directory.CreateDirectory(uploadPath);
-
-            // Generate unique filename
-            var uniqueFileName = $"{Guid.NewGuid()}{extension}";
-            var filePath = Path.Combine(uploadPath, uniqueFileName);
+            // Create hashed storage location and keep only hashed path in DB.
+            var storage = CreateHashedStoragePath(firmId, userId, extension, dto.File.FileName);
+            Directory.CreateDirectory(Path.GetDirectoryName(storage.AbsolutePath)!);
 
             // Save file
-            using (var stream = new FileStream(filePath, FileMode.Create))
+            using (var stream = new FileStream(storage.AbsolutePath, FileMode.Create))
             {
                 await dto.File.CopyToAsync(stream);
             }
+
+            var hashedOriginalFileName = HashSensitiveValue(dto.File.FileName);
 
             // Create document record
             var document = new Document
@@ -147,7 +194,7 @@ public class DocumentApiController : ControllerBase
                 FolderId = dto.FolderId,
                 DocumentType = dto.DocumentType,
                 WorkflowStage = DocumentWorkflowService.STAGE_CLIENT_UPLOAD,
-                OriginalFileName = dto.File.FileName,
+                OriginalFileName = hashedOriginalFileName,
                 FileExtension = extension,
                 MimeType = dto.File.ContentType,
                 TotalFileSize = dto.File.Length,
@@ -167,10 +214,10 @@ public class DocumentApiController : ControllerBase
                 DocumentId = document.DocumentID,
                 VersionNumber = 1,
                 VersionLabel = "1",
-                FilePath = filePath,
+                FilePath = storage.RelativePath,
                 FileSize = dto.File.Length,
                 UploadedBy = userId,
-                OriginalFileName = dto.File.FileName,
+                OriginalFileName = hashedOriginalFileName,
                 FileExtension = extension,
                 MimeType = dto.File.ContentType,
                 ChangeDescription = "Initial upload",
@@ -185,10 +232,10 @@ public class DocumentApiController : ControllerBase
             // Process with AI (non-blocking - upload succeeds even if AI fails)
             try
             {
-                using (var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                using (var fileStream = new FileStream(storage.AbsolutePath, FileMode.Open, FileAccess.Read))
                 {
                     var aiResult = await _aiService.ProcessDocumentAsync(document.DocumentID, fileStream, dto.File.FileName);
-                    
+
                     // Ensure checklist items exist for detected document type
                     if (aiResult.Success && !string.IsNullOrEmpty(aiResult.DetectedDocumentType))
                     {
@@ -222,7 +269,7 @@ public class DocumentApiController : ControllerBase
                             document.DocumentID,
                             $"/Lawyer/PendingReviews");
                     }
-    
+
                     // Also notify client about the high-risk routing
                     await _notificationService.NotifyAsync(
                         userId,
@@ -236,7 +283,7 @@ public class DocumentApiController : ControllerBase
                 {
                     // NORMAL FLOW: Assign to staff for review
                     assignedUser = await _workflowService.AssignToStaffAsync(document.DocumentID, firmId);
-    
+
                     // Notify all staff members
                     await _notificationService.NotifyAllStaffAsync(
                         firmId,
@@ -273,8 +320,8 @@ public class DocumentApiController : ControllerBase
             return Ok(new
             {
                 success = true,
-                message = dto.IsHighRisk 
-                    ? "High-risk document uploaded and sent directly to lawyer for review" 
+                message = dto.IsHighRisk
+                    ? "High-risk document uploaded and sent directly to lawyer for review"
                     : "Document uploaded successfully",
                 documentId = document.DocumentID,
                 assignedTo = assignedUser?.FullName,
@@ -359,17 +406,16 @@ public class DocumentApiController : ControllerBase
                     return BadRequest(new { success = false, message = "Invalid client selected" });
             }
 
-            // The document is stored under the uploader (staff/lawyer/admin) path
-            var uploadPath = Path.Combine(_environment.ContentRootPath, "Uploads", firmId.ToString(), userId.ToString());
-            Directory.CreateDirectory(uploadPath);
+            // The document is stored under the uploader (staff/lawyer/admin) path using hashed file path in DB.
+            var storage = CreateHashedStoragePath(firmId, userId, extension, dto.File.FileName);
+            Directory.CreateDirectory(Path.GetDirectoryName(storage.AbsolutePath)!);
 
-            var uniqueFileName = $"{Guid.NewGuid()}{extension}";
-            var filePath = Path.Combine(uploadPath, uniqueFileName);
-
-            using (var stream = new FileStream(filePath, FileMode.Create))
+            using (var stream = new FileStream(storage.AbsolutePath, FileMode.Create))
             {
                 await dto.File.CopyToAsync(stream);
             }
+
+            var hashedOriginalFileName = HashSensitiveValue(dto.File.FileName);
 
             // Get uploader info for recording
             var uploader = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserID == userId);
@@ -380,8 +426,8 @@ public class DocumentApiController : ControllerBase
             {
                 FirmID = firmId,
                 Title = dto.Title ?? Path.GetFileNameWithoutExtension(dto.File.FileName),
-                Description = dto.Description + (string.IsNullOrWhiteSpace(dto.ClientName) 
-                    ? $"\n[Manual upload by {role}: {uploaderName}]" 
+                Description = dto.Description + (string.IsNullOrWhiteSpace(dto.ClientName)
+                    ? $"\n[Manual upload by {role}: {uploaderName}]"
                     : $"\n[Manual upload by {role}: {uploaderName}, on behalf of: {dto.ClientName}]"),
                 Category = dto.Category,
                 Status = "Pending",
@@ -389,7 +435,7 @@ public class DocumentApiController : ControllerBase
                 FolderId = dto.FolderId,
                 DocumentType = dto.DocumentType,
                 WorkflowStage = DocumentWorkflowService.STAGE_CLIENT_UPLOAD,
-                OriginalFileName = dto.File.FileName,
+                OriginalFileName = hashedOriginalFileName,
                 FileExtension = extension,
                 MimeType = dto.File.ContentType,
                 TotalFileSize = dto.File.Length,
@@ -410,13 +456,13 @@ public class DocumentApiController : ControllerBase
                 DocumentId = document.DocumentID,
                 VersionNumber = 1,
                 VersionLabel = "1",
-                FilePath = filePath,
+                FilePath = storage.RelativePath,
                 FileSize = dto.File.Length,
                 UploadedBy = userId,
-                OriginalFileName = dto.File.FileName,
+                OriginalFileName = hashedOriginalFileName,
                 FileExtension = extension,
                 MimeType = dto.File.ContentType,
-                ChangeDescription = $"Manual upload by {role}: {uploaderName}" + 
+                ChangeDescription = $"Manual upload by {role}: {uploaderName}" +
                     (string.IsNullOrWhiteSpace(dto.ClientName) ? "" : $" (on behalf of {dto.ClientName})"),
                 ChangedBy = role,
                 IsCurrentVersion = true,
@@ -429,7 +475,7 @@ public class DocumentApiController : ControllerBase
             // AI Processing (non-blocking)
             try
             {
-                using (var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                using (var fileStream = new FileStream(storage.AbsolutePath, FileMode.Open, FileAccess.Read))
                 {
                     var aiResult = await _aiService.ProcessDocumentAsync(document.DocumentID, fileStream, dto.File.FileName);
                     if (aiResult.Success && !string.IsNullOrEmpty(aiResult.DetectedDocumentType))
@@ -515,14 +561,15 @@ public class DocumentApiController : ControllerBase
                         (!string.IsNullOrWhiteSpace(dto.ClientName) ? $" (client: {dto.ClientName})" : "") +
                         (dto.IsHighRisk ? " [HIGH-RISK]" : ""),
                     null,
-                    System.Text.Json.JsonSerializer.Serialize(new { 
-                        manualUpload = true, 
-                        uploadedByUserId = userId, 
-                        uploadedByRole = role, 
+                    System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        manualUpload = true,
+                        uploadedByUserId = userId,
+                        uploadedByRole = role,
                         uploadedByName = uploaderName,
                         onBehalfOfClientId = dto.OnBehalfOfClientId,
                         clientName = dto.ClientName,
-                        isHighRisk = dto.IsHighRisk 
+                        isHighRisk = dto.IsHighRisk
                     }),
                     "ManualDocumentUpload");
             }
@@ -534,7 +581,7 @@ public class DocumentApiController : ControllerBase
             return Ok(new
             {
                 success = true,
-                message = $"Document manually uploaded by {role} successfully" + 
+                message = $"Document manually uploaded by {role} successfully" +
                     (assignedUser != null ? $". Assigned to {assignedToRole}: {assignedUser.FullName}" : ""),
                 documentId = document.DocumentID,
                 assignedTo = assignedUser?.FullName,
@@ -591,7 +638,7 @@ public class DocumentApiController : ControllerBase
                 status = document.Status,
                 workflowStage = document.WorkflowStage,
                 currentVersion = document.CurrentVersion,
-                originalFileName = document.OriginalFileName,
+                originalFileName = BuildDisplayFileName(document.Title, document.FileExtension),
                 fileExtension = document.FileExtension,
                 totalFileSize = document.TotalFileSize,
                 isAIProcessed = document.IsAIProcessed,
@@ -612,7 +659,7 @@ public class DocumentApiController : ControllerBase
                     versionId = v.VersionId,
                     versionNumber = v.VersionNumber,
                     versionLabel = v.VersionLabel ?? v.VersionNumber.ToString(),
-                    originalFileName = v.OriginalFileName,
+                    originalFileName = BuildDisplayFileName(document.Title, v.FileExtension),
                     fileSize = v.FileSize,
                     changeDescription = v.ChangeDescription,
                     changedBy = v.ChangedBy,
@@ -663,7 +710,7 @@ public class DocumentApiController : ControllerBase
         }
         else
         {
-            version = document.Versions.FirstOrDefault(v => v.IsCurrentVersion == true) 
+            version = document.Versions.FirstOrDefault(v => v.IsCurrentVersion == true)
                 ?? document.Versions.OrderByDescending(v => v.VersionNumber).FirstOrDefault();
         }
 
@@ -676,7 +723,7 @@ public class DocumentApiController : ControllerBase
 
         var fileBytes = await System.IO.File.ReadAllBytesAsync(resolvedDownloadPath);
         var contentType = version.MimeType ?? "application/octet-stream";
-        var fileName = version.OriginalFileName ?? $"document{version.FileExtension}";
+        var fileName = BuildDisplayFileName(document.Title, version.FileExtension);
 
         // Audit log
         await _auditLogService.LogAsync(
@@ -732,10 +779,7 @@ public class DocumentApiController : ControllerBase
                     .Where(v => v.IsCurrentVersion == true)
                     .Select(v => v.VersionLabel)
                     .FirstOrDefault() ?? d.CurrentVersion.ToString(),
-                originalFileName = d.Versions
-                    .Where(v => v.IsCurrentVersion == true)
-                    .Select(v => v.OriginalFileName)
-                    .FirstOrDefault() ?? d.OriginalFileName,
+                originalFileName = (d.Title ?? "document") + (d.FileExtension ?? ""),
                 fileExtension = d.FileExtension,
                 totalFileSize = d.TotalFileSize,
                 currentRemarks = d.CurrentRemarks,
@@ -779,9 +823,8 @@ public class DocumentApiController : ControllerBase
         if (!string.IsNullOrWhiteSpace(search))
         {
             var searchLower = search.ToLower();
-            docsQuery = docsQuery.Where(d => 
+            docsQuery = docsQuery.Where(d =>
                 (d.Title != null && d.Title.ToLower().Contains(searchLower)) ||
-                (d.OriginalFileName != null && d.OriginalFileName.ToLower().Contains(searchLower)) ||
                 (d.Description != null && d.Description.ToLower().Contains(searchLower)) ||
                 (d.DocumentType != null && d.DocumentType.ToLower().Contains(searchLower)));
         }
@@ -815,7 +858,7 @@ public class DocumentApiController : ControllerBase
                 documentType = d.DocumentType,
                 status = d.Status,
                 workflowStage = d.WorkflowStage,
-                originalFileName = d.OriginalFileName,
+                originalFileName = (d.Title ?? "document") + (d.FileExtension ?? ""),
                 fileExtension = d.FileExtension,
                 totalFileSize = d.TotalFileSize,
                 folderId = d.FolderId,
@@ -839,7 +882,7 @@ public class DocumentApiController : ControllerBase
         if (!string.IsNullOrWhiteSpace(search))
         {
             var searchLower = search.ToLower();
-            foldersQuery = foldersQuery.Where(f => 
+            foldersQuery = foldersQuery.Where(f =>
                 f.FolderName.ToLower().Contains(searchLower) ||
                 (f.Description != null && f.Description.ToLower().Contains(searchLower)));
         }
@@ -899,7 +942,7 @@ public class DocumentApiController : ControllerBase
             // Check for existing non-restored archive
             var existingArchive = await _context.Archives
                 .FirstOrDefaultAsync(a => a.DocumentID == id && a.IsRestored != true);
-            
+
             if (existingArchive != null)
             {
                 // For rejected docs that were auto-archived, just update the document status to Archived
@@ -912,10 +955,10 @@ public class DocumentApiController : ControllerBase
                         .ExecuteUpdateAsync(setters => setters
                             .SetProperty(d => d.Status, "Archived")
                             .SetProperty(d => d.WorkflowStage, "Archived"));
-                    
+
                     return Ok(new { success = true, message = "Document archived successfully", archiveId = existingArchive.ArchiveID });
                 }
-                
+
                 return BadRequest(new { success = false, message = "This document is already archived" });
             }
 
@@ -1080,6 +1123,7 @@ public class DocumentApiController : ControllerBase
 
         var versions = await _context.DocumentVersions
             .Include(v => v.Uploader)
+            .Include(v => v.Document)
             .Where(v => v.DocumentId == id)
             .OrderByDescending(v => v.VersionNumber)
             .Select(v => new
@@ -1087,7 +1131,7 @@ public class DocumentApiController : ControllerBase
                 versionId = v.VersionId,
                 versionNumber = v.VersionNumber,
                 versionLabel = v.VersionLabel ?? v.VersionNumber.ToString(),
-                originalFileName = v.OriginalFileName,
+                originalFileName = (v.Document != null ? (v.Document.Title ?? "document") : "document") + (v.FileExtension ?? ""),
                 fileSize = v.FileSize,
                 changeDescription = v.ChangeDescription,
                 changedBy = v.ChangedBy,
@@ -1131,8 +1175,8 @@ public class DocumentApiController : ControllerBase
                 return NotFound(new { success = false, message = "Document not found" });
 
             // Determine next version number
-            var currentMaxVersion = document.Versions.Any() 
-                ? document.Versions.Max(v => v.VersionNumber) 
+            var currentMaxVersion = document.Versions.Any()
+                ? document.Versions.Max(v => v.VersionNumber)
                 : 0;
             var newVersionNumber = currentMaxVersion + 1;
 
@@ -1149,18 +1193,17 @@ public class DocumentApiController : ControllerBase
             else // Lawyer, Admin
                 newVersionLabel = CalcMajorVersionLabel(existingLabels);
 
-            // Save file
-            var uploadPath = Path.Combine(_environment.ContentRootPath, "Uploads", firmId.ToString(), document.UploadedBy.ToString() ?? "0");
-            Directory.CreateDirectory(uploadPath);
-
             var extension = Path.GetExtension(dto.File.FileName).ToLower();
-            var uniqueFileName = $"{Guid.NewGuid()}{extension}";
-            var filePath = Path.Combine(uploadPath, uniqueFileName);
+            var ownerUserId = document.UploadedBy ?? userId;
+            var storage = CreateHashedStoragePath(firmId, ownerUserId, extension, dto.File.FileName);
+            Directory.CreateDirectory(Path.GetDirectoryName(storage.AbsolutePath)!);
 
-            using (var stream = new FileStream(filePath, FileMode.Create))
+            using (var stream = new FileStream(storage.AbsolutePath, FileMode.Create))
             {
                 await dto.File.CopyToAsync(stream);
             }
+
+            var hashedOriginalFileName = HashSensitiveValue(dto.File.FileName);
 
             // Set all existing versions as not current
             foreach (var v in document.Versions)
@@ -1179,8 +1222,8 @@ public class DocumentApiController : ControllerBase
                 DocumentId = id,
                 VersionNumber = newVersionNumber,
                 VersionLabel = newVersionLabel,
-                FilePath = filePath,
-                OriginalFileName = dto.File.FileName,
+                FilePath = storage.RelativePath,
+                OriginalFileName = hashedOriginalFileName,
                 FileSize = dto.File.Length,
                 MimeType = dto.File.ContentType,
                 ChangeDescription = dto.ChangeDescription,
@@ -1304,8 +1347,8 @@ public class DocumentApiController : ControllerBase
                 {
                     try
                     {
-                        var fileName = currentVersion.OriginalFileName ?? document.OriginalFileName ?? "document";
-                        var fileExt  = currentVersion.FileExtension ?? document.FileExtension ?? "";
+                        var fileName = BuildDisplayFileName(document.Title, currentVersion.FileExtension);
+                        var fileExt = currentVersion.FileExtension ?? document.FileExtension ?? "";
 
                         var extractedText = await _aiService.ExtractTextFromFileAsync(resolvedPath, fileName);
                         liveResult = await _aiService.AnalyzeWithOpenAIAsync(extractedText, fileName, fileExt);
@@ -1486,7 +1529,7 @@ public class DocumentApiController : ControllerBase
             }
             else
             {
-                version = document.Versions.FirstOrDefault(v => v.IsCurrentVersion == true) 
+                version = document.Versions.FirstOrDefault(v => v.IsCurrentVersion == true)
                     ?? document.Versions.OrderByDescending(v => v.VersionNumber).FirstOrDefault();
             }
 
@@ -1498,10 +1541,13 @@ public class DocumentApiController : ControllerBase
                 return Ok(new { success = false, message = "File not found on server. It may have been moved or deleted." });
 
             // Extract text content
-            var textContent = await _aiService.ExtractTextFromFileAsync(resolvedPath, version.OriginalFileName ?? "document");
+            var textContent = await _aiService.ExtractTextFromFileAsync(
+                resolvedPath,
+                BuildDisplayFileName(document.Title, version.FileExtension));
 
-            return Ok(new { 
-                success = true, 
+            return Ok(new
+            {
+                success = true,
                 content = textContent,
                 versionNumber = version.VersionNumber,
                 changedBy = version.ChangedBy
@@ -1542,7 +1588,7 @@ public class DocumentApiController : ControllerBase
         }
         else
         {
-            version = document.Versions.FirstOrDefault(v => v.IsCurrentVersion == true) 
+            version = document.Versions.FirstOrDefault(v => v.IsCurrentVersion == true)
                 ?? document.Versions.OrderByDescending(v => v.VersionNumber).FirstOrDefault();
         }
 
@@ -1557,7 +1603,7 @@ public class DocumentApiController : ControllerBase
         var contentType = version.MimeType ?? "application/octet-stream";
 
         // Set headers for inline viewing
-        Response.Headers.ContentDisposition = $"inline; filename=\"{Uri.EscapeDataString(version.OriginalFileName ?? "document")}\"";
+        Response.Headers.ContentDisposition = $"inline; filename=\"{Uri.EscapeDataString(BuildDisplayFileName(document.Title, version.FileExtension))}\"";
 
         // Log view action
         await _auditLogService.LogAsync(
@@ -1593,19 +1639,20 @@ public class DocumentApiController : ControllerBase
             // Get the current version's file
             var version = document.Versions
                 .OrderByDescending(v => v.VersionNumber)
-                .FirstOrDefault(v => v.IsCurrentVersion == true) ?? 
+                .FirstOrDefault(v => v.IsCurrentVersion == true) ??
                 document.Versions.OrderByDescending(v => v.VersionNumber).FirstOrDefault();
 
             if (version == null || string.IsNullOrEmpty(version.FilePath))
                 return BadRequest(new { success = false, message = "Document file not found" });
 
-            if (!System.IO.File.Exists(version.FilePath))
+            var resolvedPath = ResolveVersionFilePath(version.FilePath);
+            if (resolvedPath == null)
                 return BadRequest(new { success = false, message = "Document file not found on disk" });
 
             // Get expected signer name (the client who uploaded)
             var expectedName = document.Uploader?.SignatureName ?? document.Uploader?.FullName ?? "";
 
-            using var fileStream = new FileStream(version.FilePath, FileMode.Open, FileAccess.Read);
+            using var fileStream = new FileStream(resolvedPath, FileMode.Open, FileAccess.Read);
             var result = await _aiService.VerifySignatureAsync(id, fileStream, expectedName);
 
             // Update document with signature verification status
@@ -1675,12 +1722,12 @@ public class DocumentApiController : ControllerBase
                 return BadRequest(new { success = false, message = "Invalid version IDs" });
 
             var fromPath = ResolveVersionFilePath(fromVer.FilePath);
-            var toPath   = ResolveVersionFilePath(toVer.FilePath);
+            var toPath = ResolveVersionFilePath(toVer.FilePath);
             if (fromPath == null || toPath == null)
                 return BadRequest(new { success = false, message = "Version file(s) not found on server. The original files may have been moved or deleted." });
 
-            var fromText = await _aiService.ExtractTextFromFileAsync(fromPath, fromVer.OriginalFileName ?? "doc");
-            var toText   = await _aiService.ExtractTextFromFileAsync(toPath,   toVer.OriginalFileName   ?? "doc");
+            var fromText = await _aiService.ExtractTextFromFileAsync(fromPath, BuildDisplayFileName(document.Title, fromVer.FileExtension, "doc"));
+            var toText = await _aiService.ExtractTextFromFileAsync(toPath, BuildDisplayFileName(document.Title, toVer.FileExtension, "doc"));
 
             var diffTokens = ComputeLineDiff(fromText, toText);
 
@@ -1688,9 +1735,9 @@ public class DocumentApiController : ControllerBase
             {
                 success = true,
                 fromVersion = new { fromVer.VersionId, fromVer.VersionNumber, fromVer.ChangedBy, fromVer.CreatedAt, fromVer.ChangeDescription },
-                toVersion   = new { toVer.VersionId,   toVer.VersionNumber,   toVer.ChangedBy,   toVer.CreatedAt,   toVer.ChangeDescription   },
+                toVersion = new { toVer.VersionId, toVer.VersionNumber, toVer.ChangedBy, toVer.CreatedAt, toVer.ChangeDescription },
                 diff = diffTokens,
-                addedCount   = diffTokens.Count(t => t.Type == "added"),
+                addedCount = diffTokens.Count(t => t.Type == "added"),
                 removedCount = diffTokens.Count(t => t.Type == "removed"),
                 unchangedCount = diffTokens.Count(t => t.Type == "unchanged")
             });
@@ -1735,16 +1782,16 @@ public class DocumentApiController : ControllerBase
                 return BadRequest(new { success = false, message = "Invalid version IDs" });
 
             var fromPath = ResolveVersionFilePath(fromVer.FilePath);
-            var toPath   = ResolveVersionFilePath(toVer.FilePath);
+            var toPath = ResolveVersionFilePath(toVer.FilePath);
             if (fromPath == null || toPath == null)
                 return BadRequest(new { success = false, message = "Version file(s) not found on server. The original files may have been moved or deleted." });
 
-            var fromText = await _aiService.ExtractTextFromFileAsync(fromPath, fromVer.OriginalFileName ?? "doc");
-            var toText   = await _aiService.ExtractTextFromFileAsync(toPath,   toVer.OriginalFileName   ?? "doc");
+            var fromText = await _aiService.ExtractTextFromFileAsync(fromPath, BuildDisplayFileName(document.Title, fromVer.FileExtension, "doc"));
+            var toText = await _aiService.ExtractTextFromFileAsync(toPath, BuildDisplayFileName(document.Title, toVer.FileExtension, "doc"));
 
             var analysis = await _aiService.AnalyzeDocumentChangesAsync(
                 fromText, toText,
-                document.Title ?? document.OriginalFileName ?? "Document",
+                document.Title ?? "Document",
                 fromVer.VersionNumber, toVer.VersionNumber);
 
             await _auditLogService.LogAsync(
@@ -1756,7 +1803,7 @@ public class DocumentApiController : ControllerBase
             {
                 success = true,
                 fromVersion = new { fromVer.VersionId, fromVer.VersionNumber, fromVer.ChangedBy },
-                toVersion   = new { toVer.VersionId,   toVer.VersionNumber,   toVer.ChangedBy   },
+                toVersion = new { toVer.VersionId, toVer.VersionNumber, toVer.ChangedBy },
                 analysis
             });
         }
@@ -1824,10 +1871,16 @@ public class DocumentApiController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(storedPath)) return null;
 
-        // 1) Stored path exists as-is (happy path â€” most uploads)
+        // 1) Backward compatibility: old records may store absolute path.
         if (System.IO.File.Exists(storedPath)) return storedPath;
 
-        // 2) Remap by extracting the "Uploads/..." segment and rebuilding from the current content root.
+        // 2) New format: relative hashed storage path under Uploads.
+        var normalizedStoredPath = storedPath.Replace('/', Path.DirectorySeparatorChar)
+                                            .Replace('\\', Path.DirectorySeparatorChar);
+        var relativeCandidate = Path.Combine(_environment.ContentRootPath, "Uploads", normalizedStoredPath);
+        if (System.IO.File.Exists(relativeCandidate)) return relativeCandidate;
+
+        // 3) Remap by extracting the "Uploads/..." segment and rebuilding from the current content root.
         //    Handles cases where the app was previously run from bin\Debug\net8.0 (contentRoot differs).
         var normalised = storedPath.Replace('\\', '/');
         var uploadsIdx = normalised.IndexOf("/Uploads/", StringComparison.OrdinalIgnoreCase);
@@ -1838,7 +1891,7 @@ public class DocumentApiController : ControllerBase
             if (System.IO.File.Exists(candidate)) return candidate;
         }
 
-        // 3) Last resort: the stored filename is a GUID so it is globally unique.
+        // 4) Last resort: search by stored file name under Uploads root.
         //    Search the entire Uploads tree for it (covers any root mismatch).
         var fileName = Path.GetFileName(storedPath);
         if (!string.IsNullOrEmpty(fileName))

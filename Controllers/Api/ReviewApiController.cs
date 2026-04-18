@@ -5,6 +5,8 @@ using CKNDocument.Data;
 using CKNDocument.Models.LawFirmDMS;
 using CKNDocument.Services;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace CKNDocument.Controllers.Api;
 
@@ -47,6 +49,44 @@ public class ReviewApiController : ControllerBase
     private int GetFirmId() => int.Parse(User.FindFirst("FirmId")?.Value ?? "0");
     private string GetUserRole() => User.FindFirst(ClaimTypes.Role)?.Value ?? "Staff";
 
+    private static string GenerateNonceHex(int bytes = 16)
+    {
+        return Convert.ToHexString(RandomNumberGenerator.GetBytes(bytes)).ToLowerInvariant();
+    }
+
+    private static string ComputeSha256Hex(string value)
+    {
+        using var sha = SHA256.Create();
+        var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    private (string RelativePath, string AbsolutePath) CreateHashedStoragePath(int firmId, int ownerUserId, string extension, string seed)
+    {
+        var nonce = GenerateNonceHex();
+        var digest = ComputeSha256Hex($"{seed}|{firmId}|{ownerUserId}|{DateTime.UtcNow.Ticks}|{Guid.NewGuid()}|{nonce}");
+        var hashedFileName = $"{digest}{extension}";
+        var relativePath = Path.Combine(firmId.ToString(), ownerUserId.ToString(), hashedFileName)
+            .Replace('\\', '/');
+        var absolutePath = Path.Combine(_environment.ContentRootPath, "Uploads", firmId.ToString(), ownerUserId.ToString(), hashedFileName);
+        return (relativePath, absolutePath);
+    }
+
+    private static string BuildDisplayFileName(string? title, string? fileExtension, string fallbackBaseName = "document")
+    {
+        var safeBase = string.IsNullOrWhiteSpace(title) ? fallbackBaseName : title.Trim();
+        foreach (var invalid in Path.GetInvalidFileNameChars())
+        {
+            safeBase = safeBase.Replace(invalid, '_');
+        }
+
+        var ext = string.IsNullOrWhiteSpace(fileExtension) ? string.Empty : fileExtension;
+        if (!string.IsNullOrEmpty(ext) && !ext.StartsWith('.'))
+            ext = $".{ext}";
+
+        return $"{safeBase}{ext}";
+    }
+
     /// <summary>
     /// Get pending reviews for staff
     /// </summary>
@@ -80,7 +120,7 @@ public class ReviewApiController : ControllerBase
             documentType = d.DocumentType,
             status = d.Status,
             workflowStage = d.WorkflowStage,
-            originalFileName = d.OriginalFileName,
+            originalFileName = BuildDisplayFileName(d.Title, d.FileExtension),
             fileExtension = d.FileExtension,
             totalFileSize = d.TotalFileSize,
             currentVersion = d.CurrentVersion,
@@ -183,7 +223,7 @@ public class ReviewApiController : ControllerBase
         var firmId = GetFirmId();
         var role = GetUserRole();
 
-        var reviews = await _context.DocumentReviews
+        var rawReviews = await _context.DocumentReviews
             .Include(r => r.Document)
                 .ThenInclude(d => d!.Uploader)
             .Include(r => r.Reviewer)
@@ -195,7 +235,7 @@ public class ReviewApiController : ControllerBase
                 reviewId = r.ReviewId,
                 documentId = r.DocumentId,
                 documentTitle = r.Document != null ? r.Document.Title : null,
-                documentFileName = r.Document != null ? r.Document.OriginalFileName : null,
+                documentFileExtension = r.Document != null ? r.Document.FileExtension : null,
                 reviewStatus = r.ReviewStatus,
                 remarks = r.Remarks,
                 reviewedAt = r.ReviewedAt,
@@ -203,6 +243,19 @@ public class ReviewApiController : ControllerBase
                 isChecklistComplete = r.IsChecklistComplete
             })
             .ToListAsync();
+
+        var reviews = rawReviews.Select(r => new
+        {
+            r.reviewId,
+            r.documentId,
+            r.documentTitle,
+            documentFileName = BuildDisplayFileName(r.documentTitle, r.documentFileExtension),
+            r.reviewStatus,
+            r.remarks,
+            r.reviewedAt,
+            r.uploaderName,
+            r.isChecklistComplete
+        });
 
         return Ok(new { success = true, reviews });
     }
@@ -348,7 +401,7 @@ public class ReviewApiController : ControllerBase
                 status = document.Status,
                 workflowStage = document.WorkflowStage,
                 currentVersion = document.CurrentVersion,
-                originalFileName = document.OriginalFileName,
+                originalFileName = BuildDisplayFileName(document.Title, document.FileExtension),
                 fileExtension = document.FileExtension,
                 mimeType = document.MimeType,
                 totalFileSize = document.TotalFileSize,
@@ -369,7 +422,7 @@ public class ReviewApiController : ControllerBase
                     versionId = v.VersionId,
                     versionNumber = v.VersionNumber,
                     versionLabel = v.VersionLabel ?? v.VersionNumber.ToString(),
-                    originalFileName = v.OriginalFileName,
+                    originalFileName = BuildDisplayFileName(document.Title, v.FileExtension),
                     fileSize = v.FileSize,
                     changeDescription = v.ChangeDescription,
                     changedBy = v.ChangedBy,
@@ -601,15 +654,12 @@ public class ReviewApiController : ControllerBase
                 return BadRequest(new { success = false, message = "This document is assigned to another staff member" });
             }
 
-            // Save file
-            var uploadPath = Path.Combine(_environment.ContentRootPath, "Uploads", firmId.ToString(), document.UploadedBy.ToString() ?? "0");
-            Directory.CreateDirectory(uploadPath);
-
             var extension = Path.GetExtension(dto.File.FileName).ToLower();
-            var uniqueFileName = $"{Guid.NewGuid()}{extension}";
-            var filePath = Path.Combine(uploadPath, uniqueFileName);
+            var ownerUserId = document.UploadedBy ?? 0;
+            var storage = CreateHashedStoragePath(firmId, ownerUserId, extension, dto.File.FileName);
+            Directory.CreateDirectory(Path.GetDirectoryName(storage.AbsolutePath)!);
 
-            using (var stream = new FileStream(filePath, FileMode.Create))
+            using (var stream = new FileStream(storage.AbsolutePath, FileMode.Create))
             {
                 await dto.File.CopyToAsync(stream);
             }
@@ -617,7 +667,7 @@ public class ReviewApiController : ControllerBase
             var version = await _workflowService.StaffEditDocumentAsync(
                 documentId,
                 userId,
-                filePath,
+                storage.RelativePath,
                 dto.File.FileName,
                 dto.File.Length,
                 dto.File.ContentType,
@@ -663,7 +713,7 @@ public class ReviewApiController : ControllerBase
             documentType = d.DocumentType,
             status = d.Status,
             workflowStage = d.WorkflowStage,
-            originalFileName = d.OriginalFileName,
+            originalFileName = BuildDisplayFileName(d.Title, d.FileExtension),
             fileExtension = d.FileExtension,
             totalFileSize = d.TotalFileSize,
             currentVersion = d.CurrentVersion,
@@ -973,7 +1023,7 @@ public class ReviewApiController : ControllerBase
                 documentType = d.DocumentType,
                 status = d.Status,
                 workflowStage = d.WorkflowStage,
-                originalFileName = d.OriginalFileName,
+                originalFileName = BuildDisplayFileName(d.Title, d.FileExtension),
                 fileExtension = d.FileExtension,
                 isHighRisk = d.IsHighRisk,
                 firstOpinionLawyer = d.FirstOpinionLawyer != null ? new { id = d.FirstOpinionLawyer.UserID, name = d.FirstOpinionLawyer.FullName } : null,
@@ -1011,7 +1061,7 @@ public class ReviewApiController : ControllerBase
                 documentType = d.DocumentType,
                 status = d.Status,
                 workflowStage = d.WorkflowStage,
-                originalFileName = d.OriginalFileName,
+                originalFileName = BuildDisplayFileName(d.Title, d.FileExtension),
                 fileExtension = d.FileExtension,
                 isHighRisk = d.IsHighRisk,
                 secondOpinionLawyer = d.SecondOpinionLawyer != null ? new { id = d.SecondOpinionLawyer.UserID, name = d.SecondOpinionLawyer.FullName } : null,
@@ -1089,15 +1139,12 @@ public class ReviewApiController : ControllerBase
             // if (document.AssignedLawyerId != userId)
             //     return BadRequest(new { success = false, message = "This document is not assigned to you" });
 
-            // Save file
-            var uploadPath = Path.Combine(_environment.ContentRootPath, "Uploads", firmId.ToString(), document.UploadedBy.ToString() ?? "0");
-            Directory.CreateDirectory(uploadPath);
-
             var extension = Path.GetExtension(dto.File.FileName).ToLower();
-            var uniqueFileName = $"{Guid.NewGuid()}{extension}";
-            var filePath = Path.Combine(uploadPath, uniqueFileName);
+            var ownerUserId = document.UploadedBy ?? 0;
+            var storage = CreateHashedStoragePath(firmId, ownerUserId, extension, dto.File.FileName);
+            Directory.CreateDirectory(Path.GetDirectoryName(storage.AbsolutePath)!);
 
-            using (var stream = new FileStream(filePath, FileMode.Create))
+            using (var stream = new FileStream(storage.AbsolutePath, FileMode.Create))
             {
                 await dto.File.CopyToAsync(stream);
             }
@@ -1105,7 +1152,7 @@ public class ReviewApiController : ControllerBase
             var version = await _workflowService.LawyerEditDocumentAsync(
                 documentId,
                 userId,
-                filePath,
+                storage.RelativePath,
                 dto.File.FileName,
                 dto.File.Length,
                 dto.File.ContentType,

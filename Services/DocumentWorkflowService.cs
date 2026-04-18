@@ -1,6 +1,8 @@
 ﻿using CKNDocument.Data;
 using CKNDocument.Models.LawFirmDMS;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace CKNDocument.Services;
 
@@ -50,6 +52,25 @@ public class DocumentWorkflowService
         _notificationService = notificationService;
         _auditLogService = auditLogService;
         _logger = logger;
+    }
+
+    private static string GenerateNonceHex(int bytes = 16)
+    {
+        return Convert.ToHexString(RandomNumberGenerator.GetBytes(bytes)).ToLowerInvariant();
+    }
+
+    private static string ComputeSha256Hex(string value)
+    {
+        using var sha = SHA256.Create();
+        var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    private static string HashSensitiveValue(string plainText)
+    {
+        var nonce = GenerateNonceHex();
+        var hash = ComputeSha256Hex($"{plainText}|{nonce}");
+        return $"{nonce}:{hash}";
     }
 
     /// <summary>
@@ -571,8 +592,12 @@ public class DocumentWorkflowService
             currentVersion.IsCurrentVersion = false;
         }
 
-        // Get file extension
-        var fileExtension = Path.GetExtension(originalFileName);
+        // Derive extension from the stored file path first; hashed original names may not include extension.
+        var fileExtension = Path.GetExtension(filePath);
+        if (string.IsNullOrWhiteSpace(fileExtension))
+            fileExtension = Path.GetExtension(originalFileName);
+
+        var hashedOriginalFileName = HashSensitiveValue(originalFileName);
 
         // Create new version â€” Lawyer upload â†’ MAJOR version label
         var newVersionNumber = (document.CurrentVersion ?? 1) + 1;
@@ -590,7 +615,7 @@ public class DocumentWorkflowService
             FilePath = filePath,
             FileSize = fileSize,
             UploadedBy = lawyerId,
-            OriginalFileName = originalFileName,
+            OriginalFileName = hashedOriginalFileName,
             FileExtension = fileExtension,
             MimeType = mimeType,
             ChangeDescription = changeDescription,
@@ -604,7 +629,7 @@ public class DocumentWorkflowService
         // Update document â€” sync all fields with the new current version
         document.CurrentVersion = newVersionNumber;
         document.TotalFileSize = fileSize;
-        document.OriginalFileName = originalFileName;
+        document.OriginalFileName = hashedOriginalFileName;
         document.FileExtension = fileExtension;
         document.MimeType = mimeType;
         await _context.SaveChangesAsync();
@@ -675,8 +700,12 @@ public class DocumentWorkflowService
             currentVersion.IsCurrentVersion = false;
         }
 
-        // Get file extension
-        var fileExtension = Path.GetExtension(originalFileName);
+        // Derive extension from the stored file path first; hashed original names may not include extension.
+        var fileExtension = Path.GetExtension(filePath);
+        if (string.IsNullOrWhiteSpace(fileExtension))
+            fileExtension = Path.GetExtension(originalFileName);
+
+        var hashedOriginalFileName = HashSensitiveValue(originalFileName);
 
         // Create new version â€” Staff upload â†’ MINOR version label
         var newVersionNumber = (document.CurrentVersion ?? 1) + 1;
@@ -694,7 +723,7 @@ public class DocumentWorkflowService
             FilePath = filePath,
             FileSize = fileSize,
             UploadedBy = staffId,
-            OriginalFileName = originalFileName,
+            OriginalFileName = hashedOriginalFileName,
             FileExtension = fileExtension,
             MimeType = mimeType,
             ChangeDescription = changeDescription,
@@ -708,7 +737,7 @@ public class DocumentWorkflowService
         // Update document â€” sync all fields with the new current version
         document.CurrentVersion = newVersionNumber;
         document.TotalFileSize = fileSize;
-        document.OriginalFileName = originalFileName;
+        document.OriginalFileName = hashedOriginalFileName;
         document.FileExtension = fileExtension;
         document.MimeType = mimeType;
         await _context.SaveChangesAsync();
