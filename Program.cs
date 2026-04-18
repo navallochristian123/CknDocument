@@ -134,6 +134,7 @@ builder.Services.AddScoped<AuditLogService>();
 builder.Services.AddScoped<DocumentWorkflowService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<DocumentAIService>();
+builder.Services.AddScoped<SmtpEmailService>();
 
 // HttpClient for OpenAI API
 builder.Services.AddHttpClient("OpenAI");
