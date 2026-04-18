@@ -16,6 +16,14 @@ namespace CKNDocument.Controllers.LawFirm;
 [Authorize(Policy = "AdminOnly")]
 public class UserController : Controller
 {
+    private static readonly HashSet<string> AllowedLawFirmRoleNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Staff",
+        "Lawyer",
+        "Client",
+        "Auditor"
+    };
+
     private readonly LawFirmDMSDbContext _context;
     private readonly AuditLogService _auditLogService;
     private readonly ILogger<UserController> _logger;
@@ -64,7 +72,7 @@ public class UserController : Controller
             .ToListAsync();
 
         ViewData["Roles"] = await _context.Roles
-            .Where(r => r.RoleName != "Admin" && r.RoleName != "SuperAdmin")
+            .Where(r => r.RoleName != null && AllowedLawFirmRoleNames.Contains(r.RoleName))
             .ToListAsync();
         return View(GetRoleViewPath("Users"), users);
     }
@@ -144,7 +152,7 @@ public class UserController : Controller
         }
 
         var roles = await _context.Roles
-            .Where(r => r.RoleName != "Admin" && r.RoleName != "SuperAdmin")
+            .Where(r => r.RoleName != null && AllowedLawFirmRoleNames.Contains(r.RoleName))
             .ToListAsync();
 
         return Json(new
@@ -210,6 +218,7 @@ public class UserController : Controller
             ["dateOfBirth"] = user.DateOfBirth?.ToString("MMM dd, yyyy"),
             ["street"] = user.Street,
             ["city"] = user.City,
+            ["barangay"] = user.Barangay,
             ["province"] = user.Province,
             ["zipCode"] = user.ZipCode,
             ["department"] = user.Department,
@@ -355,12 +364,11 @@ public class UserController : Controller
             }
 
             var roleName = role.RoleName?.Trim();
-            if (string.Equals(roleName, "Admin", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(roleName, "SuperAdmin", StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrWhiteSpace(roleName) || !AllowedLawFirmRoleNames.Contains(roleName))
             {
                 _logger.LogWarning("User creation blocked: Attempt to create user with restricted role '{Role}' by admin {AdminId}", roleName, currentUserId);
                 TempData["ToastType"] = "error";
-                TempData["ToastMessage"] = "You cannot create users with Admin or SuperAdmin roles.";
+                TempData["ToastMessage"] = "Only Staff, Lawyer, Client, and Auditor roles are allowed.";
                 return RedirectToAction("Index");
             }
 
@@ -377,6 +385,7 @@ public class UserController : Controller
                 PhoneNumber = request.PhoneNumber?.Trim(),
                 DateOfBirth = request.DateOfBirth,
                 Street = request.Street?.Trim(),
+                Barangay = request.Barangay?.Trim(),
                 City = request.City?.Trim(),
                 Province = request.Province?.Trim(),
                 ZipCode = request.ZipCode?.Trim(),
@@ -471,6 +480,7 @@ public class UserController : Controller
             user.PhoneNumber = request.PhoneNumber?.Trim();
             user.DateOfBirth = request.DateOfBirth;
             user.Street = request.Street?.Trim();
+            user.Barangay = request.Barangay?.Trim();
             user.City = request.City?.Trim();
             user.Province = request.Province?.Trim();
             user.ZipCode = request.ZipCode?.Trim();
@@ -497,11 +507,10 @@ public class UserController : Controller
                     }
 
                     var newRoleName = newRole.RoleName?.Trim();
-                    if (string.Equals(newRoleName, "Admin", StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(newRoleName, "SuperAdmin", StringComparison.OrdinalIgnoreCase))
+                    if (string.IsNullOrWhiteSpace(newRoleName) || !AllowedLawFirmRoleNames.Contains(newRoleName))
                     {
                         TempData["ToastType"] = "error";
-                        TempData["ToastMessage"] = "You cannot assign Admin or SuperAdmin roles.";
+                        TempData["ToastMessage"] = "Only Staff, Lawyer, Client, and Auditor roles are allowed.";
                         return RedirectToAction("Index");
                     }
 
@@ -788,12 +797,16 @@ public class CreateUserDto
     public int RoleId { get; set; }
 
     [MaxLength(11)]
+    [RegularExpression(@"^\d{10,11}$", ErrorMessage = "Phone number must contain only digits (10-11 digits).")]
     public string? PhoneNumber { get; set; }
 
     public DateTime? DateOfBirth { get; set; }
 
     [MaxLength(255)]
     public string? Street { get; set; }
+
+    [MaxLength(100)]
+    public string? Barangay { get; set; }
 
     [MaxLength(100)]
     public string? City { get; set; }
@@ -846,12 +859,16 @@ public class UpdateUserDto
     public int RoleId { get; set; }
 
     [MaxLength(11)]
+    [RegularExpression(@"^\d{10,11}$", ErrorMessage = "Phone number must contain only digits (10-11 digits).")]
     public string? PhoneNumber { get; set; }
 
     public DateTime? DateOfBirth { get; set; }
 
     [MaxLength(255)]
     public string? Street { get; set; }
+
+    [MaxLength(100)]
+    public string? Barangay { get; set; }
 
     [MaxLength(100)]
     public string? City { get; set; }
