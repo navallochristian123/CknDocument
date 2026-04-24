@@ -230,6 +230,28 @@ public class CreateStaffRequestDto
 
 #region Password Change DTOs
 
+public class ForgotPasswordRequestDto
+{
+    [Required(ErrorMessage = "Email is required")]
+    [EmailAddress(ErrorMessage = "Please enter a valid email address")]
+    public string Email { get; set; } = string.Empty;
+}
+
+public class ForgotPasswordResetDto
+{
+    [Required(ErrorMessage = "New password is required")]
+    [StringLength(100, MinimumLength = 12, ErrorMessage = "Password must be at least 12 characters")]
+    [DataType(DataType.Password)]
+    [Display(Name = "New Password")]
+    public string NewPassword { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Please confirm your new password")]
+    [Compare("NewPassword", ErrorMessage = "Passwords do not match")]
+    [DataType(DataType.Password)]
+    [Display(Name = "Confirm New Password")]
+    public string ConfirmNewPassword { get; set; } = string.Empty;
+}
+
 /// <summary>
 /// Change password request DTO
 /// </summary>
