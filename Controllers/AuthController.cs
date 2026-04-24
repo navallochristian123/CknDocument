@@ -23,6 +23,7 @@ namespace CKNDocument.Controllers;
 public class AuthController : Controller
 {
     private const string PendingLoginSessionKey = "Auth.PendingLogin";
+    private const string PendingPasswordResetSessionKey = "Auth.PendingPasswordReset";
     private const int OtpCodeLength = 6;
     private const int OtpExpiryMinutes = 10;
     private const int MaxOtpAttempts = 5;
@@ -113,7 +114,7 @@ public class AuthController : Controller
     [AllowAnonymous]
     public IActionResult ForgotPassword()
     {
-        return View("~/Views/Auth/ForgotPassword.cshtml");
+        return View("~/Views/Auth/ForgotPassword.cshtml", new ForgotPasswordRequestDto());
     }
 
     /// <summary>
@@ -592,10 +593,60 @@ public class AuthController : Controller
     /// API: Logout
     /// </summary>
     [HttpPost]
+    [AllowAnonymous]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ForgotPassword([FromForm] ForgotPasswordRequestDto request)
+    {
+        if (!ModelState.IsValid)
+        {
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = "Please enter a valid email address.";
+            return View("~/Views/Auth/ForgotPassword.cshtml", request);
+        }
+
+        var normalizedEmail = NormalizeEmailForOtp(request.Email);
+        if (normalizedEmail == null)
+        {
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = "Please enter a valid email address.";
+            return View("~/Views/Auth/ForgotPassword.cshtml", request);
+        }
+
+        var account = await FindPasswordResetPrincipalByEmailAsync(normalizedEmail);
+        if (account == null)
+        {
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = "The email you entered is not registered to any account.";
+            return View("~/Views/Auth/ForgotPassword.cshtml", request);
+        }
+
+        var sent = await BeginPasswordResetOtpChallengeAsync(new PendingPasswordResetContext
+        {
+            IsSuperAdmin = account.IsSuperAdmin,
+            PrincipalId = account.PrincipalId,
+            FullName = account.FullName,
+            Email = account.Email,
+            OtpVerified = false
+        });
+
+        if (!sent)
+        {
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = "Could not send verification code. Please try again.";
+            return View("~/Views/Auth/ForgotPassword.cshtml", request);
+        }
+
+        TempData["ToastType"] = "info";
+        TempData["ToastMessage"] = "A verification code has been sent to your email.";
+        return RedirectToAction("VerifyForgotPasswordOtp");
+    }
+
+    [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Logout()
     {
         ClearPendingLogin();
+        ClearPendingPasswordReset();
 
         var userEmail = User.FindFirst(ClaimTypes.Email)?.Value;
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -623,6 +674,159 @@ public class AuthController : Controller
         TempData["ToastType"] = "success";
         TempData["ToastMessage"] = "You have been logged out successfully.";
 
+        return RedirectToAction("Login");
+    }
+
+    [HttpGet]
+    [AllowAnonymous]
+    public IActionResult VerifyForgotPasswordOtp()
+    {
+        var pending = ReadPendingPasswordReset();
+        if (pending == null)
+        {
+            TempData["ToastType"] = "warning";
+            TempData["ToastMessage"] = "Your password reset session has expired. Please try again.";
+            return RedirectToAction("ForgotPassword");
+        }
+
+        ViewData["MaskedEmail"] = MaskEmail(pending.Email);
+        return View("~/Views/Auth/VerifyForgotPasswordOtp.cshtml");
+    }
+
+    [HttpPost]
+    [AllowAnonymous]
+    [ValidateAntiForgeryToken]
+    public IActionResult VerifyForgotPasswordOtp([FromForm] string otpCode)
+    {
+        var pending = ReadPendingPasswordReset();
+        if (pending == null)
+        {
+            TempData["ToastType"] = "warning";
+            TempData["ToastMessage"] = "Your password reset session has expired. Please try again.";
+            return RedirectToAction("ForgotPassword");
+        }
+
+        if (pending.OtpExpiresAtUtc <= DateTime.UtcNow)
+        {
+            ClearPendingPasswordReset();
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = "Verification code expired. Please request a new one.";
+            return RedirectToAction("ForgotPassword");
+        }
+
+        if (string.IsNullOrWhiteSpace(otpCode))
+        {
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = "Please enter the verification code.";
+            ViewData["MaskedEmail"] = MaskEmail(pending.Email);
+            return View("~/Views/Auth/VerifyForgotPasswordOtp.cshtml");
+        }
+
+        var providedCodeHash = ComputeSha256Hex(otpCode.Trim());
+        if (!FixedTimeEquals(providedCodeHash, pending.OtpHash))
+        {
+            pending.OtpAttempts += 1;
+            if (pending.OtpAttempts >= MaxOtpAttempts)
+            {
+                ClearPendingPasswordReset();
+                TempData["ToastType"] = "error";
+                TempData["ToastMessage"] = "Too many invalid attempts. Please restart the reset process.";
+                return RedirectToAction("ForgotPassword");
+            }
+
+            WritePendingPasswordReset(pending);
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = $"Invalid code. {MaxOtpAttempts - pending.OtpAttempts} attempts remaining.";
+            ViewData["MaskedEmail"] = MaskEmail(pending.Email);
+            return View("~/Views/Auth/VerifyForgotPasswordOtp.cshtml");
+        }
+
+        pending.OtpVerified = true;
+        WritePendingPasswordReset(pending);
+
+        TempData["ToastType"] = "success";
+        TempData["ToastMessage"] = "Verification successful. You can now set a new password.";
+        return RedirectToAction("ResetPassword");
+    }
+
+    [HttpPost]
+    [AllowAnonymous]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResendForgotPasswordOtp()
+    {
+        var pending = ReadPendingPasswordReset();
+        if (pending == null)
+        {
+            TempData["ToastType"] = "warning";
+            TempData["ToastMessage"] = "Your password reset session has expired. Please try again.";
+            return RedirectToAction("ForgotPassword");
+        }
+
+        var sent = await RefreshPasswordResetOtpAndSendAsync(pending);
+        if (!sent)
+        {
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = "Could not resend verification code. Please try again.";
+        }
+        else
+        {
+            TempData["ToastType"] = "info";
+            TempData["ToastMessage"] = "A new verification code has been sent to your email.";
+        }
+
+        return RedirectToAction("VerifyForgotPasswordOtp");
+    }
+
+    [HttpGet]
+    [AllowAnonymous]
+    public IActionResult ResetPassword()
+    {
+        var pending = ReadPendingPasswordReset();
+        if (pending == null || !pending.OtpVerified)
+        {
+            TempData["ToastType"] = "warning";
+            TempData["ToastMessage"] = "Please verify your reset code first.";
+            return RedirectToAction("ForgotPassword");
+        }
+
+        ViewData["MaskedEmail"] = MaskEmail(pending.Email);
+        return View("~/Views/Auth/ResetPassword.cshtml", new ForgotPasswordResetDto());
+    }
+
+    [HttpPost]
+    [AllowAnonymous]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResetPassword([FromForm] ForgotPasswordResetDto request)
+    {
+        var pending = ReadPendingPasswordReset();
+        if (pending == null || !pending.OtpVerified)
+        {
+            TempData["ToastType"] = "warning";
+            TempData["ToastMessage"] = "Please verify your reset code first.";
+            return RedirectToAction("ForgotPassword");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            ViewData["MaskedEmail"] = MaskEmail(pending.Email);
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = "Please correct the validation errors and try again.";
+            return View("~/Views/Auth/ResetPassword.cshtml", request);
+        }
+
+        var passwordHash = PasswordHelper.HashPassword(request.NewPassword);
+        var updated = await UpdatePrincipalPasswordAsync(pending, passwordHash);
+        if (!updated)
+        {
+            ClearPendingPasswordReset();
+            TempData["ToastType"] = "error";
+            TempData["ToastMessage"] = "Account not found or inactive. Please contact support.";
+            return RedirectToAction("ForgotPassword");
+        }
+
+        ClearPendingPasswordReset();
+        TempData["ToastType"] = "success";
+        TempData["ToastMessage"] = "Password reset successful. You can now log in with your new password.";
         return RedirectToAction("Login");
     }
 
@@ -1049,6 +1253,130 @@ public class AuthController : Controller
         return true;
     }
 
+    private async Task<bool> BeginPasswordResetOtpChallengeAsync(PendingPasswordResetContext pending)
+    {
+        var normalizedEmail = NormalizeEmailForOtp(pending.Email);
+        if (normalizedEmail == null)
+        {
+            _logger.LogWarning("Cannot start forgot-password OTP challenge: invalid email for principal {PrincipalId}", pending.PrincipalId);
+            return false;
+        }
+
+        pending.Email = normalizedEmail;
+
+        var code = GenerateOtpCode();
+        pending.OtpHash = ComputeSha256Hex(code);
+        pending.OtpExpiresAtUtc = DateTime.UtcNow.AddMinutes(OtpExpiryMinutes);
+        pending.OtpAttempts = 0;
+        pending.OtpVerified = false;
+
+        var sent = await _smtpEmailService.SendPasswordResetOtpAsync(pending.Email, pending.FullName, code, OtpExpiryMinutes);
+        if (!sent)
+        {
+            return false;
+        }
+
+        WritePendingPasswordReset(pending);
+        return true;
+    }
+
+    private async Task<bool> RefreshPasswordResetOtpAndSendAsync(PendingPasswordResetContext pending)
+    {
+        var normalizedEmail = NormalizeEmailForOtp(pending.Email);
+        if (normalizedEmail == null)
+        {
+            _logger.LogWarning("Cannot refresh forgot-password OTP challenge: invalid email for principal {PrincipalId}", pending.PrincipalId);
+            return false;
+        }
+
+        pending.Email = normalizedEmail;
+
+        var code = GenerateOtpCode();
+        pending.OtpHash = ComputeSha256Hex(code);
+        pending.OtpExpiresAtUtc = DateTime.UtcNow.AddMinutes(OtpExpiryMinutes);
+        pending.OtpAttempts = 0;
+        pending.OtpVerified = false;
+
+        var sent = await _smtpEmailService.SendPasswordResetOtpAsync(pending.Email, pending.FullName, code, OtpExpiryMinutes);
+        if (!sent)
+        {
+            return false;
+        }
+
+        WritePendingPasswordReset(pending);
+        return true;
+    }
+
+    private async Task<PasswordResetPrincipal?> FindPasswordResetPrincipalByEmailAsync(string normalizedEmail)
+    {
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u =>
+                u.Email != null &&
+                u.Email.ToLower() == normalizedEmail.ToLower() &&
+                u.Status == "Active");
+
+        if (user != null)
+        {
+            return new PasswordResetPrincipal
+            {
+                IsSuperAdmin = false,
+                PrincipalId = user.UserID,
+                FullName = user.FullName,
+                Email = user.Email ?? normalizedEmail
+            };
+        }
+
+        var superAdmin = await _context.SuperAdmins
+            .FirstOrDefaultAsync(s =>
+                s.Email.ToLower() == normalizedEmail.ToLower() &&
+                s.Status == "Active");
+
+        if (superAdmin != null)
+        {
+            return new PasswordResetPrincipal
+            {
+                IsSuperAdmin = true,
+                PrincipalId = superAdmin.SuperAdminId,
+                FullName = superAdmin.FullName,
+                Email = superAdmin.Email
+            };
+        }
+
+        return null;
+    }
+
+    private async Task<bool> UpdatePrincipalPasswordAsync(PendingPasswordResetContext pending, string passwordHash)
+    {
+        if (pending.IsSuperAdmin)
+        {
+            var superAdmin = await _context.SuperAdmins
+                .FirstOrDefaultAsync(s => s.SuperAdminId == pending.PrincipalId && s.Status == "Active");
+
+            if (superAdmin == null)
+            {
+                return false;
+            }
+
+            superAdmin.PasswordHash = passwordHash;
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.UserID == pending.PrincipalId && u.Status == "Active");
+
+        if (user == null)
+        {
+            return false;
+        }
+
+        user.PasswordHash = passwordHash;
+        user.FailedLoginAttempts = 0;
+        user.LockoutEnd = null;
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
     private async Task FinalizeSuccessfulLoginAsync(PendingLoginContext pending)
     {
         await SignInUser(
@@ -1169,6 +1497,35 @@ public class AuthController : Controller
         HttpContext.Session.Remove(PendingLoginSessionKey);
     }
 
+    private void WritePendingPasswordReset(PendingPasswordResetContext pending)
+    {
+        var payload = JsonSerializer.Serialize(pending);
+        HttpContext.Session.SetString(PendingPasswordResetSessionKey, payload);
+    }
+
+    private PendingPasswordResetContext? ReadPendingPasswordReset()
+    {
+        var payload = HttpContext.Session.GetString(PendingPasswordResetSessionKey);
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<PendingPasswordResetContext>(payload);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private void ClearPendingPasswordReset()
+    {
+        HttpContext.Session.Remove(PendingPasswordResetSessionKey);
+    }
+
     private string MaskEmail(string email)
     {
         if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
@@ -1207,6 +1564,26 @@ public class AuthController : Controller
         public string OtpHash { get; set; } = string.Empty;
         public DateTime OtpExpiresAtUtc { get; set; }
         public int OtpAttempts { get; set; }
+    }
+
+    private class PendingPasswordResetContext
+    {
+        public bool IsSuperAdmin { get; set; }
+        public int PrincipalId { get; set; }
+        public string FullName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string OtpHash { get; set; } = string.Empty;
+        public DateTime OtpExpiresAtUtc { get; set; }
+        public int OtpAttempts { get; set; }
+        public bool OtpVerified { get; set; }
+    }
+
+    private class PasswordResetPrincipal
+    {
+        public bool IsSuperAdmin { get; set; }
+        public int PrincipalId { get; set; }
+        public string FullName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
     }
 
     /// <summary>
