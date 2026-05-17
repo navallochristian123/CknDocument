@@ -10,3 +10,6 @@ obj/
 .env
 .env.*
 !.env.example
+env
+env.development
+sonar-project.properties
