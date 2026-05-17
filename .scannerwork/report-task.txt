@@ -1,0 +1,6 @@
+projectKey=CknDocument
+serverUrl=http://localhost:9000
+serverVersion=26.5.0.122743
+dashboardUrl=http://localhost:9000/dashboard?id=CknDocument
+ceTaskId=34b50216-619d-4abb-bed1-5df6a0b8d94b
+ceTaskUrl=http://localhost:9000/api/ce/task?id=34b50216-619d-4abb-bed1-5df6a0b8d94b
