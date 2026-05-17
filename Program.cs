@@ -14,18 +14,34 @@ var builder = WebApplication.CreateBuilder(args);
 // ===========================================
 // ENVIRONMENT VARIABLES (.env support + OS env fallback)
 // ===========================================
-var envPath = Path.Combine(builder.Environment.ContentRootPath, ".env");
-if (File.Exists(envPath))
+var envCandidates = new List<string>
 {
-    Env.Load(envPath);
+    Path.Combine(builder.Environment.ContentRootPath, ".env"),
+    Path.Combine(builder.Environment.ContentRootPath, "env")
+};
+
+foreach (var candidate in envCandidates)
+{
+    if (File.Exists(candidate))
+    {
+        Env.Load(candidate);
+    }
 }
 
 if (builder.Environment.IsDevelopment())
 {
-    var envDevPath = Path.Combine(builder.Environment.ContentRootPath, ".env.development");
-    if (File.Exists(envDevPath))
+    var envDevCandidates = new List<string>
     {
-        Env.Load(envDevPath);
+        Path.Combine(builder.Environment.ContentRootPath, ".env.development"),
+        Path.Combine(builder.Environment.ContentRootPath, "env.development")
+    };
+
+    foreach (var candidate in envDevCandidates)
+    {
+        if (File.Exists(candidate))
+        {
+            Env.Load(candidate);
+        }
     }
 }
 
